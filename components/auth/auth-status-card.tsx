@@ -1,5 +1,6 @@
 "use client";
 
+import { LogIn, LogOut, User } from "lucide-react";
 import { useFirebase } from "@/context/firebase-context";
 
 type AuthStatusCardProps = {
@@ -11,50 +12,57 @@ export function AuthStatusCard({ compact = false }: AuthStatusCardProps) {
     useFirebase();
 
   const isSignedIn = Boolean(user);
-  const sessionLabel = isLoading
-    ? "Checking session..."
-    : isSignedIn
-      ? user?.email
-      : "Guest mode";
-  const actionLabel = isLoading ? "Checking..." : isSignedIn ? "Sign out" : "Sign in";
+
+  if (compact) {
+    return (
+      <button
+        type="button"
+        onClick={isSignedIn ? signOutUser : signInWithGoogle}
+        disabled={isLoading || (!isConfigured && !isSignedIn)}
+        className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-xs font-medium text-slate-300 hover:border-slate-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {isSignedIn ? (
+          <LogOut className="h-3.5 w-3.5 text-slate-400" />
+        ) : (
+          <LogIn className="h-3.5 w-3.5 text-slate-400" />
+        )}
+        {isLoading ? "…" : isSignedIn ? "Sign out" : "Sign in"}
+      </button>
+    );
+  }
 
   return (
-    <div
-      className={
-        compact
-          ? "rounded-3xl border border-white/10 bg-slate-900/70 p-3"
-          : "rounded-3xl border border-white/10 bg-slate-900/70 p-4"
-      }
-    >
-      <p className="font-mono text-[11px] uppercase tracking-[0.24em] text-slate-400">
-        Auth Channel
-      </p>
-      <div
-        className={
-          compact
-            ? "mt-3 flex flex-col gap-3"
-            : "mt-3 flex flex-col items-start gap-3"
-        }
-      >
-        <div>
-          <p className="break-all text-sm font-semibold text-slate-100">
-            {sessionLabel}
-          </p>
-          <p className="mt-1 text-xs text-slate-400">
-            {isConfigured
-              ? "Firebase Auth online"
-              : "Add NEXT_PUBLIC_FIREBASE_* variables to enable Google sign-in"}
-          </p>
+    <div className="rounded-xl p-2">
+      {isSignedIn ? (
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-500/20 ring-1 ring-indigo-400/30">
+            <User className="h-4 w-4 text-indigo-300" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-medium text-slate-100">{user?.email}</p>
+            <p className="text-[11px] text-slate-500">Signed in</p>
+          </div>
+          <button
+            type="button"
+            onClick={signOutUser}
+            disabled={isLoading}
+            className="shrink-0 rounded-lg p-1.5 text-slate-500 hover:bg-slate-800 hover:text-slate-300 disabled:opacity-50"
+            title="Sign out"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+          </button>
         </div>
+      ) : (
         <button
           type="button"
-          onClick={isSignedIn ? signOutUser : signInWithGoogle}
-          disabled={isLoading || (!isConfigured && !isSignedIn)}
-          className="w-full rounded-full border border-indigo-400/40 bg-indigo-500/10 px-4 py-2 text-sm font-medium text-indigo-100 hover:border-indigo-300 hover:bg-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={signInWithGoogle}
+          disabled={isLoading || !isConfigured}
+          className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2.5 text-sm text-slate-300 hover:border-slate-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {actionLabel}
+          <LogIn className="h-4 w-4 text-slate-400" />
+          <span>{isLoading ? "Checking session…" : "Sign in with Google"}</span>
         </button>
-      </div>
+      )}
     </div>
   );
 }

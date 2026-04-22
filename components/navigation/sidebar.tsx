@@ -2,70 +2,101 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import {
+  LayoutDashboard,
+  Brain,
+  BookOpen,
+  Newspaper,
+  Target,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
 import { AuthStatusCard } from "@/components/auth/auth-status-card";
 import { navigationItems } from "@/components/navigation/navigation-items";
 import { cn } from "@/lib/utils";
+
+const iconMap: Record<string, LucideIcon> = {
+  LayoutDashboard,
+  Brain,
+  BookOpen,
+  Newspaper,
+  Target,
+};
 
 export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden w-72 shrink-0 flex-col rounded-[28px] border border-white/10 bg-slate-950/80 p-6 shadow-2xl shadow-black/30 backdrop-blur lg:flex">
-      <div className="rounded-3xl border border-indigo-400/20 bg-indigo-500/10 p-5">
-        <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-indigo-300">
-          The ML Edge
-        </p>
-        <h1 className="mt-3 text-2xl font-semibold text-white">
-          Engineer&apos;s Console
-        </h1>
-        <p className="mt-2 text-sm leading-6 text-slate-300">
-          Gemini operates as the course assistant: summarize, quiz, repeat.
-        </p>
+    <aside className="hidden w-64 shrink-0 flex-col lg:flex">
+      {/* Logo */}
+      <div className="flex items-center gap-3 px-2 py-4">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-500/20 ring-1 ring-indigo-400/30">
+          <Zap className="h-5 w-5 text-indigo-300" strokeWidth={2} />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-white">The ML Edge</p>
+          <p className="text-[11px] text-slate-400">Engineer's console</p>
+        </div>
       </div>
 
-      <nav className="mt-6 space-y-2">
+      {/* Nav */}
+      <nav className="mt-2 space-y-0.5">
         {navigationItems.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive =
+            item.href === "/dashboard"
+              ? pathname === item.href || pathname === "/"
+              : pathname.startsWith(item.href);
+          const Icon = iconMap[item.icon];
 
           return (
             <Link
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center justify-between rounded-2xl border px-4 py-3 text-sm",
+                "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
                 isActive
-                  ? "border-indigo-400/50 bg-indigo-500/15 text-white"
-                  : "border-white/8 bg-slate-900/60 text-slate-300 hover:border-slate-600 hover:text-white",
+                  ? "bg-indigo-500/15 text-white"
+                  : "text-slate-400 hover:bg-slate-800/60 hover:text-slate-100",
               )}
             >
-              <span>{item.label}</span>
-              <span className="font-mono text-xs text-slate-400">{item.code}</span>
+              <Icon
+                className={cn(
+                  "h-4 w-4 shrink-0 transition-colors",
+                  isActive ? "text-indigo-300" : "text-slate-500 group-hover:text-slate-300",
+                )}
+                strokeWidth={isActive ? 2.2 : 1.8}
+              />
+              {item.label}
+              {isActive && (
+                <span className="ml-auto h-1.5 w-1.5 rounded-full bg-indigo-400" />
+              )}
             </Link>
           );
         })}
       </nav>
 
-      <div className="mt-6 rounded-3xl border border-white/10 bg-slate-900/60 p-4">
-        <p className="font-mono text-[11px] uppercase tracking-[0.24em] text-slate-400">
-          Pipeline
-        </p>
-        <div className="mt-3 space-y-3 text-sm text-slate-300">
-          <div className="flex items-center justify-between">
-            <span>NewsAPI ingest</span>
-            <span className="font-mono text-emerald-300">READY</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span>Gemini tutor</span>
-            <span className="font-mono text-indigo-300">FLASH</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span>Cloud scheduler</span>
-            <span className="font-mono text-amber-300">DAILY</span>
-          </div>
+      {/* Daily context card — fills gap between nav and auth */}
+      <div className="mt-auto mb-4 mx-1 rounded-xl border border-white/6 bg-slate-900/40 p-3.5">
+        <div className="flex items-center gap-2">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+          <p className="text-[11px] font-medium uppercase tracking-[0.15em] text-slate-500">
+            Daily signal
+          </p>
         </div>
+        <p className="mt-2 text-[11px] leading-5 text-slate-400">
+          New quiz questions drop every morning. Keep your streak alive.
+        </p>
+        <Link
+          href="/quiz"
+          className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-medium text-indigo-300 hover:text-indigo-200 transition-colors"
+        >
+          Start today&apos;s quiz
+          <span className="text-slate-500">→</span>
+        </Link>
       </div>
 
-      <div className="mt-6">
+      {/* Auth */}
+      <div className="border-t border-white/8 pt-4">
         <AuthStatusCard />
       </div>
     </aside>

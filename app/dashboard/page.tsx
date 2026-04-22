@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Brain, BookOpen, Zap, ArrowRight, Newspaper, Target, ExternalLink, CalendarDays } from "lucide-react";
 import { Panel } from "@/components/ui/panel";
 import { getCurriculum, getDailyContent } from "@/lib/content";
 
@@ -10,103 +11,165 @@ export default async function DashboardPage() {
     getCurriculum(),
   ]);
 
-  const stats = [
-    {
-      label: "Today's Quiz",
-      value: `${dailyContent.quiz.questions.length} prompts`,
-      detail: "Generated from the daily deep dive",
-    },
-    {
-      label: "Curriculum Modules",
-      value: `${curriculum.length}`,
-      detail: "Beginner and advanced tracks",
-    },
-    {
-      label: "Pipeline Status",
-      value: dailyContent.status.toUpperCase(),
-      detail:
-        dailyContent.status === "generated"
-          ? "Fresh content loaded from Firestore"
-          : "Seeded content until the cron pipeline runs",
-    },
-  ];
+  const isLive = dailyContent.status === "generated";
+  const dateLabel = new Date(dailyContent.date).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 
   return (
-    <div className="console-grid min-h-full overflow-y-auto p-6 sm:p-8">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <Panel className="overflow-hidden">
-          <div className="grid gap-6 lg:grid-cols-[1.6fr_0.9fr]">
+    <div className="console-grid min-h-full overflow-y-auto p-4 sm:p-6 lg:p-8">
+      <div className="mx-auto max-w-6xl space-y-5">
+
+        {/* Hero */}
+        <div className="overflow-hidden rounded-2xl border border-white/8 bg-gradient-to-br from-slate-900/80 via-slate-900/60 to-indigo-950/40 p-6 sm:p-8">
+          <div className="grid gap-8 lg:grid-cols-[1.5fr_1fr]">
             <div>
-              <p className="font-mono text-xs uppercase tracking-[0.3em] text-indigo-300">
-                Daily briefing
-              </p>
-              <h1 className="mt-4 max-w-3xl text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-                The ML Edge turns AI news into a disciplined learning loop.
+              <div className="inline-flex items-center gap-2 rounded-full border border-indigo-400/20 bg-indigo-500/10 px-3 py-1 text-xs font-medium text-indigo-300">
+                <CalendarDays className="h-3 w-3" />
+                {isLive ? dateLabel : "Daily briefing"}
+              </div>
+              <h1 className="mt-4 text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+                Turn today&apos;s AI news into{" "}
+                <span className="bg-gradient-to-r from-indigo-300 via-violet-300 to-sky-300 bg-clip-text text-transparent">
+                  a learning edge.
+                </span>
               </h1>
-              <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300">
-                Read the signal, internalize the tradeoffs, complete the quiz, and
-                keep your Master&apos;s pipeline moving every day.
+              <p className="mt-4 max-w-xl text-base leading-7 text-slate-400">
+                Read the signal, internalize the tradeoffs, complete the quiz, and keep
+                your understanding sharp every day.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
                   href="/quiz"
-                  className="rounded-full border border-indigo-400/40 bg-indigo-500/15 px-5 py-3 text-sm font-semibold text-indigo-50 hover:border-indigo-300 hover:bg-indigo-500/25"
+                  className="inline-flex items-center gap-2 rounded-xl bg-indigo-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition-colors hover:bg-indigo-400"
                 >
+                  <Brain className="h-4 w-4" />
                   Run today&apos;s quiz
                 </Link>
                 <Link
                   href="/news"
-                  className="rounded-full border border-white/10 px-5 py-3 text-sm font-semibold text-slate-200 hover:border-slate-500 hover:bg-slate-800/80"
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-800/60 px-5 py-2.5 text-sm font-semibold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800"
                 >
+                  <Newspaper className="h-4 w-4 text-slate-400" />
                   Inspect the news feed
                 </Link>
               </div>
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-5">
-              <p className="font-mono text-[11px] uppercase tracking-[0.24em] text-slate-400">
-                Live headline
-              </p>
-              <h2 className="mt-4 text-xl font-semibold text-slate-50">
+            {/* Live headline */}
+            <div className="rounded-xl border border-white/8 bg-slate-950/50 p-5">
+              <div className="flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-slate-400">
+                  Today&apos;s signal
+                </p>
+              </div>
+              <h2 className="mt-3 text-base font-semibold leading-7 text-slate-100">
                 {dailyContent.headline}
               </h2>
-              <p className="mt-4 text-sm leading-6 text-slate-300">
+              <p className="mt-3 text-sm leading-6 text-slate-400">
                 {dailyContent.technicalSummary}
               </p>
             </div>
           </div>
-        </Panel>
-
-        <div className="grid gap-4 md:grid-cols-3">
-          {stats.map((stat) => (
-            <Panel key={stat.label}>
-              <p className="font-mono text-[11px] uppercase tracking-[0.24em] text-slate-400">
-                {stat.label}
-              </p>
-              <p className="mt-3 text-3xl font-semibold text-white">{stat.value}</p>
-              <p className="mt-2 text-sm text-slate-400">{stat.detail}</p>
-            </Panel>
-          ))}
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-          <Panel eyebrow="Gemini course assistant" title="Why this lesson matters">
-            <p className="text-sm leading-7 text-slate-300">
-              {dailyContent.technicalSummary}
+        {/* Stats row */}
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Link href="/quiz" className="group rounded-xl border border-white/8 bg-slate-900/50 p-4 transition-colors hover:border-indigo-400/30 hover:bg-slate-900/80">
+            <div className="flex items-start justify-between">
+              <div className="rounded-lg bg-indigo-500/15 p-2">
+                <Brain className="h-4 w-4 text-indigo-300" />
+              </div>
+              <ArrowRight className="h-4 w-4 text-slate-600 transition-colors group-hover:text-slate-400" />
+            </div>
+            <p className="mt-3 text-2xl font-bold text-white">
+              {dailyContent.quiz.questions.length}
             </p>
+            <p className="mt-0.5 text-sm font-medium text-slate-300">Quiz questions</p>
+            <p className="mt-1 text-xs text-slate-500">From today&apos;s deep dive</p>
+          </Link>
+
+          <Link href="/curriculum" className="group rounded-xl border border-white/8 bg-slate-900/50 p-4 transition-colors hover:border-violet-400/30 hover:bg-slate-900/80">
+            <div className="flex items-start justify-between">
+              <div className="rounded-lg bg-violet-500/15 p-2">
+                <BookOpen className="h-4 w-4 text-violet-300" />
+              </div>
+              <ArrowRight className="h-4 w-4 text-slate-600 transition-colors group-hover:text-slate-400" />
+            </div>
+            <p className="mt-3 text-2xl font-bold text-white">{curriculum.length}</p>
+            <p className="mt-0.5 text-sm font-medium text-slate-300">Curriculum modules</p>
+            <p className="mt-1 text-xs text-slate-500">Beginner and advanced tracks</p>
+          </Link>
+
+          <Link href="/practice" className="group rounded-xl border border-white/8 bg-slate-900/50 p-4 transition-colors hover:border-emerald-400/30 hover:bg-slate-900/80">
+            <div className="flex items-start justify-between">
+              <div className="rounded-lg bg-emerald-500/15 p-2">
+                <Target className="h-4 w-4 text-emerald-300" />
+              </div>
+              <ArrowRight className="h-4 w-4 text-slate-600 transition-colors group-hover:text-slate-400" />
+            </div>
+            <p className="mt-3 text-2xl font-bold text-white">3×</p>
+            <p className="mt-0.5 text-sm font-medium text-slate-300">New today</p>
+            <p className="mt-1 text-xs text-slate-500">Questions added to practice bank</p>
+          </Link>
+        </div>
+
+        {/* Bottom row */}
+        <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+          {/* Source articles */}
+          <Panel eyebrow="Today's sources" title="What fed the deep dive">
+            <div className="space-y-2">
+              {dailyContent.sourceArticles.length > 0 ? (
+                dailyContent.sourceArticles.slice(0, 4).map((article) => (
+                  <a
+                    key={article.url}
+                    href={article.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group flex items-start gap-3 rounded-xl border border-white/8 bg-slate-900/50 p-3.5 text-sm transition-colors hover:border-indigo-400/20"
+                  >
+                    <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-600 transition-colors group-hover:text-indigo-300" />
+                    <div className="min-w-0">
+                      <p className="font-medium leading-6 text-slate-200 group-hover:text-white">
+                        {article.title}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">{article.source}</p>
+                    </div>
+                  </a>
+                ))
+              ) : (
+                <p className="text-sm text-slate-500">Source articles will appear here after the daily cron runs.</p>
+              )}
+            </div>
           </Panel>
 
-          <Panel eyebrow="Immediate next steps" title="Console actions">
-            <div className="space-y-4 text-sm text-slate-300">
-              <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
-                Review the daily deep dive, then switch to the quiz tab to turn
-                passive reading into retrieval practice.
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
-                Browse the curriculum map to decide whether today supports core
-                foundations or an advanced systems topic.
-              </div>
+          <Panel eyebrow="Suggested actions" title="Where to start">
+            <div className="space-y-3">
+              <Link
+                href="/quiz"
+                className="flex items-start gap-3 rounded-xl border border-white/8 bg-slate-900/50 p-4 text-sm text-slate-300 transition-colors hover:border-indigo-400/20 hover:text-slate-100"
+              >
+                <Brain className="mt-0.5 h-4 w-4 shrink-0 text-indigo-300" />
+                <span>
+                  Review the deep dive, then hit the quiz to turn reading into
+                  retrieval practice.
+                </span>
+              </Link>
+              <Link
+                href="/curriculum"
+                className="flex items-start gap-3 rounded-xl border border-white/8 bg-slate-900/50 p-4 text-sm text-slate-300 transition-colors hover:border-violet-400/20 hover:text-slate-100"
+              >
+                <Zap className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
+                <span>
+                  Browse the curriculum to find a lesson that aligns with
+                  today&apos;s signal.
+                </span>
+              </Link>
             </div>
           </Panel>
         </div>

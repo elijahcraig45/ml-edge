@@ -1,7 +1,7 @@
 export const navigationItems = [
-  { href: "/dashboard", label: "Dashboard", code: "01" },
-  { href: "/quiz", label: "Quiz", code: "02" },
-  { href: "/curriculum", label: "Curriculum", code: "03" },
-  { href: "/news", label: "News", code: "04" },
-  { href: "/practice", label: "Practice", code: "05" },
-];
+  { href: "/dashboard", label: "Dashboard", icon: "LayoutDashboard" },
+  { href: "/quiz", label: "Quiz", icon: "Brain" },
+  { href: "/curriculum", label: "Curriculum", icon: "BookOpen" },
+  { href: "/news", label: "News", icon: "Newspaper" },
+  { href: "/practice", label: "Practice", icon: "Target" },
+] as const;
