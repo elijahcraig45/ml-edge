@@ -9,6 +9,7 @@ import {
   Newspaper,
   Target,
   Zap,
+  Radio,
   type LucideIcon,
 } from "lucide-react";
 import { AuthStatusCard } from "@/components/auth/auth-status-card";
@@ -21,6 +22,7 @@ const iconMap: Record<string, LucideIcon> = {
   BookOpen,
   Newspaper,
   Target,
+  Radio,
 };
 
 export function Sidebar() {

@@ -839,6 +839,28 @@ export async function getDailyContent(date = getDateKey()) {
   return normalizeDailyContent(snapshot.data() ?? {}, date);
 }
 
+export async function getSignalHistory(limit = 30): Promise<DailyContentDocument[]> {
+  const db = getAdminFirestore();
+
+  if (!db) {
+    return [{ ...FALLBACK_DAILY_CONTENT }];
+  }
+
+  const snapshot = await db
+    .collection("daily_content")
+    .orderBy("date", "desc")
+    .limit(limit)
+    .get();
+
+  if (snapshot.empty) {
+    return [{ ...FALLBACK_DAILY_CONTENT }];
+  }
+
+  return snapshot.docs.map((doc) =>
+    normalizeDailyContent(doc.data() as Record<string, unknown>, doc.id),
+  );
+}
+
 export async function getCurriculumExperience() {
   const db = getAdminFirestore();
 

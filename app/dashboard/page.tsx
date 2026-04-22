@@ -71,9 +71,16 @@ export default async function DashboardPage() {
               <h2 className="mt-3 text-base font-semibold leading-7 text-slate-100">
                 {dailyContent.headline}
               </h2>
-              <p className="mt-3 text-sm leading-6 text-slate-400">
+              <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-400">
                 {dailyContent.technicalSummary}
               </p>
+              <Link
+                href={`/signal/${dailyContent.date}`}
+                className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-indigo-400 transition-colors hover:text-indigo-300"
+              >
+                Read full signal
+                <ArrowRight className="h-3 w-3" />
+              </Link>
             </div>
           </div>
         </div>
