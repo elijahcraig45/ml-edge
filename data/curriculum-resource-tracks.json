@@ -1,0 +1,205 @@
+[
+  {
+    "courseId": "course-math-science-foundations",
+    "title": "Math and science foundation flow",
+    "description": "Build the mathematical and probabilistic base required to understand modern ML with rigor rather than pattern matching.",
+    "stages": [
+      {
+        "id": "math-stage-1",
+        "title": "Linear algebra and calculus for model mechanics",
+        "objective": "Learn the vector, matrix, and gradient concepts behind representation learning and optimization.",
+        "resourceIds": ["mit-ocw-linear-algebra", "mit-ocw-multivariable-calculus"],
+        "feedbackLoop": "After each study block, derive one update rule or matrix identity from memory and connect it to a model component."
+      },
+      {
+        "id": "math-stage-2",
+        "title": "Probability, statistics, and optimization",
+        "objective": "Build the scientific language used to reason about uncertainty, generalization, and learning objectives.",
+        "resourceIds": ["mit-ocw-probability-statistics", "mit-ocw-optimization"],
+        "feedbackLoop": "End each unit by writing a short note explaining how the math shows up in evaluation, fitting, or experimental design."
+      }
+    ]
+  },
+  {
+    "courseId": "course-scientific-computing-data-systems",
+    "title": "Scientific computing and data systems flow",
+    "description": "Learn the practical computing substrate that makes MLE work repeatable and production-ready.",
+    "stages": [
+      {
+        "id": "compute-stage-1",
+        "title": "Python ML tooling and classical pipelines",
+        "objective": "Master preprocessing, pipeline composition, evaluation, and experiment hygiene for structured data.",
+        "resourceIds": ["scikit-learn-guide", "mlflow-docs"],
+        "feedbackLoop": "For every pipeline you build, record assumptions, leakage risks, ablations, and reproducibility details."
+      },
+      {
+        "id": "compute-stage-2",
+        "title": "Model training and orchestration infrastructure",
+        "objective": "Understand the runtime side of modern ML systems from training loops to workflow orchestration.",
+        "resourceIds": ["pytorch-tutorials", "kubeflow-docs"],
+        "feedbackLoop": "After each systems exercise, write the failure mode you would monitor first in production."
+      }
+    ]
+  },
+  {
+    "courseId": "course-ml-101",
+    "title": "ML 101 source flow",
+    "description": "Move from quantitative basics into disciplined machine learning habits.",
+    "stages": [
+      {
+        "id": "ml101-stage-1",
+        "title": "Ground the mechanics first",
+        "objective": "Use math and statistics to understand why baseline models behave the way they do.",
+        "resourceIds": ["mit-ocw-linear-algebra", "mit-ocw-probability-statistics", "scikit-learn-guide"],
+        "feedbackLoop": "Re-explain every baseline result as a consequence of assumptions, not just leaderboard score."
+      },
+      {
+        "id": "ml101-stage-2",
+        "title": "Practice evaluation and reproducibility",
+        "objective": "Treat problem framing, splits, and metrics as the heart of the discipline.",
+        "resourceIds": ["scikit-learn-guide", "mlflow-docs"],
+        "feedbackLoop": "Keep a running error-analysis log and rewrite your experiment plan after every failure pattern you discover."
+      }
+    ]
+  },
+  {
+    "courseId": "course-history-ai-ml",
+    "title": "History and context flow",
+    "description": "Use open course materials as anchors for how the field moved from symbolic thinking to representation-heavy systems.",
+    "stages": [
+      {
+        "id": "history-stage-1",
+        "title": "Compare scientific eras through actual course material",
+        "objective": "Read the field through its mathematical and implementation demands, not just hype cycles.",
+        "resourceIds": ["mit-ocw-probability-statistics", "d2l"],
+        "feedbackLoop": "After each milestone, write one critique explaining which historical weakness still survives in modern AI systems."
+      }
+    ]
+  },
+  {
+    "courseId": "course-classical-ml",
+    "title": "Classical ML source flow",
+    "description": "Build the baseline modeling toolkit every strong ML engineer should command before overusing deep learning.",
+    "stages": [
+      {
+        "id": "classical-stage-1",
+        "title": "Master structured prediction and evaluation",
+        "objective": "Learn model selection, preprocessing, calibration, and feature pipelines for real tabular and sparse problems.",
+        "resourceIds": ["scikit-learn-guide", "mit-ocw-probability-statistics"],
+        "feedbackLoop": "Maintain a baseline ledger that explains why each stronger model earns its additional complexity."
+      }
+    ]
+  },
+  {
+    "courseId": "course-statistical-inference",
+    "title": "Statistical inference and probabilistic modeling flow",
+    "description": "Strengthen the science side of ML through inference, uncertainty, and probabilistic reasoning.",
+    "stages": [
+      {
+        "id": "stats-stage-1",
+        "title": "Inference, uncertainty, and experiments",
+        "objective": "Understand confidence, posterior reasoning, and why evaluation is a scientific act as much as an engineering one.",
+        "resourceIds": ["mit-ocw-probability-statistics", "mit-ocw-optimization"],
+        "feedbackLoop": "After every statistical exercise, write what conclusion is justified, what is not, and what additional evidence you still need."
+      }
+    ]
+  },
+  {
+    "courseId": "course-deep-learning",
+    "title": "Deep learning source flow",
+    "description": "Bridge theory, code, and architecture using openly licensed deep learning materials.",
+    "stages": [
+      {
+        "id": "dl-stage-1",
+        "title": "Learn deep learning with code and derivations",
+        "objective": "Combine a broad open textbook with concrete framework tutorials so theory stays attached to implementation.",
+        "resourceIds": ["d2l", "pytorch-tutorials"],
+        "feedbackLoop": "Break and fix at least one training run per module and document the exact diagnostic signal."
+      }
+    ]
+  },
+  {
+    "courseId": "course-computer-vision-multimodal",
+    "title": "Vision and multimodal source flow",
+    "description": "Bridge visual representation learning, structured perception tasks, and multimodal retrieval using open textbook and framework materials.",
+    "stages": [
+      {
+        "id": "vision-stage-1",
+        "title": "Perception architectures and evaluation",
+        "objective": "Learn how visual features, localization tasks, and shift-aware metrics change what good modeling looks like.",
+        "resourceIds": ["d2l", "pytorch-tutorials"],
+        "feedbackLoop": "After each vision exercise, inspect at least one failure visually and explain whether the root cause is representation, data, metric choice, or deployment context."
+      },
+      {
+        "id": "vision-stage-2",
+        "title": "Multimodal retrieval and product grounding",
+        "objective": "Treat image-text systems as embedding, retrieval, and evaluation pipelines rather than just bigger models.",
+        "resourceIds": ["huggingface-course", "pytorch-tutorials", "d2l"],
+        "feedbackLoop": "Keep a failure ledger for cross-modal retrieval mistakes and force every fix to justify why it improves user-relevant relevance instead of just a proxy metric."
+      }
+    ]
+  },
+  {
+    "courseId": "course-ml-systems",
+    "title": "Production ML source flow",
+    "description": "Move from experiments to durable systems with open infrastructure references.",
+    "stages": [
+      {
+        "id": "systems-stage-1",
+        "title": "Track, package, and operate models",
+        "objective": "Tie experiments, lineage, release criteria, and deployment control into one repeatable lifecycle.",
+        "resourceIds": ["mlflow-docs", "kubeflow-docs", "pytorch-tutorials"],
+        "feedbackLoop": "For each systems artifact, write the rollback trigger and the first metric you would put on an alert."
+      }
+    ]
+  },
+  {
+    "courseId": "course-llm-systems",
+    "title": "LLM and transformer systems flow",
+    "description": "Use open transformer and framework materials to study retrieval, adaptation, and evaluation.",
+    "stages": [
+      {
+        "id": "llm-stage-1",
+        "title": "Transformers and adaptation",
+        "objective": "Learn tokenization, attention, transfer learning, and fine-tuning through openly licensed materials.",
+        "resourceIds": ["huggingface-course", "d2l", "pytorch-tutorials"],
+        "feedbackLoop": "After each lesson, explain one transformer failure by tracing the data path instead of blaming the model abstractly."
+      }
+    ]
+  },
+  {
+    "courseId": "course-reinforcement-learning-decision-making",
+    "title": "Sequential decision-making source flow",
+    "description": "Use open math, deep learning, and framework references to study sequential feedback, policy optimization, and safer rollout discipline.",
+    "stages": [
+      {
+        "id": "rl-stage-1",
+        "title": "MDPs, returns, and instability",
+        "objective": "Learn the abstractions behind sequential learning and why optimization becomes fragile under feedback loops and delayed reward.",
+        "resourceIds": ["d2l", "mit-ocw-probability-statistics", "mit-ocw-optimization"],
+        "feedbackLoop": "For every RL concept, write one paragraph on what assumption would break first in a messy product environment."
+      },
+      {
+        "id": "rl-stage-2",
+        "title": "Bandits, offline evidence, and deployment safety",
+        "objective": "Study the practical forms of sequential learning most likely to appear in product ranking, recommendation, or decision support systems.",
+        "resourceIds": ["mit-ocw-probability-statistics", "pytorch-tutorials", "mit-ocw-optimization"],
+        "feedbackLoop": "End each unit by stating the weakest piece of evidence in your rollout plan and what additional data you would demand before launch."
+      }
+    ]
+  },
+  {
+    "courseId": "course-reliable-ml-2026",
+    "title": "Reliable frontier ML flow",
+    "description": "Use the final track to synthesize robustness, systems, and applied research judgment.",
+    "stages": [
+      {
+        "id": "frontier-stage-1",
+        "title": "Operate at the frontier with discipline",
+        "objective": "Treat advanced ML as a combination of modeling, science, infrastructure, and governance.",
+        "resourceIds": ["mlflow-docs", "kubeflow-docs", "huggingface-course", "d2l"],
+        "feedbackLoop": "Every capstone should end with an adversarial review that scores evidence, uncertainty, cost, and operational risk."
+      }
+    ]
+  }
+]

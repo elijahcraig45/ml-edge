@@ -1,0 +1,25 @@
+{
+  "startedAt": "2026-04-21T18:46:21.436Z",
+  "finishedAt": "2026-04-21T18:47:04.258Z",
+  "repositoryCount": 3,
+  "processedFiles": 1,
+  "importedLessons": 1,
+  "failedLessons": 0,
+  "usageBudget": {
+    "model": "gemini-flash-latest",
+    "maxRequests": 2,
+    "requestsUsed": 1,
+    "requestDelayMs": 8000,
+    "stoppedByBudget": false
+  },
+  "items": [
+    {
+      "id": "ageron-handson-ml3-16-nlp-with-rnns-and-attention-ipynb",
+      "repository": "ageron/handson-ml3",
+      "sourcePath": "16_nlp_with_rnns_and_attention.ipynb",
+      "curriculumTrack": "Functional Track",
+      "firestoreDocPath": "curriculum_library_lessons/ageron-handson-ml3-16-nlp-with-rnns-and-attention-ipynb"
+    }
+  ],
+  "errors": []
+}

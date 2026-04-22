@@ -1,0 +1,122 @@
+[
+  {
+    "id": "mit-ocw-linear-algebra",
+    "title": "MIT OCW 18.06SC Linear Algebra",
+    "provider": "MIT OpenCourseWare",
+    "url": "https://ocw.mit.edu/courses/18-06sc-linear-algebra-fall-2011/",
+    "format": "course",
+    "accessModel": "open-license",
+    "license": "CC BY-NC-SA 4.0",
+    "topics": ["linear algebra", "vectors", "matrices", "eigenvalues"],
+    "difficulty": "Beginner",
+    "notes": "Use as the main linear algebra course for ML preparation."
+  },
+  {
+    "id": "mit-ocw-multivariable-calculus",
+    "title": "MIT OCW 18.02SC Multivariable Calculus",
+    "provider": "MIT OpenCourseWare",
+    "url": "https://ocw.mit.edu/courses/18-02sc-multivariable-calculus-fall-2010/",
+    "format": "course",
+    "accessModel": "open-license",
+    "license": "CC BY-NC-SA 4.0",
+    "topics": ["multivariable calculus", "gradients", "partial derivatives", "optimization"],
+    "difficulty": "Beginner",
+    "notes": "Strong calculus foundation for backpropagation and optimization."
+  },
+  {
+    "id": "mit-ocw-probability-statistics",
+    "title": "MIT OCW 18.05 Introduction to Probability and Statistics",
+    "provider": "MIT OpenCourseWare",
+    "url": "https://ocw.mit.edu/courses/18-05-introduction-to-probability-and-statistics-spring-2014/",
+    "format": "course",
+    "accessModel": "open-license",
+    "license": "CC BY-NC-SA 4.0",
+    "topics": ["probability", "statistics", "distributions", "estimation", "hypothesis testing"],
+    "difficulty": "Beginner",
+    "notes": "Primary probability and statistics source for the science side of the track."
+  },
+  {
+    "id": "d2l",
+    "title": "Dive into Deep Learning",
+    "provider": "Aston Zhang, Zachary Lipton, Mu Li, Alex Smola",
+    "url": "https://d2l.ai/",
+    "format": "textbook",
+    "accessModel": "open-license",
+    "license": "CC BY-SA 4.0",
+    "topics": ["deep learning", "optimization", "attention", "computer vision", "nlp"],
+    "difficulty": "Intermediate",
+    "notes": "The core open deep learning textbook with runnable code and broad coverage."
+  },
+  {
+    "id": "huggingface-course",
+    "title": "Hugging Face Course",
+    "provider": "Hugging Face",
+    "url": "https://huggingface.co/learn",
+    "format": "course",
+    "accessModel": "open-license",
+    "license": "CC BY 4.0",
+    "topics": ["transformers", "nlp", "tokenization", "fine-tuning", "llm tooling"],
+    "difficulty": "Intermediate",
+    "notes": "Best open course source for transformer-era NLP and practical model adaptation."
+  },
+  {
+    "id": "scikit-learn-guide",
+    "title": "scikit-learn User Guide",
+    "provider": "scikit-learn",
+    "url": "https://scikit-learn.org/stable/user_guide.html",
+    "format": "docs",
+    "accessModel": "open-license",
+    "license": "BSD 3-Clause",
+    "topics": ["classical ml", "model selection", "preprocessing", "pipelines", "evaluation"],
+    "difficulty": "Intermediate",
+    "notes": "Use as the canonical practical reference for classical ML and pipelines."
+  },
+  {
+    "id": "pytorch-tutorials",
+    "title": "PyTorch Tutorials",
+    "provider": "PyTorch",
+    "url": "https://docs.pytorch.org/tutorials/",
+    "format": "docs",
+    "accessModel": "open-license",
+    "license": "BSD 3-Clause",
+    "topics": ["pytorch", "autograd", "training loops", "deployment", "distributed training"],
+    "difficulty": "Intermediate",
+    "notes": "Hands-on reference for implementation, debugging, and serving neural models."
+  },
+  {
+    "id": "mlflow-docs",
+    "title": "MLflow Documentation",
+    "provider": "MLflow",
+    "url": "https://mlflow.org/docs/latest/index.html",
+    "format": "docs",
+    "accessModel": "open-license",
+    "license": "Apache 2.0",
+    "topics": ["experiment tracking", "model registry", "evaluation", "deployment"],
+    "difficulty": "Intermediate",
+    "notes": "Open operational reference for experiment lineage and model lifecycle management."
+  },
+  {
+    "id": "kubeflow-docs",
+    "title": "Kubeflow Documentation",
+    "provider": "Kubeflow",
+    "url": "https://www.kubeflow.org/docs/",
+    "format": "docs",
+    "accessModel": "open-license",
+    "license": "Apache 2.0",
+    "topics": ["pipelines", "orchestration", "training infrastructure", "kubernetes"],
+    "difficulty": "Advanced",
+    "notes": "Use selectively for production pipeline and orchestration concepts rather than as a first ML source."
+  },
+  {
+    "id": "mit-ocw-optimization",
+    "title": "MIT OCW 6.252J Nonlinear Programming",
+    "provider": "MIT OpenCourseWare",
+    "url": "https://ocw.mit.edu/courses/6-252j-nonlinear-programming-spring-2003/",
+    "format": "course",
+    "accessModel": "open-license",
+    "license": "CC BY-NC-SA 4.0",
+    "topics": ["optimization", "convexity", "constraints", "lagrangians"],
+    "difficulty": "Advanced",
+    "notes": "An advanced optimization bridge for students who want a stronger mathematical grounding."
+  }
+]
