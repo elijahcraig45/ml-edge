@@ -16,6 +16,15 @@ export type QuizQuestion = {
   explanation: string;
 };
 
+export type QuestionLevel = "foundational" | "intermediate" | "advanced";
+
+export type BankQuestion = QuizQuestion & {
+  topic: string;
+  level: QuestionLevel;
+  date: string;
+  source: "daily";
+};
+
 export type DailyContentDocument = {
   date: string;
   headline: string;

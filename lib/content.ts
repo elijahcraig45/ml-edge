@@ -13,6 +13,7 @@ import {
 } from "@/lib/library-curriculum";
 import { FALLBACK_DAILY_CONTENT } from "@/lib/seed-data";
 import type {
+  BankQuestion,
   CurriculumDependencyEdge,
   CurriculumCourse,
   CurriculumExercise,
@@ -32,6 +33,7 @@ import type {
   NewsArticle,
   OpenResource,
   PublishedCurriculumArtifact,
+  QuestionLevel,
   QuizQuestion,
   SourceFormat,
 } from "@/lib/types";
@@ -1006,6 +1008,57 @@ export async function getCurriculumLibraryTrack(trackSlug: string) {
   const tracks = await getCurriculumLibraryTracks();
 
   return getCurriculumLibraryTrackBySlug(tracks, trackSlug);
+}
+
+function normalizeBankQuestion(value: unknown, docId: string): BankQuestion | null {
+  if (!value || typeof value !== "object") return null;
+
+  const doc = value as Record<string, unknown>;
+  const options = Array.isArray(doc.options)
+    ? doc.options.filter((o): o is string => typeof o === "string")
+    : [];
+  const answerIndex = typeof doc.answerIndex === "number" ? doc.answerIndex : 0;
+
+  if (typeof doc.prompt !== "string" || options.length < 2) return null;
+  if (answerIndex < 0 || answerIndex >= options.length) return null;
+
+  const rawLevel = doc.level;
+  const level: QuestionLevel =
+    rawLevel === "foundational" || rawLevel === "intermediate" || rawLevel === "advanced"
+      ? rawLevel
+      : "intermediate";
+
+  return {
+    id: typeof doc.id === "string" ? doc.id : docId,
+    prompt: doc.prompt,
+    options,
+    answerIndex,
+    explanation: typeof doc.explanation === "string" ? doc.explanation : "",
+    topic: typeof doc.topic === "string" ? doc.topic : "Machine Learning",
+    level,
+    date: typeof doc.date === "string" ? doc.date : "",
+    source: "daily",
+  };
+}
+
+export async function getQuestionBank(): Promise<BankQuestion[]> {
+  const db = getAdminFirestore();
+
+  if (!db) return [];
+
+  try {
+    const snapshot = await db
+      .collection("question_bank")
+      .orderBy("date", "desc")
+      .limit(200)
+      .get();
+
+    return snapshot.docs
+      .map((document) => normalizeBankQuestion(document.data(), document.id))
+      .filter((q): q is BankQuestion => q !== null);
+  } catch {
+    return [];
+  }
 }
 
 export async function seedCurriculum() {

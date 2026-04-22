@@ -2,12 +2,17 @@ import "server-only";
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getRequiredServerEnv } from "@/lib/env";
-import type { NewsArticle, QuizQuestion } from "@/lib/types";
+import type { NewsArticle, QuizQuestion, QuestionLevel } from "@/lib/types";
+
+type GeminiQuestion = QuizQuestion & {
+  topic: string;
+  level: QuestionLevel;
+};
 
 type GeminiDailyContent = {
   headline: string;
   technicalSummary: string;
-  questions: QuizQuestion[];
+  questions: GeminiQuestion[];
 };
 
 type GeminiResponseShape = {
@@ -25,7 +30,9 @@ function parseJsonPayload(text: string) {
   return JSON.parse(cleaned) as GeminiResponseShape;
 }
 
-function normalizeQuestions(value: unknown) {
+const VALID_LEVELS = new Set<string>(["foundational", "intermediate", "advanced"]);
+
+function normalizeQuestions(value: unknown): GeminiQuestion[] {
   if (!Array.isArray(value) || value.length !== 3) {
     throw new Error("Gemini must return exactly 3 quiz questions.");
   }
@@ -54,13 +61,22 @@ function normalizeQuestions(value: unknown) {
       throw new Error(`Gemini question ${index + 1} failed schema validation.`);
     }
 
+    const rawLevel = question.level;
+    const level: QuestionLevel =
+      typeof rawLevel === "string" && VALID_LEVELS.has(rawLevel)
+        ? (rawLevel as QuestionLevel)
+        : "intermediate";
+
     return {
       id: `generated-question-${index + 1}`,
       prompt: question.prompt,
       options,
       answerIndex,
       explanation: question.explanation,
-    } satisfies QuizQuestion;
+      topic:
+        typeof question.topic === "string" ? question.topic : "Machine Learning",
+      level,
+    } satisfies GeminiQuestion;
   });
 }
 
@@ -101,7 +117,9 @@ Return valid JSON matching this schema exactly:
       "prompt": "string",
       "options": ["string", "string", "string", "string"],
       "answerIndex": 0,
-      "explanation": "string"
+      "explanation": "string",
+      "topic": "string",
+      "level": "foundational | intermediate | advanced"
     }
   ]
 }
@@ -110,6 +128,8 @@ Requirements:
 - Headline: one sentence, dense and technical.
 - Technical summary: 2-3 paragraphs, focused on systems, tradeoffs, and implementation implications.
 - Questions: difficult but answerable by a software engineer; emphasize ML systems, evaluation, deployment, or retrieval reasoning.
+- topic: a short noun phrase describing the ML concept tested (e.g. "Transformer attention", "RAG pipelines", "Model quantization").
+- level: classify each question as foundational (core concept), intermediate (applied reasoning), or advanced (systems/research depth).
 - No markdown fences, no extra keys, no commentary outside the JSON.
 
 Articles:
@@ -133,3 +153,4 @@ ${articleDigest}
     questions: normalizeQuestions(parsed.questions),
   };
 }
+
