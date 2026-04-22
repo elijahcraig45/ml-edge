@@ -18,8 +18,6 @@ function formatPublishedAt(value: string) {
     month: "short",
     day: "numeric",
     year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
   }).format(date);
 }
 
@@ -39,7 +37,7 @@ export default async function CurriculumPage() {
     getCurriculumExperience(),
     getCurriculumLibraryOverview(),
   ]);
-  const { courses, generatedAt, resources, tracks, strategy, version } = curriculum;
+  const { courses, generatedAt, resources, tracks, strategy } = curriculum;
   const totalModules = courses.reduce((count, course) => count + course.modules.length, 0);
   const totalLessons = courses.reduce(
     (count, course) =>
@@ -62,7 +60,7 @@ export default async function CurriculumPage() {
     { label: "Roadmap entries", value: String(totalLessons) },
     { label: "Real lessons", value: String(authoredLessonCount) },
     { label: "Sources", value: String(resources.length) },
-    { label: "Published", value: formatPublishedAt(generatedAt), emphasis: "text-base" },
+    { label: "Last updated", value: formatPublishedAt(generatedAt), emphasis: "text-base" },
   ];
 
   return (
@@ -99,9 +97,6 @@ export default async function CurriculumPage() {
             </div>
           </div>
           <p className="mt-4 text-xs leading-5 text-slate-500">{strategy}</p>
-          <p className="mt-2 break-all font-mono text-[11px] leading-5 text-slate-600">
-            Artifact version: {version}
-          </p>
         </Panel>
 
         <Panel eyebrow="Start here" title="Fully authored academy">
