@@ -103,6 +103,7 @@ export default async function AuthoredLessonPage({ params }: AuthoredLessonPageP
 
         <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
           <InteractiveLessonExperience
+            key={lesson.id}
             courseSlug={course.slug}
             lessonId={lesson.id}
             hostedLesson={lesson.hostedLesson}
