@@ -104,9 +104,9 @@ export default async function CurriculumPage() {
             <div>
               <p className="text-sm leading-7 text-slate-300">
                 If you want the part of the platform that is fully written like a real course,
-                start in the authored academy. The order is deliberate: complete the authored
-                sequence first, then use the larger source-backed library tracks as depth and
-                reinforcement.
+                start in the authored academy. The core order is deliberate: complete the main
+                authored ML sequence first, then use the standalone electives and larger
+                source-backed library tracks as depth and reinforcement.
               </p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <Link

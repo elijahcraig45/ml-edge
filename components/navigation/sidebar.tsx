@@ -37,7 +37,7 @@ export function Sidebar() {
         </div>
         <div>
           <p className="text-sm font-semibold text-white">The ML Edge</p>
-          <p className="text-[11px] text-slate-400">Engineer's console</p>
+          <p className="text-[11px] text-slate-400">Engineer&apos;s console</p>
         </div>
       </div>
 
@@ -86,7 +86,7 @@ export function Sidebar() {
           </p>
         </div>
         <p className="mt-2 text-[11px] leading-5 text-slate-400">
-          New quiz questions drop every morning. Keep your streak alive.
+          A fresh three-question foundations quiz resets every morning. Keep your streak alive.
         </p>
         <Link
           href="/quiz"

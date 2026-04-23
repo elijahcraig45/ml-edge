@@ -1,6 +1,6 @@
 # The ML Edge
 
-A self-directed ML/data science learning platform built for depth over breadth — dark-mode terminal aesthetic, fully authored interactive lessons, daily AI news digests, streak-tracked quizzes, and a 12-course curriculum mapped to ML engineering competency. Deployed to Google Cloud Run.
+A self-directed ML/data science learning platform built for depth over breadth — dark-mode terminal aesthetic, fully authored interactive lessons, daily AI news digests, streak-tracked quizzes, and a 13-course curriculum mapped to ML engineering competency. Deployed to Google Cloud Run.
 
 **Live:** https://mledge-338436483735.us-central1.run.app
 
@@ -10,11 +10,11 @@ A self-directed ML/data science learning platform built for depth over breadth �
 
 The ML Edge is a personal tutor platform I built to study ML and data science systematically. The goal was to replace "read a paper, forget it" with a structured interactive experience: authored lessons with checkpoints, guided practice problems, difficulty-graded challenges, lesson quizzes, and course badge assessments.
 
-It also has a daily loop: every morning Cloud Scheduler triggers a Gemini-powered digest built from deduplicated NewsAPI coverage from the last 24 hours, which becomes that day's headline, technical summary, and quiz on the dashboard.
+It also has a daily loop: every morning Cloud Scheduler triggers a Gemini-powered digest built from deduplicated NewsAPI coverage from the last 24 hours, which becomes that day's headline plus a structured technical deep dive. The daily quiz is sourced separately from an authored foundations question bank spanning DS&A and ML/AI.
 
 ### Curriculum
 
-12 courses, 42 authored lessons, 84 practice problems, 63 badge assessment questions. All written by hand — no placeholder content.
+13 courses, 48 authored lessons, 96 practice problems, 69 badge assessment questions. All written by hand — no placeholder content.
 
 | # | Course | Lessons |
 |---|--------|---------|
@@ -30,6 +30,7 @@ It also has a daily loop: every morning Cloud Scheduler triggers a Gemini-powere
 | 10 | Reliable, Responsible & Frontier ML | 4 |
 | 11 | Computer Vision & Multimodal Systems | 3 |
 | 12 | Reinforcement Learning & Sequential Decision-Making | 3 |
+| 13 | Data Structures & Algorithms | 6 |
 
 Each lesson contains:
 - Lecture segments with applied engineering lens + checkpoint questions
@@ -66,7 +67,7 @@ Courses end with a multi-question badge assessment that unlocks only after all l
 | Auth | Firebase Auth (Google OAuth) — graceful guest-mode fallback |
 | Database | Firestore (learner progress, daily content, curriculum metadata) |
 | AI | Gemini 2.5 Flash (daily digest generation) + NewsAPI |
-| Storage | Google Cloud Storage (curriculum artifacts) |
+| Storage | Google Cloud Storage (curriculum + question-bank artifacts) |
 | Analytics | BigQuery (curriculum publish lineage, resource catalog) |
 | Hosting | Google Cloud Run (containerized, always-on) |
 | CI/CD | Google Cloud Build (Docker image build + push to Artifact Registry) |
@@ -81,7 +82,7 @@ Courses end with a multi-question badge assessment that unlocks only after all l
 Browser
   └─ Next.js App Router (Cloud Run)
        ├─ /dashboard          → daily headline + quiz CTA
-       ├─ /curriculum         → full 12-course map
+       ├─ /curriculum         → full 13-course map
        ├─ /curriculum/authored/[course]/lessons/[id]
        │     └─ InteractiveLessonExperience (client component)
        │          ├─ Segment progress tracker
@@ -95,13 +96,16 @@ Browser
 API Routes (server-side, Cloud Run)
   ├─ POST /api/cron/daily-update     → Gemini digest + Firestore write
   ├─ POST /api/admin/seed-curriculum → Firestore curriculum seed
-  └─ POST /api/admin/publish-curriculum → GCS + BigQuery publish
+  ├─ POST /api/admin/publish-curriculum → GCS + BigQuery publish
+  └─ POST /api/admin/publish-question-bank → GCS + Firestore metadata publish
 
 Background
   └─ Cloud Scheduler → daily-update cron (8AM ET)
 ```
 
 **Data flow for curriculum:** source metadata in `lib/` → `seedCurriculum()` writes to Firestore → `publishCurriculum()` uploads versioned artifact to GCS and writes lineage rows to BigQuery.
+
+**Data flow for foundations question bank:** authored source in `lib/` → `publishQuestionBankArtifact()` uploads a versioned JSON artifact to GCS and writes the active version metadata to Firestore → runtime pages load the published artifact with an in-repo fallback when nothing has been published yet.
 
 **Progress:** stored in `localStorage` keyed by `lesson-progress:{courseSlug}:{lessonId}`. Syncs to Firestore `users/{uid}` on sign-in. Guest mode works fully offline.
 
@@ -186,6 +190,13 @@ curl -X POST https://YOUR_CLOUD_RUN_URL/api/admin/publish-curriculum \
   -H "Authorization: Bearer YOUR_CRON_SECRET"
 ```
 
+**Publish question-bank artifact to GCS + Firestore metadata:**
+
+```bash
+curl -X POST https://YOUR_CLOUD_RUN_URL/api/admin/publish-question-bank \
+  -H "Authorization: Bearer YOUR_CRON_SECRET"
+```
+
 **Create the Cloud Scheduler job:**
 
 ```bash
@@ -207,7 +218,10 @@ users/
   {uid}: { uid, email, streakCount, lastLogin, completedModules: string[] }
 
 daily_content/
-  {YYYY-MM-DD}: { date, headline, technicalSummary, quiz: { questions: [] }, status }
+  {YYYY-MM-DD}: { date, headline, technicalSummary, deepDive: { tldr, themes: [], industryState }, status, sourceArticles: [] }
+
+question_bank_meta/
+  current: { version, generatedAt, strategy, gcsBucket, gcsObjectPrefix, questionCount, topicCount, countsByLevel }
 
 curriculum_courses/
   {id}: { id, slug, title, level, timeframe, summary, prerequisites, outcomes, modules: [...] }
@@ -239,9 +253,11 @@ components/
   ui/                  Panel, shared primitives
 context/               Firebase context (auth + Firestore)
 lib/
-  authored-academy.ts       12-course authored academy definitions
+  authored-academy.ts       13-course authored academy definitions
   authored-hosted-lessons.ts 42 fully authored lessons (hook, segments, tutorials)
   authored-practice-problems.ts 84 practice problems with hints + solutions
+  authored-question-bank.ts 1850 authored DS&A + ML/AI questions + daily quiz selector
+  question-bank-pipeline.ts  publish/read helpers for the GCS-backed question bank
   content.ts                Server-side data layer (seed, publish, daily content)
   curriculum-program.ts     ML Engineer Program course definitions
   curriculum-catalog.ts     Supporting curriculum catalog
@@ -274,6 +290,7 @@ data/
 npm run dev       # local dev server
 npm run build     # production build
 npm run lint      # ESLint
+npm run publish:question-bank  # publish authored foundations bank artifact
 ```
 
 
@@ -282,7 +299,8 @@ npm run lint      # ESLint
 - Next.js App Router + TypeScript + Tailwind CSS
 - Firebase Auth with Google OAuth
 - Firestore for users, daily content, and curriculum
-- NewsAPI + Gemini 1.5 Flash for the automated "Course Assistant"
+- NewsAPI + Gemini 2.5 Flash for the automated news brief
+- Google Cloud Storage for published curriculum and question-bank artifacts
 - Google Cloud Run + Cloud Scheduler for deployment and daily content generation
 
 ## Local setup
@@ -322,7 +340,8 @@ npm run dev
 
 ```text
 users: { uid, email, streakCount, lastLogin, completedModules: [] }
-daily_content: { date, headline, technicalSummary, quiz: { questions: [] }, status: "generated" }
+daily_content: { date, headline, technicalSummary, deepDive: { tldr, themes: [], industryState }, status: "generated", sourceArticles: [] }
+question_bank_meta: { version, generatedAt, strategy, gcsBucket, gcsObjectPrefix, questionCount, topicCount, countsByLevel }
 curriculum_meta: { version, generatedAt, strategy, gcsBucket, gcsObjectPrefix, courseCount, resourceCount, trackCount }
 curriculum_courses: { id, slug, title, level, timeframe, summary, whyItMatters, prerequisites: [], outcomes: [], tags: [], modules: [...], capstone: {...} }
 curriculum_tracks: { courseId, title, description, stages: [{ id, title, objective, resourceIds: [], feedbackLoop }] }
@@ -331,7 +350,7 @@ curriculum_resources: { id, title, provider, url, format, accessModel, license, 
 
 ## Curriculum storage model
 
-- **GCS**: raw source metadata snapshots and published curriculum artifacts
+- **GCS**: raw source metadata snapshots plus published curriculum and question-bank artifacts
 - **Firestore**: app-serving snapshot for curriculum, tracks, resources, and learner progress
 - **BigQuery**: resource catalog lineage, prerequisite graph, publish versions, and future assessment analytics
 
@@ -352,6 +371,13 @@ curl -X POST https://YOUR_CLOUD_RUN_URL/api/admin/publish-curriculum \
   -H "X-Admin-Secret: YOUR_CRON_SECRET"
 ```
 
+Publish the foundations question bank artifact through:
+
+```bash
+curl -X POST https://YOUR_CLOUD_RUN_URL/api/admin/publish-question-bank \
+  -H "X-Admin-Secret: YOUR_CRON_SECRET"
+```
+
 If you only want to seed Firestore without GCS/BigQuery publishing, use:
 
 ```bash
@@ -363,9 +389,10 @@ For local development with Application Default Credentials, you can publish dire
 
 ```bash
 npm run publish:curriculum
+npm run publish:question-bank
 ```
 
-That publishes to **BigQuery** if `BIGQUERY_CURRICULUM_DATASET` is set or falls back to dataset name `curriculum`. It publishes to **GCS** only when `GCS_CURRICULUM_BUCKET` is set.
+That publishes curriculum to **BigQuery** if `BIGQUERY_CURRICULUM_DATASET` is set or falls back to dataset name `curriculum`. Both publish commands write artifacts to **GCS** only when `GCS_CURRICULUM_BUCKET` is set.
 
 ## Deploy to Cloud Run
 
@@ -396,7 +423,7 @@ gcloud run services update the-ml-edge \
 
 ## Create the Cloud Scheduler job
 
-The cron route accepts `X-Cron-Secret` and writes the generated lesson to `daily_content/{YYYY-MM-DD}`.
+The cron route accepts `X-Cron-Secret` and writes the generated daily deep dive to `daily_content/{YYYY-MM-DD}`.
 
 ```bash
 gcloud scheduler jobs create http ml-edge-daily-update \
@@ -419,4 +446,5 @@ gcloud scheduler jobs run ml-edge-daily-update --location us-central1
 ```bash
 npm run lint
 npm run build
+npm run publish:question-bank
 ```

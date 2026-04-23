@@ -7,15 +7,17 @@ type LevelFilter = "all" | QuestionLevel;
 
 const LEVEL_TABS: { value: LevelFilter; label: string }[] = [
   { value: "all", label: "All" },
-  { value: "foundational", label: "Foundational" },
-  { value: "intermediate", label: "Intermediate" },
-  { value: "advanced", label: "Advanced" },
+  { value: "easy", label: "Easy" },
+  { value: "medium", label: "Medium" },
+  { value: "hard", label: "Hard" },
+  { value: "expert", label: "Expert" },
 ];
 
 const LEVEL_COLORS: Record<QuestionLevel, string> = {
-  foundational: "text-emerald-300 border-emerald-400/30 bg-emerald-500/10",
-  intermediate: "text-indigo-300 border-indigo-400/30 bg-indigo-500/10",
-  advanced: "text-amber-300 border-amber-400/30 bg-amber-500/10",
+  easy: "text-emerald-300 border-emerald-400/30 bg-emerald-500/10",
+  medium: "text-sky-300 border-sky-400/30 bg-sky-500/10",
+  hard: "text-amber-300 border-amber-400/30 bg-amber-500/10",
+  expert: "text-fuchsia-300 border-fuchsia-400/30 bg-fuchsia-500/10",
 };
 
 type PracticeDrillProps = {
@@ -75,7 +77,7 @@ export function PracticeDrill({ questions }: PracticeDrillProps) {
               : questions.filter((q) => q.level === tab.value).length;
           return acc;
         },
-        { all: 0, foundational: 0, intermediate: 0, advanced: 0 },
+        { all: 0, easy: 0, medium: 0, hard: 0, expert: 0 },
       ),
     [questions],
   );
@@ -112,12 +114,12 @@ export function PracticeDrill({ questions }: PracticeDrillProps) {
           <p className="font-mono text-[11px] uppercase tracking-[0.24em] text-slate-500">
             No questions yet
           </p>
-          <p className="mt-3 text-sm text-slate-400">
-            {questions.length === 0
-              ? "The question bank is empty. Questions accumulate each time the daily quiz cron runs."
-              : `No ${activeLevel} questions in the bank. Try a different level.`}
-          </p>
-        </div>
+            <p className="mt-3 text-sm text-slate-400">
+              {questions.length === 0
+                ? "The question bank is empty."
+                : `No ${activeLevel} questions in the bank. Try a different level.`}
+            </p>
+          </div>
       )}
 
       {/* Drill complete */}
@@ -146,7 +148,7 @@ export function PracticeDrill({ questions }: PracticeDrillProps) {
             </button>
             <button
               type="button"
-              onClick={() => handleLevelChange(activeLevel === "all" ? "foundational" : "all")}
+              onClick={() => handleLevelChange(activeLevel === "all" ? "easy" : "all")}
               className="rounded-full border border-white/10 px-5 py-2.5 text-sm font-semibold text-slate-300 hover:border-slate-500"
             >
               Change level

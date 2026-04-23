@@ -1,5 +1,6 @@
 import "server-only";
 
+import { buildDailyQuizFromQuestionBank } from "@/lib/authored-question-bank";
 import {
   buildPublishedCurriculumArtifact,
   readPublishedCurriculumFromGcs,
@@ -11,6 +12,10 @@ import {
   buildCurriculumLibraryTracks,
   getCurriculumLibraryTrackBySlug,
 } from "@/lib/library-curriculum";
+import {
+  buildPublishedQuestionBankArtifact,
+  readPublishedQuestionBankFromGcs,
+} from "@/lib/question-bank-pipeline";
 import { FALLBACK_DAILY_CONTENT } from "@/lib/seed-data";
 import type {
   BankQuestion,
@@ -29,11 +34,13 @@ import type {
   CurriculumProject,
   CurriculumResourceTrack,
   CurriculumVideo,
+  DailyDeepDive,
   DailyContentDocument,
+  DailyQuizDocument,
   NewsArticle,
   OpenResource,
   PublishedCurriculumArtifact,
-  QuestionLevel,
+  PublishedQuestionBankArtifact,
   QuizQuestion,
   SourceFormat,
 } from "@/lib/types";
@@ -62,56 +69,143 @@ function normalizeArticle(value: unknown): NewsArticle | null {
   };
 }
 
-function normalizeQuestion(value: unknown, index: number): QuizQuestion | null {
-  if (!value || typeof value !== "object") {
+function extractLegacyArticleNumbers(text: string) {
+  return [...text.matchAll(/\[(\d+)\]/g)]
+    .map((match) => Number.parseInt(match[1] ?? "", 10))
+    .filter((value) => Number.isInteger(value));
+}
+
+function extractLegacySection(
+  summary: string,
+  label: string,
+  nextLabels: string[],
+) {
+  const start = summary.indexOf(label);
+
+  if (start < 0) {
+    return "";
+  }
+
+  const contentStart = start + label.length;
+  const contentEnd = nextLabels
+    .map((nextLabel) => summary.indexOf(nextLabel, contentStart))
+    .filter((index) => index >= 0)
+    .sort((left, right) => left - right)[0];
+
+  return summary
+    .slice(contentStart, contentEnd ?? summary.length)
+    .trim();
+}
+
+function parseLegacyDeepDive(summary: string): DailyDeepDive | null {
+  const trimmed = summary.trim();
+
+  if (!trimmed) {
     return null;
   }
 
-  const question = value as Record<string, unknown>;
-  const options = Array.isArray(question.options)
-    ? question.options.filter(
-        (option): option is string => typeof option === "string",
-      )
-    : [];
-  const answerIndex =
-    typeof question.answerIndex === "number" ? question.answerIndex : 0;
+  const tldr = extractLegacySection(trimmed, "TL;DR:", [
+    "Theme 1:",
+    "Theme 2:",
+    "Theme 3:",
+    "Industry state:",
+  ]);
+  const themes = ["Theme 1:", "Theme 2:", "Theme 3:"]
+    .map((label, index, labels) => {
+      const analysis = extractLegacySection(trimmed, label, [
+        ...labels.slice(index + 1),
+        "Industry state:",
+      ]);
 
-  if (typeof question.prompt !== "string" || options.length < 2) {
-    return null;
-  }
+      if (!analysis) {
+        return null;
+      }
 
-  if (answerIndex < 0 || answerIndex >= options.length) {
-    return null;
-  }
+      return {
+        title: `Theme ${index + 1}`,
+        analysis,
+        sourceArticleNumbers: extractLegacyArticleNumbers(analysis),
+      };
+    })
+    .filter((item): item is DailyDeepDive["themes"][number] => item !== null);
+  const industryState = extractLegacySection(trimmed, "Industry state:", []);
 
   return {
-    id:
-      typeof question.id === "string" ? question.id : `daily-question-${index}`,
-    prompt: question.prompt,
-    options,
-    answerIndex,
-    explanation:
-      typeof question.explanation === "string"
-        ? question.explanation
-        : "Use the answer that best reinforces reliable ML system design.",
+    tldr: tldr || trimmed,
+    themes,
+    industryState,
   };
+}
+
+function normalizeDeepDive(value: unknown, technicalSummary: string): DailyDeepDive {
+  if (value && typeof value === "object") {
+    const deepDive = value as Record<string, unknown>;
+    const themes = Array.isArray(deepDive.themes)
+      ? deepDive.themes
+          .map((item) => {
+            if (!item || typeof item !== "object") {
+              return null;
+            }
+
+            const theme = item as Record<string, unknown>;
+            const sourceArticleNumbers = Array.isArray(theme.sourceArticleNumbers)
+              ? theme.sourceArticleNumbers.filter(
+                  (entry): entry is number =>
+                    typeof entry === "number" && Number.isInteger(entry),
+                )
+              : [];
+
+            if (
+              typeof theme.title !== "string" ||
+              typeof theme.analysis !== "string"
+            ) {
+              return null;
+            }
+
+            return {
+              title: theme.title,
+              analysis: theme.analysis,
+              sourceArticleNumbers,
+            };
+          })
+          .filter((item): item is DailyDeepDive["themes"][number] => item !== null)
+      : [];
+
+    if (
+      typeof deepDive.tldr === "string" &&
+      typeof deepDive.industryState === "string"
+    ) {
+      return {
+        tldr: deepDive.tldr,
+        themes,
+        industryState: deepDive.industryState,
+      };
+    }
+  }
+
+  return (
+    parseLegacyDeepDive(technicalSummary) ?? {
+      tldr: technicalSummary,
+      themes: [],
+      industryState: "",
+    }
+  );
 }
 
 function normalizeDailyContent(
   value: Record<string, unknown>,
   date: string,
 ): DailyContentDocument {
-  const rawQuiz = value.quiz;
-  const questions = Array.isArray((rawQuiz as { questions?: unknown })?.questions)
-    ? (rawQuiz as { questions: unknown[] }).questions
-        .map(normalizeQuestion)
-        .filter((question): question is QuizQuestion => question !== null)
-    : [];
   const sourceArticles = Array.isArray(value.sourceArticles)
     ? value.sourceArticles
         .map(normalizeArticle)
         .filter((article): article is NewsArticle => article !== null)
     : [];
+  const technicalSummary =
+    typeof value.technicalSummary === "string"
+      ? value.technicalSummary
+      : FALLBACK_DAILY_CONTENT.technicalSummary;
+  const deepDive = normalizeDeepDive(value.deepDive, technicalSummary);
 
   return {
     date: typeof value.date === "string" ? value.date : date,
@@ -119,15 +213,9 @@ function normalizeDailyContent(
       typeof value.headline === "string"
         ? value.headline
         : FALLBACK_DAILY_CONTENT.headline,
-    technicalSummary:
-      typeof value.technicalSummary === "string"
-        ? value.technicalSummary
-        : FALLBACK_DAILY_CONTENT.technicalSummary,
+    technicalSummary: deepDive.tldr,
+    deepDive,
     status: value.status === "generated" ? "generated" : "seeded",
-    quiz: {
-      questions:
-        questions.length > 0 ? questions : FALLBACK_DAILY_CONTENT.quiz.questions,
-    },
     sourceArticles:
       sourceArticles.length > 0
         ? sourceArticles
@@ -279,6 +367,40 @@ function normalizeProject(value: unknown): CurriculumProject | null {
     brief: project.brief,
     milestones,
     gradingRubric,
+  };
+}
+
+function normalizeQuestion(
+  value: unknown,
+  index: number,
+): QuizQuestion | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const question = value as Record<string, unknown>;
+  const options = normalizeStringArray(question.options);
+
+  if (
+    typeof question.prompt !== "string" ||
+    typeof question.answerIndex !== "number" ||
+    typeof question.explanation !== "string" ||
+    options.length < 2 ||
+    question.answerIndex < 0 ||
+    question.answerIndex >= options.length
+  ) {
+    return null;
+  }
+
+  return {
+    id:
+      typeof question.id === "string" && question.id.trim().length > 0
+        ? question.id
+        : `question-${index + 1}`,
+    prompt: question.prompt,
+    options,
+    answerIndex: question.answerIndex,
+    explanation: question.explanation,
   };
 }
 
@@ -800,6 +922,142 @@ function normalizePublishedCurriculumArtifact(
   };
 }
 
+function normalizeBankQuestion(
+  value: unknown,
+  index: number,
+): BankQuestion | null {
+  const base = normalizeQuestion(value, index);
+
+  if (!base || !value || typeof value !== "object") {
+    return null;
+  }
+
+  const question = value as Record<string, unknown>;
+
+  if (
+    typeof question.topic !== "string" ||
+    !["easy", "medium", "hard", "expert"].includes(
+      typeof question.level === "string" ? question.level : "",
+    ) ||
+    question.source !== "authored-bank"
+  ) {
+    return null;
+  }
+
+  return {
+    ...base,
+    topic: question.topic,
+    level: question.level as BankQuestion["level"],
+    source: "authored-bank",
+  };
+}
+
+function normalizePublishedQuestionBankArtifact(
+  value: unknown,
+): PublishedQuestionBankArtifact | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const artifact = value as Record<string, unknown>;
+  const questions = Array.isArray(artifact.questions)
+    ? artifact.questions
+        .map(normalizeBankQuestion)
+        .filter((item): item is BankQuestion => item !== null)
+    : [];
+  const topics = Array.isArray(artifact.topics)
+    ? artifact.topics
+        .map((topic) => {
+          if (!topic || typeof topic !== "object") {
+            return null;
+          }
+
+          const record = topic as Record<string, unknown>;
+
+          if (
+            typeof record.slug !== "string" ||
+            typeof record.title !== "string" ||
+            typeof record.dailySummary !== "string"
+          ) {
+            return null;
+          }
+
+          return {
+            slug: record.slug,
+            title: record.title,
+            dailySummary: record.dailySummary,
+          };
+        })
+        .filter(
+          (
+            item,
+          ): item is PublishedQuestionBankArtifact["topics"][number] => item !== null,
+        )
+    : [];
+  const derivedCounts = (["easy", "medium", "hard", "expert"] as const).reduce(
+    (counts, level) => {
+      counts[level] = questions.filter((question) => question.level === level).length;
+      return counts;
+    },
+    { easy: 0, medium: 0, hard: 0, expert: 0 } satisfies Record<
+      BankQuestion["level"],
+      number
+    >,
+  );
+  const countsRecord =
+    artifact.countsByLevel && typeof artifact.countsByLevel === "object"
+      ? (artifact.countsByLevel as Record<string, unknown>)
+      : null;
+  const countsByLevel = countsRecord
+    ? {
+        easy:
+          typeof countsRecord.easy === "number"
+            ? countsRecord.easy
+            : derivedCounts.easy,
+        medium:
+          typeof countsRecord.medium === "number"
+            ? countsRecord.medium
+            : derivedCounts.medium,
+        hard:
+          typeof countsRecord.hard === "number"
+            ? countsRecord.hard
+            : derivedCounts.hard,
+        expert:
+          typeof countsRecord.expert === "number"
+            ? countsRecord.expert
+            : derivedCounts.expert,
+      }
+    : derivedCounts;
+
+  if (
+    typeof artifact.version !== "string" ||
+    typeof artifact.generatedAt !== "string" ||
+    typeof artifact.strategy !== "string" ||
+    questions.length === 0 ||
+    topics.length === 0 ||
+    countsByLevel.easy !== derivedCounts.easy ||
+    countsByLevel.medium !== derivedCounts.medium ||
+    countsByLevel.hard !== derivedCounts.hard ||
+    countsByLevel.expert !== derivedCounts.expert ||
+    (typeof artifact.questionCount === "number" &&
+      artifact.questionCount !== questions.length) ||
+    (typeof artifact.topicCount === "number" && artifact.topicCount !== topics.length)
+  ) {
+    return null;
+  }
+
+  return {
+    version: artifact.version,
+    generatedAt: artifact.generatedAt,
+    strategy: artifact.strategy,
+    countsByLevel,
+    questionCount: questions.length,
+    topicCount: topics.length,
+    topics,
+    questions,
+  };
+}
+
 function sortCourses(courses: CurriculumCourse[]) {
   const authoredOrder = new Map(
     ML_ENGINEER_PROGRAM.map((course, index) => [course.id, index]),
@@ -815,6 +1073,51 @@ function sortCourses(courses: CurriculumCourse[]) {
 
     return leftIndex - rightIndex;
   });
+}
+
+const FALLBACK_QUESTION_BANK_ARTIFACT = buildPublishedQuestionBankArtifact();
+const QUESTION_BANK_CACHE_TTL_MS = 5 * 60 * 1000;
+
+let questionBankArtifactCache:
+  | { loadedAt: number; artifact: PublishedQuestionBankArtifact }
+  | null = null;
+let questionBankArtifactPromise: Promise<PublishedQuestionBankArtifact> | null = null;
+
+async function loadQuestionBankArtifact() {
+  const gcsArtifact = await readPublishedQuestionBankFromGcs();
+  const normalizedArtifact = normalizePublishedQuestionBankArtifact(gcsArtifact);
+
+  if (normalizedArtifact) {
+    return normalizedArtifact;
+  }
+
+  return FALLBACK_QUESTION_BANK_ARTIFACT;
+}
+
+async function getQuestionBankArtifact() {
+  if (
+    questionBankArtifactCache &&
+    Date.now() - questionBankArtifactCache.loadedAt < QUESTION_BANK_CACHE_TTL_MS
+  ) {
+    return questionBankArtifactCache.artifact;
+  }
+
+  if (!questionBankArtifactPromise) {
+    questionBankArtifactPromise = loadQuestionBankArtifact()
+      .then((artifact) => {
+        questionBankArtifactCache = {
+          loadedAt: Date.now(),
+          artifact,
+        };
+
+        return artifact;
+      })
+      .finally(() => {
+        questionBankArtifactPromise = null;
+      });
+  }
+
+  return questionBankArtifactPromise;
 }
 
 export async function getDailyContent(date = getDateKey()) {
@@ -859,6 +1162,12 @@ export async function getSignalHistory(limit = 30): Promise<DailyContentDocument
   return snapshot.docs.map((doc) =>
     normalizeDailyContent(doc.data() as Record<string, unknown>, doc.id),
   );
+}
+
+export async function getDailyQuiz(date = getDateKey()): Promise<DailyQuizDocument> {
+  const artifact = await getQuestionBankArtifact();
+
+  return buildDailyQuizFromQuestionBank(artifact, date);
 }
 
 export async function getCurriculumExperience() {
@@ -1032,55 +1341,10 @@ export async function getCurriculumLibraryTrack(trackSlug: string) {
   return getCurriculumLibraryTrackBySlug(tracks, trackSlug);
 }
 
-function normalizeBankQuestion(value: unknown, docId: string): BankQuestion | null {
-  if (!value || typeof value !== "object") return null;
-
-  const doc = value as Record<string, unknown>;
-  const options = Array.isArray(doc.options)
-    ? doc.options.filter((o): o is string => typeof o === "string")
-    : [];
-  const answerIndex = typeof doc.answerIndex === "number" ? doc.answerIndex : 0;
-
-  if (typeof doc.prompt !== "string" || options.length < 2) return null;
-  if (answerIndex < 0 || answerIndex >= options.length) return null;
-
-  const rawLevel = doc.level;
-  const level: QuestionLevel =
-    rawLevel === "foundational" || rawLevel === "intermediate" || rawLevel === "advanced"
-      ? rawLevel
-      : "intermediate";
-
-  return {
-    id: typeof doc.id === "string" ? doc.id : docId,
-    prompt: doc.prompt,
-    options,
-    answerIndex,
-    explanation: typeof doc.explanation === "string" ? doc.explanation : "",
-    topic: typeof doc.topic === "string" ? doc.topic : "Machine Learning",
-    level,
-    date: typeof doc.date === "string" ? doc.date : "",
-    source: "daily",
-  };
-}
-
 export async function getQuestionBank(): Promise<BankQuestion[]> {
-  const db = getAdminFirestore();
+  const artifact = await getQuestionBankArtifact();
 
-  if (!db) return [];
-
-  try {
-    const snapshot = await db
-      .collection("question_bank")
-      .orderBy("date", "desc")
-      .limit(200)
-      .get();
-
-    return snapshot.docs
-      .map((document) => normalizeBankQuestion(document.data(), document.id))
-      .filter((q): q is BankQuestion => q !== null);
-  } catch {
-    return [];
-  }
+  return artifact.questions;
 }
 
 export async function seedCurriculum() {

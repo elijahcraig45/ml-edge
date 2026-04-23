@@ -1,4 +1,5 @@
-﻿import type { HostedLessonContent } from "@/lib/hosted-lessons";
+﻿import { getAuthoredDsaHostedLessonContent, hasAuthoredDsaHostedLessonContent } from "@/lib/authored-dsa-course";
+import type { HostedLessonContent } from "@/lib/hosted-lessons";
 import { getAuthoredPracticeProblems } from "@/lib/authored-practice-problems";
 
 const AUTHORED_HOSTED_LESSONS: Record<string, HostedLessonContent> = {
@@ -4119,13 +4120,17 @@ export function getAuthoredHostedLessonContent(
   lessonId: string,
 ): HostedLessonContent | null {
   const lesson = AUTHORED_HOSTED_LESSONS[lessonId];
-  if (!lesson) return null;
-  return {
-    ...lesson,
-    practiceProblems: getAuthoredPracticeProblems(lessonId),
-  };
+
+  if (lesson) {
+    return {
+      ...lesson,
+      practiceProblems: getAuthoredPracticeProblems(lessonId),
+    };
+  }
+
+  return getAuthoredDsaHostedLessonContent(lessonId);
 }
 
 export function hasAuthoredHostedLessonContent(lessonId: string) {
-  return lessonId in AUTHORED_HOSTED_LESSONS;
+  return lessonId in AUTHORED_HOSTED_LESSONS || hasAuthoredDsaHostedLessonContent(lessonId);
 }

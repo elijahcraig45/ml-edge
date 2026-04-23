@@ -27,6 +27,7 @@ export type PracticeProblem = {
   solution: string;
   checkYourWork: string[];
   difficulty: "warm-up" | "challenge";
+  formatLabel?: string;
 };
 
 export type HostedLessonContent = {

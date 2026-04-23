@@ -21,7 +21,8 @@ export default async function SignalHistoryPage() {
           </h1>
           <p className="mt-2 text-sm leading-6 text-slate-400">
             Each entry is a Gemini-generated deep dive on that day&apos;s top AI/ML
-            news — with quiz questions built from it.
+            news. The daily quiz now runs independently from the authored
+            foundations bank.
           </p>
         </div>
 
@@ -63,10 +64,12 @@ export default async function SignalHistoryPage() {
                       {signal.technicalSummary}
                     </p>
                     <div className="mt-3 flex items-center gap-3 text-[11px] text-slate-600">
-                      <span className="flex items-center gap-1">
-                        <BookOpen className="h-3 w-3" />
-                        {signal.quiz.questions.length} questions
-                      </span>
+                      {signal.sourceArticles.length > 0 && (
+                        <span className="flex items-center gap-1">
+                          <BookOpen className="h-3 w-3" />
+                          Deep dive
+                        </span>
+                      )}
                       {signal.sourceArticles.length > 0 && (
                         <span className="flex items-center gap-1">
                           <ExternalLink className="h-3 w-3" />

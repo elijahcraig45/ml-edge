@@ -48,40 +48,16 @@ export async function POST() {
     date,
     headline: generated.headline,
     technicalSummary: generated.technicalSummary,
-    quiz: {
-      questions: generated.questions,
-    },
+    deepDive: generated.deepDive,
     status: "generated" as const,
     sourceArticles: articles,
   };
 
   await db.collection("daily_content").doc(date).set(document, { merge: true });
 
-  const bankBatch = db.batch();
-  generated.questions.forEach((question, index) => {
-    const bankDocId = `${date}-${index + 1}`;
-    bankBatch.set(
-      db.collection("question_bank").doc(bankDocId),
-      {
-        id: bankDocId,
-        prompt: question.prompt,
-        options: question.options,
-        answerIndex: question.answerIndex,
-        explanation: question.explanation,
-        topic: question.topic,
-        level: question.level,
-        date,
-        source: "daily",
-      },
-      { merge: true },
-    );
-  });
-  await bankBatch.commit();
-
   return NextResponse.json({
     status: "ok",
     date,
     headline: document.headline,
-    questionCount: document.quiz.questions.length,
   });
 }

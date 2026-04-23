@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { InteractiveLessonExperience } from "@/components/curriculum/interactive-lesson-experience";
+import { InteractiveLessonExperienceClient } from "@/components/curriculum/interactive-lesson-experience-client";
 import { Panel } from "@/components/ui/panel";
 import {
   getAuthoredHostedLessonContent,
@@ -122,7 +122,7 @@ export default async function LessonPage({ params }: LessonPageProps) {
         </Panel>
 
         <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-          <InteractiveLessonExperience
+          <InteractiveLessonExperienceClient
             courseSlug={course.slug}
             lessonId={currentEntry.lesson.id}
             hostedLesson={hostedLesson}

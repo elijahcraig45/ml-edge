@@ -7,7 +7,33 @@ export const FALLBACK_DAILY_CONTENT: DailyContentDocument = {
   date: today,
   headline: "Agentic ML tooling is shifting from demos to durable workflows.",
   technicalSummary:
-    "Today's deep dive focuses on how production-grade ML teams compose retrieval, evaluation, and orchestration into one repeatable delivery system. The durable advantage is not the model alone; it is the pipeline that keeps insights fresh, measurable, and cheap enough to run every day.",
+    "Production-grade ML advantage now comes from systems that connect retrieval, evaluation, orchestration, and operational feedback into one durable workflow rather than from isolated model quality alone.",
+  deepDive: {
+    tldr:
+      "Production-grade ML advantage now comes from systems that connect retrieval, evaluation, orchestration, and operational feedback into one durable workflow rather than from isolated model quality alone.",
+    themes: [
+      {
+        title: "Tool use is becoming workflow infrastructure",
+        analysis:
+          "The important shift is not that agents can call tools, but that teams are standardizing the contracts around those calls. Once tool invocation, state handoff, and auditability become stable interfaces, agentic systems stop being demos and start looking like operable software.",
+        sourceArticleNumbers: [1],
+      },
+      {
+        title: "Retrieval quality is now a first-class engineering problem",
+        analysis:
+          "As more teams ship RAG-style products, the bottleneck moves upstream from generation quality to evidence quality. Chunking, indexing, recall, ranking, and grounding checks increasingly determine whether downstream answers are useful or misleading.",
+        sourceArticleNumbers: [2],
+      },
+      {
+        title: "Cheap daily intelligence depends on pipeline discipline",
+        analysis:
+          "The operational edge comes from keeping ingestion, summarization, evaluation, and delivery inexpensive enough to run every day. That favors architectures with narrow writes, reusable storage artifacts, and clear separation between generated news analysis and authored learning content.",
+        sourceArticleNumbers: [1, 2],
+      },
+    ],
+    industryState:
+      "The market is moving away from single-model thinking toward end-to-end systems thinking. Teams that can keep signals fresh, grounded, and operationally cheap are the ones most likely to compound quality over time.",
+  },
   status: "seeded",
   sourceArticles: [
     {
@@ -27,50 +53,5 @@ export const FALLBACK_DAILY_CONTENT: DailyContentDocument = {
       publishedAt: today,
     },
   ],
-  quiz: {
-    questions: [
-      {
-        id: "seed-q1",
-        prompt:
-          "Which system choice most improves long-term reliability for a daily ML learning assistant?",
-        options: [
-          "Switching models every day",
-          "Automating ingestion, generation, storage, and review in one pipeline",
-          "Only storing the final summary",
-          "Removing persistence to save cost",
-        ],
-        answerIndex: 1,
-        explanation:
-          "Reliability comes from repeatable ingestion and persistence, not from model churn or stateless operation.",
-      },
-      {
-        id: "seed-q2",
-        prompt:
-          "Why is structured quiz output from Gemini more useful than free-form prose for this app?",
-        options: [
-          "It avoids needing Firestore",
-          "It guarantees lower token usage",
-          "It can be rendered, validated, and scored without extra parsing logic in the UI",
-          "It removes the need for authentication",
-        ],
-        answerIndex: 2,
-        explanation:
-          "Structured output lets the UI score answers directly and keeps the cron pipeline predictable.",
-      },
-      {
-        id: "seed-q3",
-        prompt: "Which free-tier-friendly deployment pattern best fits this project?",
-        options: [
-          "A permanently running VM",
-          "Cloud Run for the app plus Cloud Scheduler for the daily trigger",
-          "A GPU notebook kept online all day",
-          "A monolithic on-premise server",
-        ],
-        answerIndex: 1,
-        explanation:
-          "Cloud Run scales to zero and Scheduler handles the recurring content update without always-on infrastructure.",
-      },
-    ],
-  },
 };
 

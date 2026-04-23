@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "The ML Edge",
   description:
-    "An engineer's console for learning streaks, daily ML quizzes, curriculum tracking, and AI news.",
+    "An engineer's console for learning streaks, daily foundations drills, curriculum tracking, and AI news.",
 };
 
 export default function RootLayout({

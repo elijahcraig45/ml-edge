@@ -1,3 +1,4 @@
+import { DailyDeepDivePanels } from "@/components/news/daily-deep-dive";
 import { Panel } from "@/components/ui/panel";
 import { getDailyContent } from "@/lib/content";
 
@@ -12,16 +13,12 @@ export default async function NewsPage() {
         <Panel eyebrow="AI news feed" title={dailyContent.headline}>
           <p className="text-sm leading-7 text-slate-300">
             The news pipeline pulls current AI headlines, then Gemini condenses the
-            signal into a technical learning brief and quiz.
+            signal into a technical deep dive for a software-engineering audience.
           </p>
         </Panel>
 
         <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-          <Panel eyebrow="Technical summary" title="Daily deep dive">
-            <p className="whitespace-pre-line text-sm leading-7 text-slate-300">
-              {dailyContent.technicalSummary}
-            </p>
-          </Panel>
+          <DailyDeepDivePanels deepDive={dailyContent.deepDive} />
 
           <Panel
             eyebrow="Latest news"

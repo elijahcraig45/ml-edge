@@ -1,13 +1,20 @@
 import Link from "next/link";
 import { Brain, BookOpen, Zap, ArrowRight, Newspaper, Target, ExternalLink, CalendarDays } from "lucide-react";
 import { Panel } from "@/components/ui/panel";
-import { getCurriculum, getDailyContent } from "@/lib/content";
+import {
+  getCurriculum,
+  getDailyContent,
+  getDailyQuiz,
+  getQuestionBank,
+} from "@/lib/content";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [dailyContent, curriculum] = await Promise.all([
+  const [dailyContent, dailyQuiz, questionBank, curriculum] = await Promise.all([
     getDailyContent(),
+    getDailyQuiz(),
+    getQuestionBank(),
     getCurriculum(),
   ]);
 
@@ -38,8 +45,8 @@ export default async function DashboardPage() {
                 </span>
               </h1>
               <p className="mt-4 max-w-xl text-base leading-7 text-slate-400">
-                Read the signal, internalize the tradeoffs, complete the quiz, and keep
-                your understanding sharp every day.
+                Read the signal, then run the daily foundations drill to keep
+                retrieval, reasoning, and implementation instincts sharp every day.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -95,10 +102,12 @@ export default async function DashboardPage() {
               <ArrowRight className="h-4 w-4 text-slate-600 transition-colors group-hover:text-slate-400" />
             </div>
             <p className="mt-3 text-2xl font-bold text-white">
-              {dailyContent.quiz.questions.length}
+              {dailyQuiz.questions.length}
             </p>
             <p className="mt-0.5 text-sm font-medium text-slate-300">Quiz questions</p>
-            <p className="mt-1 text-xs text-slate-500">From today&apos;s deep dive</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Easy, medium, hard · {dailyQuiz.topic}
+            </p>
           </Link>
 
           <Link href="/curriculum" className="group rounded-xl border border-white/8 bg-slate-900/50 p-4 transition-colors hover:border-violet-400/30 hover:bg-slate-900/80">
@@ -120,9 +129,9 @@ export default async function DashboardPage() {
               </div>
               <ArrowRight className="h-4 w-4 text-slate-600 transition-colors group-hover:text-slate-400" />
             </div>
-            <p className="mt-3 text-2xl font-bold text-white">3×</p>
-            <p className="mt-0.5 text-sm font-medium text-slate-300">New today</p>
-            <p className="mt-1 text-xs text-slate-500">Questions added to practice bank</p>
+            <p className="mt-3 text-2xl font-bold text-white">{questionBank.length}</p>
+            <p className="mt-0.5 text-sm font-medium text-slate-300">Bank questions</p>
+            <p className="mt-1 text-xs text-slate-500">DS&A and ML/AI drills</p>
           </Link>
         </div>
 
@@ -163,8 +172,8 @@ export default async function DashboardPage() {
               >
                 <Brain className="mt-0.5 h-4 w-4 shrink-0 text-indigo-300" />
                 <span>
-                  Review the deep dive, then hit the quiz to turn reading into
-                  retrieval practice.
+                  Run the daily foundations quiz for one easy, one medium, and one hard
+                  retrieval check.
                 </span>
               </Link>
               <Link

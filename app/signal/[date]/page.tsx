@@ -8,6 +8,7 @@ import {
   Radio,
 } from "lucide-react";
 import { getDailyContent } from "@/lib/content";
+import { DailyDeepDivePanels } from "@/components/news/daily-deep-dive";
 import { Panel } from "@/components/ui/panel";
 
 export const dynamic = "force-dynamic";
@@ -65,11 +66,11 @@ export default async function SignalDetailPage({ params }: Props) {
           <div className="mt-5 flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
             <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-slate-400">
-              Deep dive
+              TL;DR
             </p>
           </div>
           <p className="mt-3 text-sm leading-7 text-slate-300">
-            {signal.technicalSummary}
+            {signal.deepDive.tldr}
           </p>
 
           <div className="mt-6">
@@ -78,10 +79,12 @@ export default async function SignalDetailPage({ params }: Props) {
               className="inline-flex items-center gap-2 rounded-xl bg-indigo-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition-colors hover:bg-indigo-400"
             >
               <Brain className="h-4 w-4" />
-              Take the quiz ({signal.quiz.questions.length} questions)
+              Take today&apos;s foundations quiz
             </Link>
           </div>
         </div>
+
+        <DailyDeepDivePanels deepDive={signal.deepDive} showTldr={false} />
 
         {/* Source articles */}
         {signal.sourceArticles.length > 0 && (

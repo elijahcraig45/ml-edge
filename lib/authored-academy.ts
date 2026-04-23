@@ -1,4 +1,5 @@
 ﻿import { getAuthoredHostedLessonContent } from "@/lib/authored-hosted-lessons";
+import { getAuthoredDsaLesson } from "@/lib/authored-dsa-course";
 import { ML_ENGINEER_CURRICULUM } from "@/lib/curriculum-catalog";
 import { ML_ENGINEER_PROGRAM } from "@/lib/curriculum-program";
 import type { HostedLessonContent } from "@/lib/hosted-lessons";
@@ -65,6 +66,12 @@ function question(
 }
 
 function findLessonById(lessonId: string): CurriculumLesson | null {
+  const dsaLesson = getAuthoredDsaLesson(lessonId);
+
+  if (dsaLesson) {
+    return dsaLesson;
+  }
+
   const programSources = [...ML_ENGINEER_PROGRAM, ...ML_ENGINEER_CURRICULUM];
 
   for (const course of programSources) {
@@ -519,10 +526,6 @@ const AUTHORED_ACADEMY_COURSES: AuthoredAcademyCourse[] = [
       ],
     },
   },
-// Academy courses 5-12: Advanced track courses
-// To be inserted into AUTHORED_ACADEMY_COURSES array in authored-academy.ts
-// Insert before the closing `];` on the last line of the array
-
   {
     slug: "history-of-ai-ml",
     title: "History of AI and Machine Learning",
@@ -1225,6 +1228,121 @@ const AUTHORED_ACADEMY_COURSES: AuthoredAcademyCourse[] = [
           ],
           1,
           "Multimodal retrieval quality depends on evaluation that mirrors the true product requirement, not just generic embedding coherence.",
+        ),
+      ],
+    },
+  },
+  {
+    slug: "data-structures-and-algorithms",
+    title: "Data Structures and Algorithms",
+    shortTitle: "DS&A",
+    order: 13,
+    availability: "Take anytime after foundations",
+    summary:
+      "A rigorous authored DS&A course built around GT-style undergraduate coverage: asymptotic analysis, recursion, linked structures, trees, hashing, sorting, graphs, and dynamic programming.",
+    audience:
+      "Take this when you want real algorithmic fluency, not interview-card memorization. It is written for engineers who want to trace, debug, and implement core structures with discipline.",
+    outcomes: [
+      "Choose data structures from workload and invariant reasoning instead of habit.",
+      "Trace recursive, graph, and partition-based algorithms without losing the state story.",
+      "Debug classic implementation failures in linked structures, queues, trees, hashing, and DP memoization.",
+      "Implement and justify core undergraduate DS&A machinery with stronger rigor.",
+    ],
+    startGuidance:
+      "This course is a standalone elective. You can take it after the early foundations courses or use it as a parallel track when you want to strengthen core CS reasoning.",
+    canTakeAnytime: true,
+    lessons: [
+      buildAuthoredAcademyLesson("dsa-lesson-1"),
+      buildAuthoredAcademyLesson("dsa-lesson-2"),
+      buildAuthoredAcademyLesson("dsa-lesson-3"),
+      buildAuthoredAcademyLesson("dsa-lesson-4"),
+      buildAuthoredAcademyLesson("dsa-lesson-5"),
+      buildAuthoredAcademyLesson("dsa-lesson-6"),
+    ],
+    badge: {
+      id: "badge-dsa",
+      title: "Data Structures and Algorithms",
+      description:
+        "Earned by completing the authored DS&A course and passing the end-of-course mastery test.",
+      emblem: "Invariant Forge",
+    },
+    finalAssessment: {
+      title: "DS&A Badge Test",
+      description:
+        "A final exam on cost models, invariants, balanced trees, hashing, sorting, graph algorithms, and dynamic programming.",
+      passingScore: 5,
+      questions: [
+        question(
+          "dsa-badge-q1",
+          "Why is amortized analysis the right language for dynamic arrays and resizing queues?",
+          [
+            "Because it proves every operation is worst-case O(1)",
+            "Because it explains how occasional expensive maintenance is prepaid across long valid operation sequences",
+            "Because it removes the need to reason about copy cost",
+            "Because it only applies to recursive algorithms",
+          ],
+          1,
+          "Amortized analysis is sequence-level bookkeeping: cheap operations accumulate enough credit to pay for occasional expensive resizes.",
+        ),
+        question(
+          "dsa-badge-q2",
+          "What invariant makes AVL rotations safe?",
+          [
+            "The tree becomes complete after every update",
+            "The tree keeps parent pointers only at the root",
+            "The local restructuring preserves in-order key ordering while repairing height imbalance",
+            "The tree stores all keys in an array before rotating",
+          ],
+          2,
+          "Rotations change shape without changing the sorted left-root-right relationship among the affected keys.",
+        ),
+        question(
+          "dsa-badge-q3",
+          "Why can deleting an open-addressed hash-table entry by writing null create false negatives later?",
+          [
+            "Because null keys cannot be rehashed",
+            "Because later lookups may stop at the cleared slot instead of continuing through the original probe chain",
+            "Because the load factor immediately becomes zero",
+            "Because open addressing requires sorted buckets",
+          ],
+          1,
+          "Probe continuity is part of lookup correctness. Clearing a slot can incorrectly signal that the target key is absent.",
+        ),
+        question(
+          "dsa-badge-q4",
+          "Why is quickselect usually cheaper than quicksort when you only need the kth smallest element?",
+          [
+            "Because it uses stable partitioning",
+            "Because it recursively explores only the side containing the target rank instead of fully sorting both sides",
+            "Because it avoids comparisons entirely",
+            "Because it is guaranteed O(log n) worst case",
+          ],
+          1,
+          "Selection needs enough order to isolate one rank, not total order over the entire array.",
+        ),
+        question(
+          "dsa-badge-q5",
+          "What property makes Dijkstra's greedy finalization step correct?",
+          [
+            "All edge weights are identical",
+            "The graph is a tree",
+            "No future path can reduce a finalized distance when all edge weights are nonnegative",
+            "The adjacency list is sorted alphabetically",
+          ],
+          2,
+          "Nonnegative edges ensure that once the smallest tentative distance is chosen, no later detour can undercut it.",
+        ),
+        question(
+          "dsa-badge-q6",
+          "What is the first real design task in dynamic programming?",
+          [
+            "Choosing top-down versus bottom-up syntax",
+            "Choosing a state that captures exactly the subproblem information required for valid recombination",
+            "Allocating the biggest possible table",
+            "Sorting the input before recursion",
+          ],
+          1,
+          "If the state definition is wrong, every later recurrence or memoization step inherits that mistake.",
         ),
       ],
     },

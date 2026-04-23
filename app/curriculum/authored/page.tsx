@@ -20,10 +20,10 @@ export default function AuthoredAcademyPage() {
                 like a real lecture and tutorial, not a placeholder or outline.
               </p>
               <p className="mt-4 text-sm leading-7 text-slate-400">
-                The authored path now has a real sequence: start with{" "}
+                The authored path has a real core sequence: start with{" "}
                 <span className="font-semibold text-slate-100">{courses[0]?.shortTitle}</span>,
-                then move through the next academy courses in order before using the larger
-                source-backed library as elective depth.
+                move through the main ML courses in order, then use the standalone elective
+                courses for extra depth when you want targeted reinforcement.
               </p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <Link

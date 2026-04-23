@@ -823,6 +823,11 @@ export function InteractiveLessonExperience({
                   >
                     {problem.difficulty}
                   </span>
+                  {problem.formatLabel ? (
+                    <span className="rounded-full border border-white/10 px-3 py-0.5 font-mono text-[11px] uppercase tracking-[0.18em] text-slate-300">
+                      {problem.formatLabel}
+                    </span>
+                  ) : null}
                   {selfAssessment && (
                     <span
                       className={[

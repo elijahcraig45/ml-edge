@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "publish:curriculum": "tsx scripts/publish-curriculum.ts",
+    "publish:question-bank": "tsx scripts/publish-question-bank.ts",
     "build:library": "tsx scripts/build-library.ts"
   },
   "dependencies": {

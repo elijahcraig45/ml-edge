@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { doc, runTransaction, serverTimestamp } from "@firebase/firestore";
 import { CheckCircle2, RefreshCw, XCircle } from "lucide-react";
 import { useFirebase } from "@/context/firebase-context";
 import { firestore } from "@/lib/firebase/client";
-import type { DailyContentDocument } from "@/lib/types";
+import type { DailyQuizDocument } from "@/lib/types";
 
 type QuizComponentProps = {
-  content: DailyContentDocument;
+  content: DailyQuizDocument;
 };
 
 type StoredQuizState = {
@@ -57,26 +57,23 @@ function clearState(date: string) {
 }
 
 export function QuizComponent({ content }: QuizComponentProps) {
-  const questions = content.quiz.questions;
+  const questions = content.questions;
   const { isConfigured, user } = useFirebase();
+  const storedState =
+    typeof window === "undefined" ? null : loadStoredState(content.date);
 
-  const [hydrated, setHydrated] = useState(false);
-  const [answers, setAnswers] = useState<Array<number | null>>(
-    questions.map(() => null),
+  const [answers, setAnswers] = useState<Array<number | null>>(() =>
+    storedState && storedState.answers.length === questions.length
+      ? storedState.answers.map((answer) =>
+          typeof answer === "number" ? answer : null,
+        )
+      : questions.map(() => null),
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(
+    storedState !== null && storedState.answers.length === questions.length,
+  );
   const [message, setMessage] = useState<string | null>(null);
-
-  // Hydrate from localStorage after mount
-  useEffect(() => {
-    const stored = loadStoredState(content.date);
-    if (stored && stored.answers.length === questions.length) {
-      setAnswers(stored.answers.map((a) => (typeof a === "number" ? a : null)));
-      setIsSubmitted(true);
-    }
-    setHydrated(true);
-  }, [content.date, questions.length]);
 
   const score = useMemo(
     () =>
@@ -154,20 +151,6 @@ export function QuizComponent({ content }: QuizComponentProps) {
     } finally {
       setIsSubmitting(false);
     }
-  }
-
-  // Avoid hydration mismatch — render nothing until client state is ready
-  if (!hydrated) {
-    return (
-      <div className="space-y-4">
-        {questions.map((_, i) => (
-          <div
-            key={i}
-            className="h-40 animate-pulse rounded-3xl border border-white/10 bg-slate-900/40"
-          />
-        ))}
-      </div>
-    );
   }
 
   return (

@@ -6,57 +6,54 @@ import {
   type ResponseSchema,
 } from "@google/generative-ai";
 import { getRequiredServerEnv } from "@/lib/env";
-import type { NewsArticle, QuizQuestion, QuestionLevel } from "@/lib/types";
-
-type GeminiQuestion = QuizQuestion & {
-  topic: string;
-  level: QuestionLevel;
-};
+import type { DailyDeepDive, NewsArticle } from "@/lib/types";
 
 type GeminiDailyContent = {
   headline: string;
   technicalSummary: string;
-  questions: GeminiQuestion[];
+  deepDive: DailyDeepDive;
+};
+
+type GeminiThemeShape = {
+  title?: unknown;
+  analysis?: unknown;
+  sourceArticleNumbers?: unknown;
 };
 
 type GeminiResponseShape = {
   headline?: unknown;
-  technicalSummary?: unknown;
-  questions?: unknown;
+  deepDive?: {
+    tldr?: unknown;
+    themes?: unknown;
+    industryState?: unknown;
+  };
 };
 
 const DAILY_CONTENT_RESPONSE_SCHEMA: ResponseSchema = {
   type: SchemaType.OBJECT,
-  required: ["headline", "technicalSummary", "questions"],
+  required: ["headline", "deepDive"],
   properties: {
     headline: { type: SchemaType.STRING },
-    technicalSummary: { type: SchemaType.STRING },
-    questions: {
-      type: SchemaType.ARRAY,
-      minItems: 3,
-      maxItems: 3,
-      items: {
-        type: SchemaType.OBJECT,
-        required: [
-          "prompt",
-          "options",
-          "answerIndex",
-          "explanation",
-          "topic",
-          "level",
-        ],
-        properties: {
-          prompt: { type: SchemaType.STRING },
-          options: {
-            type: SchemaType.ARRAY,
-            minItems: 4,
-            maxItems: 4,
-            items: { type: SchemaType.STRING },
+    deepDive: {
+      type: SchemaType.OBJECT,
+      required: ["tldr", "themes", "industryState"],
+      properties: {
+        tldr: { type: SchemaType.STRING },
+        industryState: { type: SchemaType.STRING },
+        themes: {
+          type: SchemaType.ARRAY,
+          items: {
+            type: SchemaType.OBJECT,
+            required: ["title", "analysis", "sourceArticleNumbers"],
+            properties: {
+              title: { type: SchemaType.STRING },
+              analysis: { type: SchemaType.STRING },
+              sourceArticleNumbers: {
+                type: SchemaType.ARRAY,
+                items: { type: SchemaType.INTEGER },
+              },
+            },
           },
-          answerIndex: { type: SchemaType.INTEGER },
-          explanation: { type: SchemaType.STRING },
-          topic: { type: SchemaType.STRING },
-          level: { type: SchemaType.STRING },
         },
       },
     },
@@ -84,17 +81,17 @@ You are a strict JSON formatter.
 Fix the payload below so it becomes valid JSON matching this schema exactly:
 {
   "headline": "string",
-  "technicalSummary": "string",
-  "questions": [
-    {
-      "prompt": "string",
-      "options": ["string", "string", "string", "string"],
-      "answerIndex": 0,
-      "explanation": "string",
-      "topic": "string",
-      "level": "foundational | intermediate | advanced"
-    }
-  ]
+  "deepDive": {
+    "tldr": "string",
+    "themes": [
+      {
+        "title": "string",
+        "analysis": "string",
+        "sourceArticleNumbers": [1, 2]
+      }
+    ],
+    "industryState": "string"
+  }
 }
 
 Return JSON only. Do not add markdown fences.
@@ -107,54 +104,31 @@ ${text}
   }
 }
 
-const VALID_LEVELS = new Set<string>(["foundational", "intermediate", "advanced"]);
-
-function normalizeQuestions(value: unknown): GeminiQuestion[] {
-  if (!Array.isArray(value) || value.length < 3) {
-    throw new Error("Gemini must return at least 3 quiz questions.");
+function normalizeTheme(value: unknown) {
+  if (!value || typeof value !== "object") {
+    return null;
   }
 
-  return value.slice(0, 3).map((item, index) => {
-    if (!item || typeof item !== "object") {
-      throw new Error(`Gemini question ${index + 1} is invalid.`);
-    }
+  const theme = value as GeminiThemeShape;
+  const sourceArticleNumbers = Array.isArray(theme.sourceArticleNumbers)
+    ? theme.sourceArticleNumbers.filter(
+        (item): item is number => typeof item === "number" && Number.isInteger(item),
+      )
+    : [];
 
-    const question = item as Record<string, unknown>;
-    const options = Array.isArray(question.options)
-      ? question.options.filter(
-          (option): option is string => typeof option === "string",
-        )
-      : [];
-    const answerIndex =
-      typeof question.answerIndex === "number" ? question.answerIndex : -1;
+  if (
+    typeof theme.title !== "string" ||
+    typeof theme.analysis !== "string" ||
+    sourceArticleNumbers.length === 0
+  ) {
+    return null;
+  }
 
-    if (
-      typeof question.prompt !== "string" ||
-      typeof question.explanation !== "string" ||
-      options.length !== 4 ||
-      answerIndex < 0 ||
-      answerIndex >= options.length
-    ) {
-      throw new Error(`Gemini question ${index + 1} failed schema validation.`);
-    }
-
-    const rawLevel = question.level;
-    const level: QuestionLevel =
-      typeof rawLevel === "string" && VALID_LEVELS.has(rawLevel)
-        ? (rawLevel as QuestionLevel)
-        : "intermediate";
-
-    return {
-      id: `generated-question-${index + 1}`,
-      prompt: question.prompt,
-      options,
-      answerIndex,
-      explanation: question.explanation,
-      topic:
-        typeof question.topic === "string" ? question.topic : "Machine Learning",
-      level,
-    } satisfies GeminiQuestion;
-  });
+  return {
+    title: theme.title,
+    analysis: theme.analysis,
+    sourceArticleNumbers: [...new Set(sourceArticleNumbers)].sort((left, right) => left - right),
+  };
 }
 
 export async function generateDailyDeepDive(
@@ -171,7 +145,7 @@ export async function generateDailyDeepDive(
       responseMimeType: "application/json",
       responseSchema: DAILY_CONTENT_RESPONSE_SCHEMA,
       temperature: 0.2,
-      maxOutputTokens: 2200,
+      maxOutputTokens: 2600,
     },
   });
 
@@ -192,34 +166,33 @@ Generate a Daily Deep Dive for software engineers and ML researchers.
 Return valid JSON matching this schema exactly:
 {
   "headline": "string",
-  "technicalSummary": "string",
-  "questions": [
-    {
-      "prompt": "string",
-      "options": ["string", "string", "string", "string"],
-      "answerIndex": 0,
-      "explanation": "string",
-      "topic": "string",
-      "level": "foundational | intermediate | advanced"
-    }
-  ]
+  "deepDive": {
+    "tldr": "string",
+    "themes": [
+      {
+        "title": "string",
+        "analysis": "string",
+        "sourceArticleNumbers": [1, 2]
+      }
+    ],
+    "industryState": "string"
+  }
 }
 
 Requirements:
 - Headline: one sentence, dense and technical, grounded in the biggest cross-cutting shift of the day.
-- Technical summary: a structured plaintext report with these sections in order:
-  TL;DR:
-  Theme 1:
-  Theme 2:
-  Theme 3:
-  Industry state:
-  Each theme must explain both WHY this matters and HOW it works (architecture, math, infra, library/runtime implications).
+- deepDive.tldr: 2-3 sentences, concise but technical.
+- deepDive.themes: exactly 3 themes. Each theme must have:
+  - a short technical title
+  - analysis of at least 4 sentences
+  - both WHY it matters and HOW it works
+  - architectural, mathematical, systems, library, infra, or runtime implications
+  - inline citations like [1], [4], [7] inside the analysis text
+  - sourceArticleNumbers listing the cited article numbers for that theme
+- deepDive.industryState: 3-4 sentences describing what today's mix of stories says about the direction of the field.
+- Use at least 4 distinct article numbers across the full response when 4+ articles are provided.
 - Use a rigorous, objective tone. Avoid hype, buzzwords, and marketing phrasing.
-- Explicitly reference article numbers in each theme (for example, "[1], [4], [7]").
-- Use at least 4 distinct article numbers across the full technical summary when 4+ articles are provided.
-- Questions: exactly 3 challenging technical MCQs that test comprehension of these specific developments.
-- topic: a short noun phrase describing the ML concept tested (e.g. "Transformer attention", "RAG pipelines", "Model quantization").
-- level: classify each question as foundational (core concept), intermediate (applied reasoning), or advanced (systems/research depth).
+- Do not turn the deep dive into a single TL;DR or a short recap. It must read like a serious technical analysis.
 - No markdown fences, no extra keys, no commentary outside the JSON.
 
 Articles:
@@ -232,21 +205,36 @@ ${articleDigest}
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       const parsed = await parseWithRepair(model, raw);
+      const deepDive =
+        parsed.deepDive && typeof parsed.deepDive === "object" ? parsed.deepDive : null;
+      const themes = Array.isArray(deepDive?.themes)
+        ? deepDive.themes
+            .map(normalizeTheme)
+            .filter((item): item is DailyDeepDive["themes"][number] => item !== null)
+        : [];
 
       if (
         typeof parsed.headline !== "string" ||
-        typeof parsed.technicalSummary !== "string"
+        !deepDive ||
+        typeof deepDive.tldr !== "string" ||
+        typeof deepDive.industryState !== "string" ||
+        themes.length < 3
       ) {
-        throw new Error("Gemini returned an invalid headline or technical summary.");
+        throw new Error("Gemini returned an invalid deep-dive payload.");
       }
 
       return {
         headline: parsed.headline,
-        technicalSummary: parsed.technicalSummary,
-        questions: normalizeQuestions(parsed.questions),
+        technicalSummary: deepDive.tldr,
+        deepDive: {
+          tldr: deepDive.tldr,
+          themes: themes.slice(0, 3),
+          industryState: deepDive.industryState,
+        },
       };
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
+
       if (attempt === 1) {
         break;
       }
@@ -254,7 +242,8 @@ ${articleDigest}
       const retryPrompt = `
 The previous output failed schema validation: ${lastError.message}
 Regenerate the full response as strict JSON only.
-You must include exactly 3 questions and preserve the same required schema.
+Preserve the same schema exactly.
+Return exactly 3 deepDive themes.
 Do not include markdown fences.
 
 Articles:
@@ -268,4 +257,3 @@ ${articleDigest}
     `Gemini failed to produce valid daily content after retry: ${lastError?.message ?? "unknown error"}.`,
   );
 }
-

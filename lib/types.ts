@@ -16,22 +16,56 @@ export type QuizQuestion = {
   explanation: string;
 };
 
-export type QuestionLevel = "foundational" | "intermediate" | "advanced";
+export type QuestionLevel = "easy" | "medium" | "hard" | "expert";
 
 export type BankQuestion = QuizQuestion & {
   topic: string;
   level: QuestionLevel;
+  source: "authored-bank";
+};
+
+export type PublishedQuestionBankTopic = {
+  slug: string;
+  title: string;
+  dailySummary: string;
+};
+
+export type PublishedQuestionBankArtifact = {
+  version: string;
+  generatedAt: string;
+  strategy: string;
+  countsByLevel: Record<QuestionLevel, number>;
+  questionCount: number;
+  topicCount: number;
+  topics: PublishedQuestionBankTopic[];
+  questions: BankQuestion[];
+};
+
+export type DailyQuizDocument = {
   date: string;
-  source: "daily";
+  title: string;
+  summary: string;
+  topic: string;
+  questions: BankQuestion[];
+};
+
+export type DailyDeepDiveTheme = {
+  title: string;
+  analysis: string;
+  sourceArticleNumbers: number[];
+};
+
+export type DailyDeepDive = {
+  tldr: string;
+  themes: DailyDeepDiveTheme[];
+  industryState: string;
 };
 
 export type DailyContentDocument = {
   date: string;
   headline: string;
   technicalSummary: string;
-  quiz: {
-    questions: QuizQuestion[];
-  };
+  deepDive: DailyDeepDive;
   status: "generated" | "seeded";
   sourceArticles: NewsArticle[];
 };
