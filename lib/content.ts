@@ -8,6 +8,7 @@ import {
 import { ML_ENGINEER_PROGRAM } from "@/lib/curriculum-program";
 import { getDateKey } from "@/lib/date";
 import { getAdminFirestore } from "@/lib/firebase/admin";
+import { curateNewsArticles, normalizeNewsUrl } from "@/lib/news-article-quality";
 import {
   buildCurriculumLibraryTracks,
   getCurriculumLibraryTrackBySlug,
@@ -59,7 +60,8 @@ function normalizeArticle(value: unknown): NewsArticle | null {
         : "Untitled AI briefing",
     description:
       typeof article.description === "string" ? article.description : "",
-    url: typeof article.url === "string" ? article.url : "#",
+    url:
+      typeof article.url === "string" ? normalizeNewsUrl(article.url) : "#",
     source:
       typeof article.source === "string" ? article.source : "Unknown Source",
     publishedAt:
@@ -196,11 +198,12 @@ function normalizeDailyContent(
   value: Record<string, unknown>,
   date: string,
 ): DailyContentDocument {
-  const sourceArticles = Array.isArray(value.sourceArticles)
+  const normalizedSourceArticles = Array.isArray(value.sourceArticles)
     ? value.sourceArticles
         .map(normalizeArticle)
         .filter((article): article is NewsArticle => article !== null)
     : [];
+  const sourceArticles = curateNewsArticles(normalizedSourceArticles);
   const technicalSummary =
     typeof value.technicalSummary === "string"
       ? value.technicalSummary
@@ -219,7 +222,9 @@ function normalizeDailyContent(
     sourceArticles:
       sourceArticles.length > 0
         ? sourceArticles
-        : FALLBACK_DAILY_CONTENT.sourceArticles,
+        : value.status === "generated"
+          ? []
+          : FALLBACK_DAILY_CONTENT.sourceArticles,
   };
 }
 

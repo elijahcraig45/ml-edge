@@ -2,7 +2,7 @@
 
 A self-directed ML/data science learning platform built for depth over breadth — dark-mode terminal aesthetic, fully authored interactive lessons, daily AI news digests, streak-tracked quizzes, and a 13-course curriculum mapped to ML engineering competency. Deployed to Google Cloud Run.
 
-**Live:** https://mledge-338436483735.us-central1.run.app
+**Live:** https://mle-edge.dev
 
 ---
 

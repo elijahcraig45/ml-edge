@@ -15,10 +15,46 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const siteUrl = "https://mle-edge.dev";
+
 export const metadata: Metadata = {
   title: "The ML Edge",
   description:
     "An engineer's console for learning streaks, daily foundations drills, curriculum tracking, and AI news.",
+  applicationName: "The ML Edge",
+  metadataBase: new URL(siteUrl),
+  keywords: [
+    "machine learning",
+    "data science",
+    "ml engineering",
+    "interactive curriculum",
+    "technical interview prep",
+    "ai news",
+  ],
+  openGraph: {
+    title: "The ML Edge",
+    description:
+      "Daily AI signals, authored ML/DS&A curriculum, and a large foundations question bank in one engineer-focused console.",
+    url: siteUrl,
+    siteName: "The ML Edge",
+    images: [
+      {
+        url: "/og-dashboard.png",
+        width: 1440,
+        height: 1100,
+        alt: "The ML Edge dashboard preview",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "The ML Edge",
+    description:
+      "Daily AI signals, authored ML/DS&A curriculum, and a large foundations question bank in one engineer-focused console.",
+    images: ["/og-dashboard.png"],
+  },
 };
 
 export default function RootLayout({

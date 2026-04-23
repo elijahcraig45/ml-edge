@@ -10,6 +10,7 @@ export default async function QuizPage() {
   return (
     <div className="console-grid min-h-full overflow-y-auto p-6 sm:p-8">
       <div className="mx-auto max-w-4xl space-y-6">
+        <h1 className="sr-only">Daily foundations quiz</h1>
         <Panel eyebrow="Daily quiz" title={dailyQuiz.title}>
           <p className="text-sm leading-7 text-slate-300">
             {dailyQuiz.summary} Work through the easy, medium, and hard prompts, then

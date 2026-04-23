@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { Brain, BookOpen, Zap, ArrowRight, Newspaper, Target, ExternalLink, CalendarDays } from "lucide-react";
 import { Panel } from "@/components/ui/panel";
+import { getAuthoredAcademyCourses } from "@/lib/authored-academy";
 import {
-  getCurriculum,
   getDailyContent,
   getDailyQuiz,
   getQuestionBank,
@@ -11,12 +11,12 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [dailyContent, dailyQuiz, questionBank, curriculum] = await Promise.all([
+  const [dailyContent, dailyQuiz, questionBank] = await Promise.all([
     getDailyContent(),
     getDailyQuiz(),
     getQuestionBank(),
-    getCurriculum(),
   ]);
+  const authoredAcademyCourses = getAuthoredAcademyCourses();
 
   const isLive = dailyContent.status === "generated";
   const dateLabel = new Date(dailyContent.date).toLocaleDateString("en-US", {
@@ -117,9 +117,9 @@ export default async function DashboardPage() {
               </div>
               <ArrowRight className="h-4 w-4 text-slate-600 transition-colors group-hover:text-slate-400" />
             </div>
-            <p className="mt-3 text-2xl font-bold text-white">{curriculum.length}</p>
-            <p className="mt-0.5 text-sm font-medium text-slate-300">Curriculum modules</p>
-            <p className="mt-1 text-xs text-slate-500">Beginner and advanced tracks</p>
+            <p className="mt-3 text-2xl font-bold text-white">{authoredAcademyCourses.length}</p>
+            <p className="mt-0.5 text-sm font-medium text-slate-300">Authored courses</p>
+            <p className="mt-1 text-xs text-slate-500">Math for ML through DS&amp;A</p>
           </Link>
 
           <Link href="/practice" className="group rounded-xl border border-white/8 bg-slate-900/50 p-4 transition-colors hover:border-emerald-400/30 hover:bg-slate-900/80">
@@ -159,7 +159,9 @@ export default async function DashboardPage() {
                   </a>
                 ))
               ) : (
-                <p className="text-sm text-slate-500">Source articles will appear here after the daily cron runs.</p>
+                <p className="text-sm text-slate-500">
+                  High-confidence source links are unavailable for this digest right now.
+                </p>
               )}
             </div>
           </Panel>

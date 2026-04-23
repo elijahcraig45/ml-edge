@@ -10,6 +10,7 @@ export default async function NewsPage() {
   return (
     <div className="console-grid min-h-full overflow-y-auto p-6 sm:p-8">
       <div className="mx-auto max-w-5xl space-y-6">
+        <h1 className="sr-only">AI news feed</h1>
         <Panel eyebrow="AI news feed" title={dailyContent.headline}>
           <p className="text-sm leading-7 text-slate-300">
             The news pipeline pulls current AI headlines, then Gemini condenses the
@@ -25,26 +26,32 @@ export default async function NewsPage() {
             title={`${dailyContent.sourceArticles.length} latest stories`}
           >
             <div className="space-y-4">
-              {dailyContent.sourceArticles.map((article) => (
-                <a
-                  key={article.url}
-                  href={article.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block rounded-3xl border border-white/10 bg-slate-900/60 p-4 hover:border-indigo-400/40 hover:bg-slate-900"
-                >
-                  <p className="text-sm font-semibold text-slate-100">
-                    {article.title}
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">
-                    {article.description}
-                  </p>
-                  <div className="mt-3 flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                    <span>{article.source}</span>
-                    <span>{article.publishedAt.slice(0, 10)}</span>
-                  </div>
-                </a>
-              ))}
+              {dailyContent.sourceArticles.length > 0 ? (
+                dailyContent.sourceArticles.map((article) => (
+                  <a
+                    key={article.url}
+                    href={article.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block rounded-3xl border border-white/10 bg-slate-900/60 p-4 hover:border-indigo-400/40 hover:bg-slate-900"
+                  >
+                    <p className="text-sm font-semibold text-slate-100">
+                      {article.title}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                      {article.description}
+                    </p>
+                    <div className="mt-3 flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                      <span>{article.source}</span>
+                      <span>{article.publishedAt.slice(0, 10)}</span>
+                    </div>
+                  </a>
+                ))
+              ) : (
+                <p className="text-sm text-slate-500">
+                  High-confidence source links are unavailable for this digest right now.
+                </p>
+              )}
             </div>
           </Panel>
         </div>
