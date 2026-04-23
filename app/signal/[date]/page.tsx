@@ -85,7 +85,7 @@ export default async function SignalDetailPage({ params }: Props) {
 
         {/* Source articles */}
         {signal.sourceArticles.length > 0 && (
-          <Panel eyebrow="Sources" title="What fed this signal">
+          <Panel eyebrow="Latest news" title="Top stories behind this signal">
             <div className="space-y-2">
               {signal.sourceArticles.map((article) => (
                 <a

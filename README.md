@@ -10,7 +10,7 @@ A self-directed ML/data science learning platform built for depth over breadth â
 
 The ML Edge is a personal tutor platform I built to study ML and data science systematically. The goal was to replace "read a paper, forget it" with a structured interactive experience: authored lessons with checkpoints, guided practice problems, difficulty-graded challenges, lesson quizzes, and course badge assessments.
 
-It also has a daily loop: every morning Cloud Scheduler triggers a Gemini-powered digest of ML news (via NewsAPI), which becomes that day's headline, technical summary, and quiz on the dashboard.
+It also has a daily loop: every morning Cloud Scheduler triggers a Gemini-powered digest built from deduplicated NewsAPI coverage from the last 24 hours, which becomes that day's headline, technical summary, and quiz on the dashboard.
 
 ### Curriculum
 
@@ -65,7 +65,7 @@ Courses end with a multi-question badge assessment that unlocks only after all l
 | Framework | Next.js 16 App Router, TypeScript, Tailwind CSS |
 | Auth | Firebase Auth (Google OAuth) â€” graceful guest-mode fallback |
 | Database | Firestore (learner progress, daily content, curriculum metadata) |
-| AI | Gemini 1.5 Flash (daily digest generation) + NewsAPI |
+| AI | Gemini 2.5 Flash (daily digest generation) + NewsAPI |
 | Storage | Google Cloud Storage (curriculum artifacts) |
 | Analytics | BigQuery (curriculum publish lineage, resource catalog) |
 | Hosting | Google Cloud Run (containerized, always-on) |

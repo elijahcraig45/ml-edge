@@ -24,8 +24,8 @@ export default async function NewsPage() {
           </Panel>
 
           <Panel
-            eyebrow="Ingested sources"
-            title={`${dailyContent.sourceArticles.length} tracked articles`}
+            eyebrow="Latest news"
+            title={`${dailyContent.sourceArticles.length} latest stories`}
           >
             <div className="space-y-4">
               {dailyContent.sourceArticles.map((article) => (

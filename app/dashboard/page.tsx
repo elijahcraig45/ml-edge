@@ -129,7 +129,7 @@ export default async function DashboardPage() {
         {/* Bottom row */}
         <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
           {/* Source articles */}
-          <Panel eyebrow="Today's sources" title="What fed the deep dive">
+          <Panel eyebrow="Latest news" title="Top stories behind today's deep dive">
             <div className="space-y-2">
               {dailyContent.sourceArticles.length > 0 ? (
                 dailyContent.sourceArticles.slice(0, 4).map((article) => (
