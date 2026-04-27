@@ -89,6 +89,8 @@ export type DailyContentDocument = {
   deepDive: DailyDeepDive;
   status: "generated" | "seeded";
   sourceArticles: NewsArticle[];
+  audioUrl?: string | null;
+  videoUrl?: string | null;
 };
 
 export type CurriculumVideo = {

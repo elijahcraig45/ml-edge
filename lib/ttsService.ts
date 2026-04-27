@@ -7,7 +7,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 import { getGcsClient } from "@/lib/gcp/clients";
 import { getOptionalServerEnv } from "@/lib/env";
-import type { DailyMiniLesson } from "@/lib/types";
+import type { DailyContentDocument, DailyMiniLesson } from "@/lib/types";
 
 const execFileAsync = promisify(execFile);
 
@@ -245,6 +245,117 @@ async function renderStillVideo(
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
+
+// ─── Deep-dive podcast script ────────────────────────────────────────────────
+
+export function buildDeepDiveScript(content: DailyContentDocument): string {
+  const parts: string[] = [
+    `Welcome to ML Edge Daily Signal. ${content.date}.`,
+    content.headline + ".",
+    content.deepDive.tldr,
+  ];
+
+  for (const theme of content.deepDive.themes) {
+    parts.push(`Theme: ${theme.title}.`);
+    parts.push(theme.analysis);
+    if (theme.practicalImplication) {
+      parts.push(`For practitioners: ${theme.practicalImplication}`);
+    }
+  }
+
+  if (content.deepDive.industryState) {
+    parts.push(`Industry perspective. ${content.deepDive.industryState}`);
+  }
+
+  if (content.deepDive.keyTakeaways && content.deepDive.keyTakeaways.length > 0) {
+    parts.push(
+      `Key takeaways. ${content.deepDive.keyTakeaways.join(". ")}.`,
+    );
+  }
+
+  parts.push("That's your ML Edge signal for today. Stay sharp.");
+
+  return parts.filter(Boolean).join("\n\n");
+}
+
+export async function generateDeepDiveMedia(
+  content: DailyContentDocument,
+): Promise<{ audioUrl: string | null; videoUrl: string | null }> {
+  const bucketName = getOptionalServerEnv("GCS_MEDIA_BUCKET");
+
+  if (!bucketName) {
+    return { audioUrl: null, videoUrl: null };
+  }
+
+  const script = buildDeepDiveScript(content);
+  const audioBuffer = await synthesizeSpeech(script);
+
+  if (!audioBuffer) {
+    return { audioUrl: null, videoUrl: null };
+  }
+
+  const storage = getGcsClient();
+  const bucket = storage.bucket(bucketName);
+  const audioObjectPath = `deep-dives/${content.date}/audio.mp3`;
+  const videoObjectPath = `deep-dives/${content.date}/video.mp4`;
+
+  await bucket.file(audioObjectPath).save(audioBuffer, {
+    metadata: { contentType: "audio/mpeg" },
+  });
+  const audioUrl = `https://storage.googleapis.com/${bucketName}/${audioObjectPath}`;
+
+  let videoUrl: string | null = null;
+  const tmpDir = join(tmpdir(), `deepdive-${content.date}`);
+
+  try {
+    await mkdir(tmpDir, { recursive: true });
+    const tmpAudio = join(tmpDir, "audio.mp3");
+    const tmpVideo = join(tmpDir, "video.mp4");
+
+    await writeFile(tmpAudio, audioBuffer);
+
+    // Render still-image video with deep-dive branding
+    const headline = esc(content.headline, 68);
+    const date = esc(content.date);
+    const themeCount = content.deepDive.themes.length;
+    const themeLine = esc(
+      content.deepDive.themes.map((t) => t.title).join(" · "),
+      80,
+    );
+
+    const vf = [
+      `drawtext=fontfile=${FONT_BOLD}:text='ML EDGE':fontsize=26:fontcolor=0x6366f1:x=80:y=72`,
+      `drawtext=fontfile=${FONT_REG}:text='${date}':fontsize=22:fontcolor=0x475569:x=80:y=108`,
+      `drawtext=fontfile=${FONT_REG}:text='Daily Signal — ${themeCount} themes':fontsize=34:fontcolor=0xa5b4fc:x=80:y=420`,
+      `drawtext=fontfile=${FONT_BOLD}:text='${headline}':fontsize=50:fontcolor=white:x=80:y=464:line_spacing=14`,
+      `drawtext=fontfile=${FONT_REG}:text='${themeLine}':fontsize=22:fontcolor=0x64748b:x=80:y=560`,
+      `drawtext=fontfile=${FONT_REG}:text='mle-edge.dev / signal':fontsize=22:fontcolor=0x334155:x=80:y=980`,
+    ].join(",");
+
+    await execFileAsync("ffmpeg", [
+      "-y", "-f", "lavfi",
+      "-i", `color=c=0x0f172a:size=1920x1080:rate=25`,
+      "-i", tmpAudio,
+      "-vf", vf,
+      "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage",
+      "-c:a", "aac", "-b:a", "128k",
+      "-pix_fmt", "yuv420p", "-shortest",
+      tmpVideo,
+    ]);
+
+    const videoBuffer = await readFile(tmpVideo);
+    await bucket.file(videoObjectPath).save(videoBuffer, {
+      metadata: { contentType: "video/mp4" },
+    });
+    videoUrl = `https://storage.googleapis.com/${bucketName}/${videoObjectPath}`;
+  } catch (err) {
+    console.error("Deep-dive video render failed (non-fatal):", err);
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true });
+  }
+
+  return { audioUrl, videoUrl };
+}
 
 export async function generateLessonMedia(
   lesson: DailyMiniLesson,

@@ -232,6 +232,8 @@ function normalizeDailyContent(
         : value.status === "generated"
           ? []
           : FALLBACK_DAILY_CONTENT.sourceArticles,
+    audioUrl: typeof value.audioUrl === "string" ? value.audioUrl : null,
+    videoUrl: typeof value.videoUrl === "string" ? value.videoUrl : null,
   };
 }
 

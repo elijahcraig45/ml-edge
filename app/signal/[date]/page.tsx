@@ -11,6 +11,7 @@ import {
 import { getDailyContent } from "@/lib/content";
 import { DailyDeepDivePanels } from "@/components/news/daily-deep-dive";
 import { Panel } from "@/components/ui/panel";
+import { LessonAudioPlayer } from "@/components/quiz/lesson-audio-player";
 
 export const dynamic = "force-dynamic";
 
@@ -90,7 +91,7 @@ export default async function SignalDetailPage({ params }: Props) {
             )}
           </div>
 
-          <div className="mt-6">
+          <div className="mt-6 flex flex-wrap gap-3">
             <Link
               href="/quiz"
               className="inline-flex items-center gap-2 rounded-xl bg-indigo-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition-colors hover:bg-indigo-400"
@@ -100,6 +101,10 @@ export default async function SignalDetailPage({ params }: Props) {
             </Link>
           </div>
         </div>
+
+        {signal.audioUrl && (
+          <LessonAudioPlayer audioUrl={signal.audioUrl} label="Listen to today's signal" />
+        )}
 
         <DailyDeepDivePanels deepDive={signal.deepDive} showTldr={false} />
 

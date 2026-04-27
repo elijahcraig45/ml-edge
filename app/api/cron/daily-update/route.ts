@@ -5,7 +5,7 @@ import { getRequiredServerEnv } from "@/lib/env";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { generateDailyDeepDive, generateDailyMiniLesson } from "@/lib/geminiService";
 import { fetchTopAiHeadlines } from "@/lib/newsService";
-import { generateLessonMedia, deriveTheme } from "@/lib/ttsService";
+import { generateLessonMedia, generateDeepDiveMedia, deriveTheme } from "@/lib/ttsService";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,6 +55,18 @@ export async function POST() {
   };
 
   await db.collection("daily_content").doc(date).set(document, { merge: true });
+
+  // Generate deep-dive podcast audio + video (non-fatal)
+  try {
+    const deepDiveContent = { ...document, audioUrl: null, videoUrl: null };
+    const { audioUrl: ddAudioUrl, videoUrl: ddVideoUrl } = await generateDeepDiveMedia(deepDiveContent);
+    await db.collection("daily_content").doc(date).update({
+      audioUrl: ddAudioUrl ?? null,
+      videoUrl: ddVideoUrl ?? null,
+    });
+  } catch (deepDiveMediaError) {
+    console.error("Deep-dive media generation failed (non-fatal):", deepDiveMediaError);
+  }
 
   // Generate and save today's mini-lesson — topic must match today's quiz topic
   // so the lesson and quiz are always about the same ML/AI concept.
