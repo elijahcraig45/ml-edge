@@ -322,12 +322,14 @@ export async function generateDailyMiniLesson(
   });
 
   const prompt = `
-You are an expert ML engineering instructor writing a short, focused lesson for a working software engineer.
-The lesson topic is: "${topic}"
-The learner will take a quiz on this topic immediately after reading the lesson.
-Quiz context: ${quizSummary}
+You are a senior ML/AI engineer writing a short technical lesson for a working software engineer preparing for a multiple-choice quiz.
 
-Generate a mini-lesson that teaches this topic from first principles in a clear, engineering-focused way.
+Topic: "${topic}"
+Quiz summary: ${quizSummary}
+
+This lesson is STRICTLY about machine learning, deep learning, or data science fundamentals relevant to building and deploying AI/ML systems. Do NOT include policy, regulation, governance, news, or societal commentary — only technical content an ML engineer can implement or reason about directly.
+
+Generate a mini-lesson that teaches this topic from first principles.
 
 Return valid JSON matching this schema exactly:
 {
@@ -340,14 +342,14 @@ Return valid JSON matching this schema exactly:
 }
 
 Requirements:
-- headline: One sharp sentence summarising what the lesson covers and why it is worth understanding.
-- whyItMatters: 2-3 sentences on why an ML engineer needs to understand this topic in practice.
-- sections: exactly 3 sections, each covering a distinct conceptual layer of the topic. Each section body should be 4-6 sentences. Go from foundational mechanics to practical implications. Use precise technical language — not vague summaries.
-- workedExample: A concrete step-by-step example (5-8 sentences) that grounds the theory in something an engineer could implement or reason about directly. Use specific numbers, shapes, or pseudocode where helpful.
-- commonPitfalls: exactly 3 short strings (one sentence each) describing common mistakes engineers make with this topic and why they happen.
-- bridgeToQuiz: 1-2 sentences directly telling the learner what to keep in mind as they take the quiz, based on what was just covered.
+- headline: One sharp sentence describing the specific technical concept and why a practitioner must understand it.
+- whyItMatters: 2-3 sentences explaining the practical engineering consequence of this concept — what breaks or degrades if you get it wrong.
+- sections: exactly 3 sections covering distinct layers of the topic (e.g. mathematical foundation → algorithmic mechanism → implementation consideration). Each body is 4-6 sentences. Use precise ML/math terminology, specific shapes/dimensions, or pseudocode where it clarifies. No vague summaries.
+- workedExample: A concrete 5-8 sentence example with specific numbers, dataset shapes, or pseudocode. Walk through a real calculation or decision an engineer would make.
+- commonPitfalls: exactly 3 one-sentence mistakes engineers actually make with this specific topic, grounded in the technical details above.
+- bridgeToQuiz: 1-2 sentences telling the learner exactly what concept or definition to keep in mind as they answer the quiz questions.
 
-Tone: precise, technical, direct. No filler. No bullet points inside body text — write in full paragraphs.
+Tone: precise, technical, direct. No filler, no policy/news, no marketing language. Full paragraphs only inside bodies.
 No markdown fences, no extra keys.
 `;
 

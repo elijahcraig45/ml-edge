@@ -56,9 +56,14 @@ export async function POST() {
 
   await db.collection("daily_content").doc(date).set(document, { merge: true });
 
-  // Generate and save today's mini-lesson (topic derived from deep dive headline)
-  const topic = generated.deepDive?.themes?.[0]?.title ?? generated.headline;
-  const quizSummary = generated.technicalSummary ?? "";
+  // Generate and save today's mini-lesson — topic must match today's quiz topic
+  // so the lesson and quiz are always about the same ML/AI concept.
+  const { buildDailyQuizFromQuestionBank } = await import("@/lib/authored-question-bank");
+  const { buildPublishedQuestionBankArtifact } = await import("@/lib/question-bank-pipeline");
+  const questionBank = buildPublishedQuestionBankArtifact();
+  const todayQuiz = buildDailyQuizFromQuestionBank(questionBank, date);
+  const topic = todayQuiz.topic;
+  const quizSummary = todayQuiz.summary;
 
   try {
     const miniLesson = await generateDailyMiniLesson(topic, quizSummary, date);
