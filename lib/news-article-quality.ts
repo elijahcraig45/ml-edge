@@ -1,7 +1,7 @@
 import type { NewsArticle } from "@/lib/types";
 
-const MAX_ARTICLES = 12;
-const SOURCE_DIVERSITY_LIMIT = 2;
+const MAX_ARTICLES = 20;
+const SOURCE_DIVERSITY_LIMIT = 3;
 const TRACKING_QUERY_PARAMS = new Set([
   "utm_source",
   "utm_medium",

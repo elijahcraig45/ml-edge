@@ -3,8 +3,9 @@ import { NextResponse } from "next/server";
 import { getDateKey } from "@/lib/date";
 import { getRequiredServerEnv } from "@/lib/env";
 import { getAdminFirestore } from "@/lib/firebase/admin";
-import { generateDailyDeepDive } from "@/lib/geminiService";
+import { generateDailyDeepDive, generateDailyMiniLesson } from "@/lib/geminiService";
 import { fetchTopAiHeadlines } from "@/lib/newsService";
+import { generateLessonMedia, deriveTheme } from "@/lib/ttsService";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,6 +55,24 @@ export async function POST() {
   };
 
   await db.collection("daily_content").doc(date).set(document, { merge: true });
+
+  // Generate and save today's mini-lesson (topic derived from deep dive headline)
+  const topic = generated.deepDive?.themes?.[0]?.title ?? generated.headline;
+  const quizSummary = generated.technicalSummary ?? "";
+
+  try {
+    const miniLesson = await generateDailyMiniLesson(topic, quizSummary, date);
+    const curriculumTheme = deriveTheme(miniLesson.topic);
+    const { audioUrl, videoUrl } = await generateLessonMedia(miniLesson);
+    await db.collection("daily_mini_lessons").doc(date).set({
+      ...miniLesson,
+      curriculumTheme,
+      audioUrl: audioUrl ?? null,
+      videoUrl: videoUrl ?? null,
+    });
+  } catch (miniLessonError) {
+    console.error("Mini-lesson generation failed (non-fatal):", miniLessonError);
+  }
 
   return NextResponse.json({
     status: "ok",

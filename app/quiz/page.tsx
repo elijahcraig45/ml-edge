@@ -1,11 +1,15 @@
 import { QuizComponentClient } from "@/components/quiz/quiz-component-client";
+import { MiniLessonGate } from "@/components/quiz/mini-lesson-gate";
 import { Panel } from "@/components/ui/panel";
-import { getDailyQuiz } from "@/lib/content";
+import { getDailyQuiz, getDailyMiniLesson } from "@/lib/content";
 
 export const dynamic = "force-dynamic";
 
 export default async function QuizPage() {
-  const dailyQuiz = await getDailyQuiz();
+  const [dailyQuiz, miniLesson] = await Promise.all([
+    getDailyQuiz(),
+    getDailyMiniLesson(),
+  ]);
 
   return (
     <div className="console-grid min-h-full overflow-y-auto p-6 sm:p-8">
@@ -17,7 +21,13 @@ export default async function QuizPage() {
             finalize to update your streak in Firestore when you&apos;re signed in.
           </p>
         </Panel>
-        <QuizComponentClient content={dailyQuiz} />
+        {miniLesson ? (
+          <MiniLessonGate lesson={miniLesson}>
+            <QuizComponentClient content={dailyQuiz} />
+          </MiniLessonGate>
+        ) : (
+          <QuizComponentClient content={dailyQuiz} />
+        )}
       </div>
     </div>
   );

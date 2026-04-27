@@ -61,9 +61,12 @@ export default async function AuthoredCoursePage({ params }: AuthoredCoursePageP
               </div>
               <div className="mt-4">
                 <p className="text-sm font-semibold text-slate-100">Outcomes</p>
-                <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+                <ul className="mt-3 list-none space-y-2 text-sm leading-6 text-slate-300">
                   {course.outcomes.map((outcome) => (
-                    <li key={outcome}>- {outcome}</li>
+                    <li key={outcome} className="flex items-start gap-2">
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400" />
+                      {outcome}
+                    </li>
                   ))}
                 </ul>
               </div>
@@ -93,21 +96,21 @@ export default async function AuthoredCoursePage({ params }: AuthoredCoursePageP
             />
           </Panel>
 
-          <Panel eyebrow="Why this course exists" title="How to use it well">
+          <Panel eyebrow="How to use this course" title="Getting the most out of it">
             <div className="space-y-4 rounded-3xl border border-white/10 bg-slate-900/60 p-5">
               <p className="text-sm leading-7 text-slate-300">
-                {course.audience}
+                {course.canTakeAnytime
+                  ? "This course is standalone — you can start it at any point without needing to complete other courses first."
+                  : "Work through every lesson in order. Each one builds on the previous, so skipping ahead will leave gaps in the reasoning you need for later courses."}
               </p>
               <p className="text-sm leading-7 text-slate-400">
-                {course.canTakeAnytime
-                  ? "You can take this course in isolation."
-                  : "This course is meant to be taken in sequence, not as random reference material."}
+                {course.startGuidance}
               </p>
               <div>
                 <p className="text-sm font-semibold text-slate-100">Badge exam</p>
                 <p className="mt-2 text-sm leading-6 text-slate-400">
-                  Finish every lesson, then pass the final assessment to earn the{" "}
-                  {course.badge.title} badge.
+                  Complete every lesson, then pass the final assessment to earn the{" "}
+                  <span className="text-emerald-300">{course.badge.title}</span> badge.
                 </p>
               </div>
             </div>

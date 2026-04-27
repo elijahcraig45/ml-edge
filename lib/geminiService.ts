@@ -6,7 +6,7 @@ import {
   type ResponseSchema,
 } from "@google/generative-ai";
 import { getRequiredServerEnv } from "@/lib/env";
-import type { DailyDeepDive, NewsArticle } from "@/lib/types";
+import type { DailyDeepDive, DailyMiniLesson, MiniLessonSection, NewsArticle } from "@/lib/types";
 
 type GeminiDailyContent = {
   headline: string;
@@ -17,6 +17,7 @@ type GeminiDailyContent = {
 type GeminiThemeShape = {
   title?: unknown;
   analysis?: unknown;
+  practicalImplication?: unknown;
   sourceArticleNumbers?: unknown;
 };
 
@@ -26,6 +27,7 @@ type GeminiResponseShape = {
     tldr?: unknown;
     themes?: unknown;
     industryState?: unknown;
+    keyTakeaways?: unknown;
   };
 };
 
@@ -36,18 +38,23 @@ const DAILY_CONTENT_RESPONSE_SCHEMA: ResponseSchema = {
     headline: { type: SchemaType.STRING },
     deepDive: {
       type: SchemaType.OBJECT,
-      required: ["tldr", "themes", "industryState"],
+      required: ["tldr", "themes", "industryState", "keyTakeaways"],
       properties: {
         tldr: { type: SchemaType.STRING },
         industryState: { type: SchemaType.STRING },
+        keyTakeaways: {
+          type: SchemaType.ARRAY,
+          items: { type: SchemaType.STRING },
+        },
         themes: {
           type: SchemaType.ARRAY,
           items: {
             type: SchemaType.OBJECT,
-            required: ["title", "analysis", "sourceArticleNumbers"],
+            required: ["title", "analysis", "practicalImplication", "sourceArticleNumbers"],
             properties: {
               title: { type: SchemaType.STRING },
               analysis: { type: SchemaType.STRING },
+              practicalImplication: { type: SchemaType.STRING },
               sourceArticleNumbers: {
                 type: SchemaType.ARRAY,
                 items: { type: SchemaType.INTEGER },
@@ -127,6 +134,7 @@ function normalizeTheme(value: unknown) {
   return {
     title: theme.title,
     analysis: theme.analysis,
+    practicalImplication: typeof theme.practicalImplication === "string" ? theme.practicalImplication : undefined,
     sourceArticleNumbers: [...new Set(sourceArticleNumbers)].sort((left, right) => left - right),
   };
 }
@@ -144,8 +152,8 @@ export async function generateDailyDeepDive(
     generationConfig: {
       responseMimeType: "application/json",
       responseSchema: DAILY_CONTENT_RESPONSE_SCHEMA,
-      temperature: 0.2,
-      maxOutputTokens: 2600,
+      temperature: 0.3,
+      maxOutputTokens: 6000,
     },
   });
 
@@ -159,9 +167,8 @@ Snippet: ${article.description}`;
     .join("\n\n");
 
   const prompt = `
-You are a Senior Machine Learning Engineer and technical analyst.
-I will provide a list of raw news snippets from the last 24 hours.
-Generate a Daily Deep Dive for software engineers and ML researchers.
+You are a Senior Machine Learning Engineer and technical analyst writing for an audience of working ML engineers and researchers.
+I will provide raw news snippets from the last 24 hours. Generate a rigorous Daily Deep Dive.
 
 Return valid JSON matching this schema exactly:
 {
@@ -172,27 +179,27 @@ Return valid JSON matching this schema exactly:
       {
         "title": "string",
         "analysis": "string",
+        "practicalImplication": "string",
         "sourceArticleNumbers": [1, 2]
       }
     ],
-    "industryState": "string"
+    "industryState": "string",
+    "keyTakeaways": ["string"]
   }
 }
 
 Requirements:
-- Headline: one sentence, dense and technical, grounded in the biggest cross-cutting shift of the day.
-- deepDive.tldr: 2-3 sentences, concise but technical.
-- deepDive.themes: exactly 3 themes. Each theme must have:
-  - a short technical title
-  - analysis of at least 4 sentences
-  - both WHY it matters and HOW it works
-  - architectural, mathematical, systems, library, infra, or runtime implications
-  - inline citations like [1], [4], [7] inside the analysis text
-  - sourceArticleNumbers listing the cited article numbers for that theme
-- deepDive.industryState: 3-4 sentences describing what today's mix of stories says about the direction of the field.
-- Use at least 4 distinct article numbers across the full response when 4+ articles are provided.
-- Use a rigorous, objective tone. Avoid hype, buzzwords, and marketing phrasing.
-- Do not turn the deep dive into a single TL;DR or a short recap. It must read like a serious technical analysis.
+- headline: One dense, technical sentence grounded in the biggest cross-cutting shift of the day. No hype.
+- deepDive.tldr: 3 sentences. What happened, why it's significant, what it changes.
+- deepDive.themes: exactly 3 themes. Each theme must:
+  - Have a short, specific technical title (not a generic label like "AI Progress").
+  - analysis: at least 6 substantial sentences covering: what the development is, the underlying mechanism or architecture involved, why it matters to ML systems in production, what tradeoffs or open questions it surfaces, and how it connects to adjacent work. Include inline citations like [1] or [4] inside the analysis text.
+  - practicalImplication: 2-3 sentences specifically for an ML engineer building systems today — what they should watch, reconsider, or act on as a result of this theme.
+  - sourceArticleNumbers: array of cited article indices for this theme.
+- deepDive.industryState: 4-5 sentences. Step back from the individual stories and describe the broader directional signal — what is the field optimizing for right now, what tensions are visible, and what comes next.
+- deepDive.keyTakeaways: exactly 4 short, concrete, actionable takeaways for an ML engineer. Each one should be a single sentence starting with an action verb or a claim that is immediately useful.
+- Use at least 5 distinct article numbers across the full response when 5+ articles are provided.
+- Rigorous, objective, precise tone. No buzzwords, no marketing language, no vague superlatives.
 - No markdown fences, no extra keys, no commentary outside the JSON.
 
 Articles:
@@ -207,10 +214,10 @@ ${articleDigest}
       const parsed = await parseWithRepair(model, raw);
       const deepDive =
         parsed.deepDive && typeof parsed.deepDive === "object" ? parsed.deepDive : null;
-      const themes = Array.isArray(deepDive?.themes)
+      const themes: DailyDeepDive["themes"] = Array.isArray(deepDive?.themes)
         ? deepDive.themes
             .map(normalizeTheme)
-            .filter((item): item is DailyDeepDive["themes"][number] => item !== null)
+            .filter((item): item is NonNullable<ReturnType<typeof normalizeTheme>> => item !== null)
         : [];
 
       if (
@@ -223,6 +230,10 @@ ${articleDigest}
         throw new Error("Gemini returned an invalid deep-dive payload.");
       }
 
+      const keyTakeaways = Array.isArray(deepDive.keyTakeaways)
+        ? deepDive.keyTakeaways.filter((item): item is string => typeof item === "string")
+        : [];
+
       return {
         headline: parsed.headline,
         technicalSummary: deepDive.tldr,
@@ -230,6 +241,7 @@ ${articleDigest}
           tldr: deepDive.tldr,
           themes: themes.slice(0, 3),
           industryState: deepDive.industryState,
+          keyTakeaways: keyTakeaways.length > 0 ? keyTakeaways : undefined,
         },
       };
     } catch (error) {
@@ -256,4 +268,128 @@ ${articleDigest}
   throw new Error(
     `Gemini failed to produce valid daily content after retry: ${lastError?.message ?? "unknown error"}.`,
   );
+}
+
+const MINI_LESSON_RESPONSE_SCHEMA: ResponseSchema = {
+  type: SchemaType.OBJECT,
+  required: ["headline", "whyItMatters", "sections", "workedExample", "commonPitfalls", "bridgeToQuiz"],
+  properties: {
+    headline: { type: SchemaType.STRING },
+    whyItMatters: { type: SchemaType.STRING },
+    sections: {
+      type: SchemaType.ARRAY,
+      items: {
+        type: SchemaType.OBJECT,
+        required: ["title", "body"],
+        properties: {
+          title: { type: SchemaType.STRING },
+          body: { type: SchemaType.STRING },
+        },
+      },
+    },
+    workedExample: { type: SchemaType.STRING },
+    commonPitfalls: {
+      type: SchemaType.ARRAY,
+      items: { type: SchemaType.STRING },
+    },
+    bridgeToQuiz: { type: SchemaType.STRING },
+  },
+};
+
+type GeminiMiniLessonShape = {
+  headline?: unknown;
+  whyItMatters?: unknown;
+  sections?: unknown;
+  workedExample?: unknown;
+  commonPitfalls?: unknown;
+  bridgeToQuiz?: unknown;
+};
+
+export async function generateDailyMiniLesson(
+  topic: string,
+  quizSummary: string,
+  date: string,
+): Promise<DailyMiniLesson> {
+  const client = new GoogleGenerativeAI(getRequiredServerEnv("GEMINI_API_KEY"));
+  const model = client.getGenerativeModel({
+    model: "gemini-2.5-flash",
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: MINI_LESSON_RESPONSE_SCHEMA,
+      temperature: 0.4,
+      maxOutputTokens: 4000,
+    },
+  });
+
+  const prompt = `
+You are an expert ML engineering instructor writing a short, focused lesson for a working software engineer.
+The lesson topic is: "${topic}"
+The learner will take a quiz on this topic immediately after reading the lesson.
+Quiz context: ${quizSummary}
+
+Generate a mini-lesson that teaches this topic from first principles in a clear, engineering-focused way.
+
+Return valid JSON matching this schema exactly:
+{
+  "headline": "string",
+  "whyItMatters": "string",
+  "sections": [{ "title": "string", "body": "string" }],
+  "workedExample": "string",
+  "commonPitfalls": ["string"],
+  "bridgeToQuiz": "string"
+}
+
+Requirements:
+- headline: One sharp sentence summarising what the lesson covers and why it is worth understanding.
+- whyItMatters: 2-3 sentences on why an ML engineer needs to understand this topic in practice.
+- sections: exactly 3 sections, each covering a distinct conceptual layer of the topic. Each section body should be 4-6 sentences. Go from foundational mechanics to practical implications. Use precise technical language — not vague summaries.
+- workedExample: A concrete step-by-step example (5-8 sentences) that grounds the theory in something an engineer could implement or reason about directly. Use specific numbers, shapes, or pseudocode where helpful.
+- commonPitfalls: exactly 3 short strings (one sentence each) describing common mistakes engineers make with this topic and why they happen.
+- bridgeToQuiz: 1-2 sentences directly telling the learner what to keep in mind as they take the quiz, based on what was just covered.
+
+Tone: precise, technical, direct. No filler. No bullet points inside body text — write in full paragraphs.
+No markdown fences, no extra keys.
+`;
+
+  const raw = (await model.generateContent(prompt)).response.text();
+
+  let parsed: GeminiMiniLessonShape;
+  try {
+    const cleaned = raw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "");
+    parsed = JSON.parse(cleaned) as GeminiMiniLessonShape;
+  } catch {
+    throw new Error("Gemini returned invalid JSON for mini-lesson.");
+  }
+
+  const sections: MiniLessonSection[] = Array.isArray(parsed.sections)
+    ? (parsed.sections as Array<Record<string, unknown>>)
+        .filter((s) => typeof s.title === "string" && typeof s.body === "string")
+        .map((s) => ({ title: s.title as string, body: s.body as string }))
+    : [];
+
+  const commonPitfalls: string[] = Array.isArray(parsed.commonPitfalls)
+    ? (parsed.commonPitfalls as unknown[]).filter((p): p is string => typeof p === "string")
+    : [];
+
+  if (
+    typeof parsed.headline !== "string" ||
+    typeof parsed.whyItMatters !== "string" ||
+    typeof parsed.workedExample !== "string" ||
+    typeof parsed.bridgeToQuiz !== "string" ||
+    sections.length < 2 ||
+    commonPitfalls.length === 0
+  ) {
+    throw new Error("Gemini mini-lesson response failed schema validation.");
+  }
+
+  return {
+    date,
+    topic,
+    headline: parsed.headline,
+    whyItMatters: parsed.whyItMatters,
+    sections,
+    workedExample: parsed.workedExample,
+    commonPitfalls,
+    bridgeToQuiz: parsed.bridgeToQuiz,
+  };
 }

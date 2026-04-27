@@ -3,7 +3,8 @@
 import {
   GoogleAuthProvider,
   onAuthStateChanged,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut,
   type User,
 } from "@firebase/auth";
@@ -64,6 +65,17 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(Boolean(auth));
 
+  // Resolve any pending redirect sign-in on mount
+  useEffect(() => {
+    if (!auth) {
+      return;
+    }
+
+    getRedirectResult(auth).catch(() => {
+      // Redirect result errors (e.g. popup_closed) are non-fatal — ignore them.
+    });
+  }, []);
+
   useEffect(() => {
     if (!auth) {
       return;
@@ -91,7 +103,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
           throw new Error("Firebase Auth is not configured.");
         }
 
-        await signInWithPopup(auth, googleProvider);
+        await signInWithRedirect(auth, googleProvider);
       },
       async signOutUser() {
         if (!auth) {

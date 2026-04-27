@@ -10,6 +10,7 @@ import {
   Target,
   Zap,
   Radio,
+  Headphones,
   type LucideIcon,
 } from "lucide-react";
 import { AuthStatusCard } from "@/components/auth/auth-status-card";
@@ -23,6 +24,7 @@ const iconMap: Record<string, LucideIcon> = {
   Newspaper,
   Target,
   Radio,
+  Headphones,
 };
 
 export function Sidebar() {

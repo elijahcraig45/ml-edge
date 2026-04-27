@@ -6,6 +6,7 @@ import {
   ExternalLink,
   ArrowLeft,
   Radio,
+  Layers,
 } from "lucide-react";
 import { getDailyContent } from "@/lib/content";
 import { DailyDeepDivePanels } from "@/components/news/daily-deep-dive";
@@ -72,6 +73,22 @@ export default async function SignalDetailPage({ params }: Props) {
           <p className="mt-3 text-sm leading-7 text-slate-300">
             {signal.deepDive.tldr}
           </p>
+
+          {/* Meta bar */}
+          <div className="mt-5 flex flex-wrap items-center gap-4 text-[11px] text-slate-400">
+            {signal.deepDive.themes.length > 0 && (
+              <span className="flex items-center gap-1.5">
+                <Layers className="h-3 w-3" />
+                {signal.deepDive.themes.length} themes
+              </span>
+            )}
+            {signal.sourceArticles.length > 0 && (
+              <span className="flex items-center gap-1.5">
+                <ExternalLink className="h-3 w-3" />
+                {signal.sourceArticles.length} sources
+              </span>
+            )}
+          </div>
 
           <div className="mt-6">
             <Link

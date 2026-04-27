@@ -105,16 +105,16 @@ export default async function CurriculumPage() {
           <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
             <div>
               <p className="text-sm leading-7 text-slate-300">
-                This page now reads as a progression instead of a dump. The clearest path is
-                to complete the authored foundations sequence first, then layer on the depth
-                tracks that matter for your goals: DS&amp;A for core CS rigor, classical and
-                deep learning for modeling breadth, systems for production judgment, and the
-                library for repetition and alternate explanations.
+                The clearest path through ML engineering starts with the authored foundations
+                sequence, then layers on the depth tracks that matter for your goals: DS&amp;A
+                for core CS rigor, classical and deep learning for modeling breadth, systems
+                for production judgment, and the library for repetition and alternate
+                explanations.
               </p>
               <p className="mt-4 text-sm leading-7 text-slate-400">
-                If you want to cover what an ML engineer must keep learning as they move
-                forward, follow the core sequence in order, then treat the roadmap below as
-                the capability map you should eventually fill in.
+                Work through the core authored sequence in order first, then use the
+                capability map below as the broader ML engineer landscape you should
+                systematically fill in over time.
               </p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <Link
@@ -215,10 +215,10 @@ export default async function CurriculumPage() {
 
         <Panel eyebrow="Phase 2" title="Add parallel tracks after foundations">
           <p className="text-sm leading-7 text-slate-300">
-            These are the authored depth courses to add once the first sequence makes sense.
-            DS&amp;A is surfaced here on purpose: it is a real authored course now, and it is
-            one of the best parallel tracks for strengthening debugging, invariants, and
-            implementation discipline.
+            Once the core foundations sequence is underway, add these depth courses in
+            parallel. DS&amp;A is a strong early companion — it builds the debugging
+            discipline, invariant reasoning, and implementation fluency that makes the rest
+            of the ML curriculum stick.
           </p>
 
           <div className="mt-5 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
@@ -239,9 +239,12 @@ export default async function CurriculumPage() {
 
                 <div className="mt-5">
                   <p className="text-sm font-semibold text-slate-100">Why take it now</p>
-                  <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+                  <ul className="mt-3 list-none space-y-2 text-sm leading-6 text-slate-300">
                     {dsaCourse.outcomes.slice(0, 3).map((outcome) => (
-                      <li key={outcome}>- {outcome}</li>
+                      <li key={outcome} className="flex items-start gap-2">
+                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
+                        {outcome}
+                      </li>
                     ))}
                   </ul>
                 </div>
@@ -311,13 +314,13 @@ export default async function CurriculumPage() {
 
         <Panel
           eyebrow="Capability map"
-          title="Everything you should eventually cover as you move forward"
+          title="The full ML engineer landscape"
         >
           <p className="text-sm leading-7 text-slate-300">
-            Treat this as the broader ML engineer map. Each course below marks an area you
-            should understand, even when the fully authored version is still being expanded.
-            Open the course when you want the full roadmap, then use authored lessons and the
-            library wherever live coverage already exists.
+            This is the full capability map for a working ML engineer. Each section represents
+            a domain you need to understand deeply. Use the authored lessons and lesson library
+            where live coverage already exists, and the course roadmap to see what is coming
+            next in each area.
           </p>
 
           <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">

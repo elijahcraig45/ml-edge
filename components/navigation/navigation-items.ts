@@ -2,6 +2,7 @@ export const navigationItems = [
   { href: "/dashboard", label: "Dashboard", icon: "LayoutDashboard" },
   { href: "/signal", label: "Signal", icon: "Radio" },
   { href: "/quiz", label: "Quiz", icon: "Brain" },
+  { href: "/quiz/lessons", label: "Lessons", icon: "Headphones" },
   { href: "/curriculum", label: "Curriculum", icon: "BookOpen" },
   { href: "/news", label: "News", icon: "Newspaper" },
   { href: "/practice", label: "Practice", icon: "Target" },

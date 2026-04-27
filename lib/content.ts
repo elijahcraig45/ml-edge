@@ -41,6 +41,7 @@ import type {
   NewsArticle,
   OpenResource,
   PublishedCurriculumArtifact,
+  DailyMiniLesson,
   PublishedQuestionBankArtifact,
   QuizQuestion,
   SourceFormat,
@@ -167,20 +168,26 @@ function normalizeDeepDive(value: unknown, technicalSummary: string): DailyDeepD
             return {
               title: theme.title,
               analysis: theme.analysis,
+              practicalImplication: typeof theme.practicalImplication === "string" ? theme.practicalImplication : undefined,
               sourceArticleNumbers,
             };
           })
-          .filter((item): item is DailyDeepDive["themes"][number] => item !== null)
+          .filter((item): item is NonNullable<typeof item> => item !== null)
       : [];
 
     if (
       typeof deepDive.tldr === "string" &&
       typeof deepDive.industryState === "string"
     ) {
+      const keyTakeaways = Array.isArray(deepDive.keyTakeaways)
+        ? deepDive.keyTakeaways.filter((item): item is string => typeof item === "string")
+        : undefined;
+
       return {
         tldr: deepDive.tldr,
         themes,
         industryState: deepDive.industryState,
+        keyTakeaways: keyTakeaways && keyTakeaways.length > 0 ? keyTakeaways : undefined,
       };
     }
   }
@@ -203,7 +210,7 @@ function normalizeDailyContent(
         .map(normalizeArticle)
         .filter((article): article is NewsArticle => article !== null)
     : [];
-  const sourceArticles = curateNewsArticles(normalizedSourceArticles);
+  const sourceArticles = normalizedSourceArticles;
   const technicalSummary =
     typeof value.technicalSummary === "string"
       ? value.technicalSummary
@@ -1173,6 +1180,78 @@ export async function getDailyQuiz(date = getDateKey()): Promise<DailyQuizDocume
   const artifact = await getQuestionBankArtifact();
 
   return buildDailyQuizFromQuestionBank(artifact, date);
+}
+
+export async function getDailyMiniLesson(
+  date = getDateKey(),
+): Promise<DailyMiniLesson | null> {
+  const db = getAdminFirestore();
+
+  if (!db) return null;
+
+  const snapshot = await db.collection("daily_mini_lessons").doc(date).get();
+
+  if (!snapshot.exists) return null;
+
+  const data = snapshot.data() ?? {};
+
+  const sections: DailyMiniLesson["sections"] = Array.isArray(data.sections)
+    ? data.sections
+        .filter(
+          (s): s is { title: string; body: string } =>
+            s && typeof s.title === "string" && typeof s.body === "string",
+        )
+        .map((s) => ({ title: s.title, body: s.body }))
+    : [];
+
+  if (
+    typeof data.topic !== "string" ||
+    typeof data.headline !== "string" ||
+    sections.length === 0
+  ) {
+    return null;
+  }
+
+  return {
+    date: typeof data.date === "string" ? data.date : date,
+    topic: data.topic,
+    headline: data.headline,
+    whyItMatters: typeof data.whyItMatters === "string" ? data.whyItMatters : "",
+    sections,
+    workedExample: typeof data.workedExample === "string" ? data.workedExample : "",
+    commonPitfalls: Array.isArray(data.commonPitfalls)
+      ? data.commonPitfalls.filter((p): p is string => typeof p === "string")
+      : [],
+    bridgeToQuiz: typeof data.bridgeToQuiz === "string" ? data.bridgeToQuiz : "",
+    curriculumTheme: typeof data.curriculumTheme === "string" ? data.curriculumTheme : undefined,
+    audioUrl: typeof data.audioUrl === "string" ? data.audioUrl : null,
+    videoUrl: typeof data.videoUrl === "string" ? data.videoUrl : null,
+  };
+}
+
+export async function getMiniLessonHistory(
+  limit = 30,
+): Promise<DailyMiniLesson[]> {
+  const db = getAdminFirestore();
+
+  if (!db) return [];
+
+  const snapshot = await db
+    .collection("daily_mini_lessons")
+    .orderBy("date", "desc")
+    .limit(limit)
+    .get();
+
+  if (snapshot.empty) return [];
+
+  const lessons: DailyMiniLesson[] = [];
+
+  for (const doc of snapshot.docs) {
+    const lesson = await getDailyMiniLesson(doc.id);
+    if (lesson) lessons.push(lesson);
+  }
+
+  return lessons;
 }
 
 export async function getCurriculumExperience() {

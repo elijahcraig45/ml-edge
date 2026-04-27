@@ -49,9 +49,29 @@ export type DailyQuizDocument = {
   questions: BankQuestion[];
 };
 
+export type MiniLessonSection = {
+  title: string;
+  body: string;
+};
+
+export type DailyMiniLesson = {
+  date: string;
+  topic: string;
+  headline: string;
+  whyItMatters: string;
+  sections: MiniLessonSection[];
+  workedExample: string;
+  commonPitfalls: string[];
+  bridgeToQuiz: string;
+  curriculumTheme?: string;
+  audioUrl?: string | null;
+  videoUrl?: string | null;
+};
+
 export type DailyDeepDiveTheme = {
   title: string;
   analysis: string;
+  practicalImplication?: string;
   sourceArticleNumbers: number[];
 };
 
@@ -59,6 +79,7 @@ export type DailyDeepDive = {
   tldr: string;
   themes: DailyDeepDiveTheme[];
   industryState: string;
+  keyTakeaways?: string[];
 };
 
 export type DailyContentDocument = {

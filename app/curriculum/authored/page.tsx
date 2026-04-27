@@ -61,11 +61,11 @@ export default function AuthoredAcademyPage() {
                 </p>
                 <p className="mt-3 text-3xl font-semibold text-white">{courses.length}</p>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+              <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4 sm:col-span-2">
                 <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-slate-400">
-                  Order
+                  Core sequence
                 </p>
-                <p className="mt-3 text-base font-semibold text-white">{orderedTitles}</p>
+                <p className="mt-3 text-sm font-semibold text-white">{orderedTitles}</p>
               </div>
             </div>
           </div>
@@ -112,9 +112,12 @@ export default function AuthoredAcademyPage() {
                   </div>
                   <div className="mt-4">
                     <p className="text-sm font-semibold text-slate-100">What you will leave with</p>
-                    <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+                    <ul className="mt-3 list-none space-y-2 text-sm leading-6 text-slate-300">
                       {course.outcomes.map((outcome) => (
-                        <li key={outcome}>- {outcome}</li>
+                        <li key={outcome} className="flex items-start gap-2">
+                          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400" />
+                          {outcome}
+                        </li>
                       ))}
                     </ul>
                   </div>
