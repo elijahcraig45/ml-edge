@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Brain, BookOpen, ArrowRight, Newspaper, Layers, CalendarDays, ExternalLink } from "lucide-react";
 import { Panel } from "@/components/ui/panel";
+import { StreakCard } from "@/components/dashboard/streak-card";
 import { getAuthoredAcademyCourses } from "@/lib/authored-academy";
 import {
   getDailyContent,
@@ -130,25 +131,8 @@ export default async function DashboardPage() {
             </ul>
           </Link>
 
-          {/* Curriculum entry point */}
-          <Link
-            href={firstCourse ? `/curriculum/authored/${firstCourse.slug}` : "/curriculum"}
-            className="group rounded-xl border border-white/8 bg-slate-900/50 p-4 transition-colors hover:border-emerald-400/30 hover:bg-slate-900/80"
-          >
-            <div className="flex items-start justify-between">
-              <div className="rounded-lg bg-emerald-500/15 p-2">
-                <BookOpen className="h-4 w-4 text-emerald-300" />
-              </div>
-              <ArrowRight className="h-4 w-4 text-slate-600 transition-colors group-hover:text-slate-400" />
-            </div>
-            <p className="mt-3 text-xs font-mono uppercase tracking-[0.15em] text-slate-500">Start here</p>
-            <p className="mt-1.5 text-sm font-semibold leading-6 text-white">
-              {firstCourse?.shortTitle ?? "Curriculum"}
-            </p>
-            <p className="mt-1 text-xs text-slate-500">
-              {firstLesson?.title ?? `${authoredAcademyCourses.length} authored courses`}
-            </p>
-          </Link>
+          {/* Streak */}
+          <StreakCard />
         </div>
 
         {/* Bottom row */}

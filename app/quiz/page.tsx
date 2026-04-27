@@ -26,7 +26,15 @@ export default async function QuizPage() {
             <QuizComponentClient content={dailyQuiz} />
           </MiniLessonGate>
         ) : (
-          <QuizComponentClient content={dailyQuiz} />
+          <>
+            <div className="rounded-2xl border border-slate-700/40 bg-slate-800/30 px-5 py-3.5">
+              <p className="text-xs text-slate-500">
+                🕓 Today&apos;s mini-lesson generates at 4&nbsp;AM&nbsp;ET — check back
+                then for the pre-quiz reading and podcast episode.
+              </p>
+            </div>
+            <QuizComponentClient content={dailyQuiz} />
+          </>
         )}
       </div>
     </div>

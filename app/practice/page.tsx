@@ -5,32 +5,43 @@ import { getQuestionBank } from "@/lib/content";
 
 export const dynamic = "force-dynamic";
 
-export default async function PracticePage() {
+interface Props {
+  searchParams: Promise<{ topic?: string }>;
+}
+
+export default async function PracticePage({ searchParams }: Props) {
+  const { topic: topicParam } = await searchParams;
   const questions = await getQuestionBank();
-  const countsByLevel = questions.reduce<Record<string, number>>((acc, question) => {
-    acc[question.level] = (acc[question.level] ?? 0) + 1;
-    return acc;
-  }, {});
+
   const topTopics = Array.from(
-    questions.reduce((acc, question) => {
-      acc.set(question.topic, (acc.get(question.topic) ?? 0) + 1);
+    questions.reduce((acc, q) => {
+      acc.set(q.topic, (acc.get(q.topic) ?? 0) + 1);
       return acc;
     }, new Map<string, number>()),
-  )
-    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
-    .slice(0, 8);
+  ).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+
+  const uniqueTopicCount = topTopics.length;
+  const countsByLevel = questions.reduce<Record<string, number>>((acc, q) => {
+    acc[q.level] = (acc[q.level] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const activeTopic = topicParam
+    ? topTopics.find(([t]) => t === topicParam)?.[0] ?? null
+    : null;
 
   return (
     <div className="console-grid min-h-full overflow-y-auto p-6 sm:p-8">
       <div className="mx-auto max-w-6xl space-y-6">
         <h1 className="sr-only">Practice question bank</h1>
 
+        {/* Header */}
         <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
           <Panel eyebrow="Practice space" title="Question Bank Drill">
             <p className="text-sm leading-7 text-slate-300">
               Work through the authored {questions.length}-question foundations bank
-              across DS&amp;A and ML/AI. Filter by level, check your answer, and review
-              the explanation before moving on.
+              across DS&amp;A and ML/AI. Filter by topic and difficulty, check your
+              answer, and review the explanation before moving on.
             </p>
             <div className="mt-5 flex flex-wrap gap-3">
               <Link
@@ -51,7 +62,7 @@ export default async function PracticePage() {
           <div className="grid gap-3 sm:grid-cols-2">
             {[
               { label: "All questions", value: questions.length },
-              { label: "Unique topics", value: topTopics.length > 0 ? new Set(questions.map((q) => q.topic)).size : 0 },
+              { label: "Unique topics", value: uniqueTopicCount },
               { label: "Easy drills", value: countsByLevel.easy ?? 0 },
               { label: "Expert drills", value: countsByLevel.expert ?? 0 },
             ].map((item) => (
@@ -68,32 +79,46 @@ export default async function PracticePage() {
           </div>
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
-          <PracticeDrill questions={questions} />
-
-          <div className="space-y-6">
-            <Panel eyebrow="Coverage" title="What this bank helps you rehearse">
-              <ul className="space-y-3 text-sm leading-6 text-slate-300">
-                <li>- Complexity, arrays, recursion, trees, hashing, graphs, and DP.</li>
-                <li>- Core ML math, evaluation, optimization, systems, and reliability.</li>
-                <li>- Fast recall under difficulty filters before interviews, study, or coding work.</li>
-              </ul>
-            </Panel>
-
-            <Panel eyebrow="Top topics" title="Heaviest coverage areas">
-              <div className="flex flex-wrap gap-2">
-                {topTopics.map(([topic, count]) => (
-                  <span
-                    key={topic}
-                    className="rounded-full border border-indigo-400/20 bg-indigo-500/10 px-3 py-1 text-xs font-medium text-indigo-100"
-                  >
-                    {topic} · {count}
-                  </span>
-                ))}
-              </div>
-            </Panel>
+        {/* Topic browser */}
+        <div className="rounded-2xl border border-white/8 bg-slate-900/40 p-5">
+          <p className="mb-3 font-mono text-[11px] uppercase tracking-[0.22em] text-slate-500">
+            Jump to a topic
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/practice"
+              className={[
+                "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                !activeTopic
+                  ? "border-indigo-400/60 bg-indigo-500/20 text-indigo-100"
+                  : "border-white/10 text-slate-400 hover:border-slate-500 hover:text-slate-300",
+              ].join(" ")}
+            >
+              All
+            </Link>
+            {topTopics.map(([topic, count]) => (
+              <Link
+                key={topic}
+                href={`/practice?topic=${encodeURIComponent(topic)}`}
+                className={[
+                  "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                  activeTopic === topic
+                    ? "border-indigo-400/60 bg-indigo-500/20 text-indigo-100"
+                    : "border-white/10 text-slate-400 hover:border-slate-500 hover:text-slate-300",
+                ].join(" ")}
+              >
+                {topic}
+                <span className="ml-1.5 opacity-50">{count}</span>
+              </Link>
+            ))}
           </div>
         </div>
+
+        {/* Drill */}
+        <PracticeDrill
+          questions={questions}
+          initialTopic={activeTopic ?? undefined}
+        />
       </div>
     </div>
   );

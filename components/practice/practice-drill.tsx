@@ -22,29 +22,53 @@ const LEVEL_COLORS: Record<QuestionLevel, string> = {
 
 type PracticeDrillProps = {
   questions: BankQuestion[];
+  initialTopic?: string;
 };
 
-export function PracticeDrill({ questions }: PracticeDrillProps) {
+export function PracticeDrill({ questions, initialTopic }: PracticeDrillProps) {
   const [activeLevel, setActiveLevel] = useState<LevelFilter>("all");
+  const [activeTopic, setActiveTopic] = useState<string | null>(initialTopic ?? null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [isChecked, setIsChecked] = useState(false);
   const [results, setResults] = useState<boolean[]>([]);
 
-  const filteredQuestions = useMemo(
+  const allTopics = useMemo(
     () =>
-      activeLevel === "all"
-        ? questions
-        : questions.filter((q) => q.level === activeLevel),
-    [questions, activeLevel],
+      Array.from(
+        questions.reduce((acc, q) => {
+          acc.set(q.topic, (acc.get(q.topic) ?? 0) + 1);
+          return acc;
+        }, new Map<string, number>()),
+      ).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])),
+    [questions],
   );
 
-  function handleLevelChange(level: LevelFilter) {
-    setActiveLevel(level);
+  const filteredQuestions = useMemo(
+    () =>
+      questions.filter(
+        (q) =>
+          (activeLevel === "all" || q.level === activeLevel) &&
+          (activeTopic === null || q.topic === activeTopic),
+      ),
+    [questions, activeLevel, activeTopic],
+  );
+
+  function resetDrill() {
     setCurrentIndex(0);
     setSelectedOption(null);
     setIsChecked(false);
     setResults([]);
+  }
+
+  function handleLevelChange(level: LevelFilter) {
+    setActiveLevel(level);
+    resetDrill();
+  }
+
+  function handleTopicChange(topic: string | null) {
+    setActiveTopic(topic);
+    resetDrill();
   }
 
   function handleCheck() {
@@ -61,25 +85,25 @@ export function PracticeDrill({ questions }: PracticeDrillProps) {
   }
 
   function handleRestart() {
-    setCurrentIndex(0);
-    setSelectedOption(null);
-    setIsChecked(false);
-    setResults([]);
+    resetDrill();
   }
 
   const levelCounts = useMemo(
     () =>
       LEVEL_TABS.reduce<Record<LevelFilter, number>>(
         (acc, tab) => {
+          const base = activeTopic
+            ? questions.filter((q) => q.topic === activeTopic)
+            : questions;
           acc[tab.value] =
             tab.value === "all"
-              ? questions.length
-              : questions.filter((q) => q.level === tab.value).length;
+              ? base.length
+              : base.filter((q) => q.level === tab.value).length;
           return acc;
         },
         { all: 0, easy: 0, medium: 0, hard: 0, expert: 0 },
       ),
-    [questions],
+    [questions, activeTopic],
   );
 
   const isDrillComplete = currentIndex >= filteredQuestions.length && filteredQuestions.length > 0;
@@ -88,24 +112,66 @@ export function PracticeDrill({ questions }: PracticeDrillProps) {
 
   return (
     <div className="space-y-4">
-      {/* Level filter tabs */}
-      <div className="flex flex-wrap gap-2">
-        {LEVEL_TABS.map((tab) => (
+      {/* Topic filter */}
+      <div>
+        <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-slate-500">
+          Topic
+        </p>
+        <div className="flex flex-wrap gap-2">
           <button
-            key={tab.value}
             type="button"
-            onClick={() => handleLevelChange(tab.value)}
+            onClick={() => handleTopicChange(null)}
             className={[
-              "rounded-full border px-4 py-2 font-mono text-xs uppercase tracking-[0.18em] transition-colors",
-              activeLevel === tab.value
+              "rounded-full border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.15em] transition-colors",
+              activeTopic === null
                 ? "border-indigo-400/60 bg-indigo-500/20 text-indigo-100"
                 : "border-white/10 bg-slate-950/40 text-slate-400 hover:border-slate-600 hover:text-slate-300",
             ].join(" ")}
           >
-            {tab.label}
-            <span className="ml-2 opacity-60">{levelCounts[tab.value]}</span>
+            All topics
           </button>
-        ))}
+          {allTopics.map(([topic, count]) => (
+            <button
+              key={topic}
+              type="button"
+              onClick={() => handleTopicChange(topic)}
+              className={[
+                "rounded-full border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.15em] transition-colors",
+                activeTopic === topic
+                  ? "border-indigo-400/60 bg-indigo-500/20 text-indigo-100"
+                  : "border-white/10 bg-slate-950/40 text-slate-400 hover:border-slate-600 hover:text-slate-300",
+              ].join(" ")}
+            >
+              {topic}
+              <span className="ml-1.5 opacity-50">{count}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Level filter tabs */}
+      <div>
+        <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-slate-500">
+          Difficulty
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {LEVEL_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() => handleLevelChange(tab.value)}
+              className={[
+                "rounded-full border px-4 py-2 font-mono text-xs uppercase tracking-[0.18em] transition-colors",
+                activeLevel === tab.value
+                  ? "border-indigo-400/60 bg-indigo-500/20 text-indigo-100"
+                  : "border-white/10 bg-slate-950/40 text-slate-400 hover:border-slate-600 hover:text-slate-300",
+              ].join(" ")}
+            >
+              {tab.label}
+              <span className="ml-2 opacity-60">{levelCounts[tab.value]}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Empty state */}
