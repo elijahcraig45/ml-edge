@@ -1,4 +1,5 @@
 import type {
+  CodingProblem,
   CurriculumCourse,
   CurriculumExercise,
   CurriculumLesson,
@@ -9,7 +10,7 @@ type HostedLectureSegment = {
   title: string;
   explanation: string[];
   appliedLens: string;
-  checkpoint: string;
+  checkpoint?: string;
 };
 
 type HostedTutorialStep = {
@@ -35,11 +36,19 @@ export type HostedLessonContent = {
   teachingPromise: string;
   learningObjectives: string[];
   lectureSegments: HostedLectureSegment[];
-  tutorialSteps: HostedTutorialStep[];
-  misconceptions: string[];
-  reflectionPrompts: string[];
-  masteryChecklist: string[];
+  tutorialSteps?: HostedTutorialStep[];
+  misconceptions?: string[];
+  reflectionPrompts?: string[];
+  masteryChecklist?: string[];
   practiceProblems?: PracticeProblem[];
+  codingProblems?: CodingProblem[];
+  videoUrl?: string;
+  /** Optional manager briefing for courses targeting experienced practitioners */
+  managerBriefing?: {
+    businessContext: string;
+    riskIfSkipped: string;
+    kpiImpact: string;
+  };
 };
 
 function sentenceCase(value: string) {

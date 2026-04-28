@@ -3,7 +3,7 @@ import { getAuthoredDsaLesson } from "@/lib/authored-dsa-course";
 import { ML_ENGINEER_CURRICULUM } from "@/lib/curriculum-catalog";
 import { ML_ENGINEER_PROGRAM } from "@/lib/curriculum-program";
 import type { HostedLessonContent } from "@/lib/hosted-lessons";
-import type { CurriculumLesson, QuizQuestion } from "@/lib/types";
+import type { CodingProblem, CurriculumLesson, QuizQuestion } from "@/lib/types";
 
 type AuthoredCourseAvailability =
   | "Start here"
@@ -24,6 +24,7 @@ type AuthoredCourseAssessment = {
   description: string;
   passingScore: number;
   questions: QuizQuestion[];
+  codingProblems?: CodingProblem[];
 };
 
 export type AuthoredAcademyLesson = {
@@ -122,10 +123,19 @@ const AUTHORED_ACADEMY_COURSES: AuthoredAcademyCourse[] = [
       "This is the first authored course. Take it before anything else if your math intuition feels rusty or fragmented.",
     canTakeAnytime: false,
     lessons: [
-      buildAuthoredAcademyLesson("math-foundations-lesson-1"),
-      buildAuthoredAcademyLesson("math-foundations-lesson-2"),
-      buildAuthoredAcademyLesson("math-foundations-lesson-3"),
-      buildAuthoredAcademyLesson("math-foundations-lesson-4"),
+      buildAuthoredAcademyLesson("math-lesson-1"),
+      buildAuthoredAcademyLesson("math-lesson-2"),
+      buildAuthoredAcademyLesson("math-lesson-3"),
+      buildAuthoredAcademyLesson("math-lesson-4"),
+      buildAuthoredAcademyLesson("math-lesson-5"),
+      buildAuthoredAcademyLesson("math-lesson-6"),
+      buildAuthoredAcademyLesson("math-lesson-7"),
+      buildAuthoredAcademyLesson("math-lesson-8"),
+      buildAuthoredAcademyLesson("math-lesson-9"),
+      buildAuthoredAcademyLesson("math-lesson-10"),
+      buildAuthoredAcademyLesson("math-lesson-11"),
+      buildAuthoredAcademyLesson("math-lesson-12"),
+      buildAuthoredAcademyLesson("math-lesson-13"),
     ],
     badge: {
       id: "badge-math-for-ml",
@@ -1236,8 +1246,8 @@ const AUTHORED_ACADEMY_COURSES: AuthoredAcademyCourse[] = [
     slug: "data-structures-and-algorithms",
     title: "Data Structures and Algorithms",
     shortTitle: "DS&A",
-    order: 13,
-    availability: "Take anytime after foundations",
+    order: 0,
+    availability: "Start here",
     summary:
       "A rigorous authored DS&A course built around GT-style undergraduate coverage: asymptotic analysis, recursion, linked structures, trees, hashing, sorting, graphs, and dynamic programming.",
     audience:
@@ -1269,8 +1279,177 @@ const AUTHORED_ACADEMY_COURSES: AuthoredAcademyCourse[] = [
     finalAssessment: {
       title: "DS&A Badge Test",
       description:
-        "A final exam on cost models, invariants, balanced trees, hashing, sorting, graph algorithms, and dynamic programming.",
+        "A comprehensive final assessment covering cost models, invariants, balanced trees, hashing, sorting, graph algorithms, and dynamic programming — including two graded coding challenges.",
       passingScore: 5,
+      codingProblems: [
+        {
+          id: "dsa-badge-code-1",
+          title: "Balanced Parentheses",
+          difficulty: "easy",
+          prompt: `Implement \`is_balanced(s)\` that returns \`True\` if every opening bracket in the string has a matching closing bracket in the correct order, and \`False\` otherwise. Valid bracket pairs are \`()\`, \`[]\`, and \`{}\`.
+
+\`\`\`
+is_balanced("({[]})")  → True
+is_balanced("([)]")    → False
+is_balanced("")         → True
+\`\`\`
+
+Use a stack. Push each opening bracket; when you see a closing bracket, the top of the stack must be the matching opener.`,
+          starterCode: `def is_balanced(s: str) -> bool:
+    stack = []
+    pairs = {')': '(', ']': '[', '}': '{'}
+    for ch in s:
+        if ch in '([{':
+            # TODO: push to stack
+            pass
+        elif ch in ')]}':
+            # TODO: if stack is empty or top doesn't match, return False
+            # Otherwise pop the top
+            pass
+    # TODO: return True only if the stack is empty at the end
+    return True`,
+          testCases: [
+            {
+              label: "Empty string is balanced",
+              assertion: `assert is_balanced("") == True`,
+            },
+            {
+              label: "Simple pair",
+              assertion: `assert is_balanced("()") == True`,
+            },
+            {
+              label: "Nested mixed brackets",
+              assertion: `assert is_balanced("({[]})") == True`,
+            },
+            {
+              label: "Wrong closing order",
+              assertion: `assert is_balanced("([)]") == False`,
+            },
+            {
+              label: "Unclosed opener",
+              assertion: `assert is_balanced("(((") == False`,
+            },
+            {
+              label: "Extra closer",
+              assertion: `assert is_balanced(")))") == False`,
+              hidden: true,
+            },
+          ],
+          hint: "For each closing bracket, check that \`stack\` is non-empty AND \`stack[-1] == pairs[ch]\` before popping. If either check fails, return False immediately.",
+          solution: `def is_balanced(s: str) -> bool:
+    stack = []
+    pairs = {')': '(', ']': '[', '}': '{'}
+    for ch in s:
+        if ch in '([{':
+            stack.append(ch)
+        elif ch in ')]}':
+            if not stack or stack[-1] != pairs[ch]:
+                return False
+            stack.pop()
+    return len(stack) == 0`,
+        } satisfies CodingProblem,
+        {
+          id: "dsa-badge-code-2",
+          title: "Count Islands (BFS)",
+          difficulty: "medium",
+          prompt: `Given a 2-D grid of \`'1'\` (land) and \`'0'\` (water), return the number of islands. An island is a group of adjacent (up/down/left/right) land cells surrounded by water.
+
+\`\`\`
+grid = [
+  ["1","1","0"],
+  ["0","1","0"],
+  ["0","0","1"],
+]
+count_islands(grid)  →  2
+\`\`\`
+
+Use BFS: when you find an unvisited land cell, start a BFS that visits and marks all connected land cells — that's one island.`,
+          starterCode: `from collections import deque
+
+def count_islands(grid: list) -> int:
+    if not grid:
+        return 0
+    rows, cols = len(grid), len(grid[0])
+    visited = set()
+    count = 0
+
+    def bfs(r, c):
+        queue = deque([(r, c)])
+        visited.add((r, c))
+        while queue:
+            row, col = queue.popleft()
+            for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                nr, nc = row + dr, col + dc
+                # TODO: if (nr, nc) is in bounds, unvisited, and land ('1'):
+                #   mark visited and enqueue
+                pass
+
+    for r in range(rows):
+        for c in range(cols):
+            # TODO: if cell is land and unvisited, call bfs and increment count
+            pass
+
+    return count`,
+          testCases: [
+            {
+              label: "Empty grid returns 0",
+              assertion: `assert count_islands([]) == 0`,
+            },
+            {
+              label: "All water returns 0",
+              assertion: `assert count_islands([["0","0"],["0","0"]]) == 0`,
+            },
+            {
+              label: "Single cell island",
+              assertion: `assert count_islands([["1"]]) == 1`,
+            },
+            {
+              label: "Two separate islands",
+              assertion: `g = [["1","1","0"],["0","1","0"],["0","0","1"]]
+assert count_islands(g) == 2`,
+            },
+            {
+              label: "One large connected island",
+              assertion: `g = [["1","1"],["1","1"]]
+assert count_islands(g) == 1`,
+            },
+            {
+              label: "Four isolated cells",
+              assertion: `g = [["1","0","1"],["0","0","0"],["1","0","1"]]
+assert count_islands(g) == 4`,
+              hidden: true,
+            },
+          ],
+          hint: "Inside \`bfs\`, check \`0 <= nr < rows and 0 <= nc < cols and (nr, nc) not in visited and grid[nr][nc] == '1'\`. In the outer loop, trigger \`bfs(r, c)\` whenever \`grid[r][c] == '1' and (r, c) not in visited\`.",
+          solution: `from collections import deque
+
+def count_islands(grid: list) -> int:
+    if not grid:
+        return 0
+    rows, cols = len(grid), len(grid[0])
+    visited = set()
+    count = 0
+
+    def bfs(r, c):
+        queue = deque([(r, c)])
+        visited.add((r, c))
+        while queue:
+            row, col = queue.popleft()
+            for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                nr, nc = row + dr, col + dc
+                if 0 <= nr < rows and 0 <= nc < cols and (nr, nc) not in visited and grid[nr][nc] == '1':
+                    visited.add((nr, nc))
+                    queue.append((nr, nc))
+
+    for r in range(rows):
+        for c in range(cols):
+            if grid[r][c] == '1' and (r, c) not in visited:
+                bfs(r, c)
+                count += 1
+
+    return count`,
+        } satisfies CodingProblem,
+      ],
       questions: [
         question(
           "dsa-badge-q1",

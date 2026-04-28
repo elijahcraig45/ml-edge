@@ -12,8 +12,9 @@ import {
 } from "@/lib/lesson-progress";
 import type { HostedLessonContent } from "@/lib/hosted-lessons";
 import type { LessonQuiz } from "@/lib/types";
+import { PythonCodeRunner } from "@/components/curriculum/python-code-runner";
 
-type PhaseId = "lecture" | "tutorial" | "practice" | "quiz" | "mastery";
+type PhaseId = "lecture" | "tutorial" | "practice" | "code" | "quiz" | "mastery";
 
 type StoredLessonState = {
   completedLectureSegments: boolean[];
@@ -27,6 +28,7 @@ type StoredLessonState = {
   practiceRevealedHintsByProblemId: Record<string, boolean>;
   practiceRevealedSolutionsByProblemId: Record<string, boolean>;
   practiceSelfAssessmentByProblemId: Record<string, "got-it" | "needs-work">;
+  codingProblemsPassedById: Record<string, boolean>;
 };
 
 type InteractiveLessonExperienceProps = {
@@ -58,11 +60,11 @@ function buildDefaultState(
       () => false,
     ),
     completedTutorialSteps: Array.from(
-      { length: hostedLesson.tutorialSteps.length },
+      { length: (hostedLesson.tutorialSteps ?? []).length },
       () => false,
     ),
     completedMasteryItems: Array.from(
-      { length: hostedLesson.masteryChecklist.length },
+      { length: (hostedLesson.masteryChecklist ?? []).length },
       () => false,
     ),
     quizAnswers: Array.from({ length: quiz.questions.length }, () => null),
@@ -73,6 +75,7 @@ function buildDefaultState(
     practiceRevealedHintsByProblemId: {},
     practiceRevealedSolutionsByProblemId: {},
     practiceSelfAssessmentByProblemId: {},
+    codingProblemsPassedById: {},
   };
 }
 
@@ -96,11 +99,11 @@ function normalizeStoredState(
     ),
     completedTutorialSteps: normalizeBooleanArray(
       stored.completedTutorialSteps,
-      hostedLesson.tutorialSteps.length,
+      (hostedLesson.tutorialSteps ?? []).length,
     ),
     completedMasteryItems: normalizeBooleanArray(
       stored.completedMasteryItems,
-      hostedLesson.masteryChecklist.length,
+      (hostedLesson.masteryChecklist ?? []).length,
     ),
     quizAnswers: normalizeAnswerArray(stored.quizAnswers, quiz.questions.length),
     quizSubmitted: stored.quizSubmitted === true,
@@ -132,6 +135,12 @@ function normalizeStoredState(
             string,
             "got-it" | "needs-work"
           >)
+        : {},
+    codingProblemsPassedById:
+      stored.codingProblemsPassedById &&
+      typeof stored.codingProblemsPassedById === "object" &&
+      !Array.isArray(stored.codingProblemsPassedById)
+        ? (stored.codingProblemsPassedById as Record<string, boolean>)
         : {},
   };
 }
@@ -171,6 +180,12 @@ function computeInitialPhase(
       Object.keys(s.practiceSelfAssessmentByProblemId).length < practiceCount
     )
       return "practice";
+    const codingCount = (hostedLesson.codingProblems ?? []).length;
+    if (
+      codingCount > 0 &&
+      Object.keys(s.codingProblemsPassedById).length < codingCount
+    )
+      return "code";
     if (!s.quizSubmitted) return "quiz";
     return "mastery";
   } catch {
@@ -189,7 +204,7 @@ function computeInitialExpansion(
     () => true,
   );
   const defaultTutorial = Array.from(
-    { length: hostedLesson.tutorialSteps.length },
+    { length: (hostedLesson.tutorialSteps ?? []).length },
     () => true,
   );
   if (!snapshot) return { lecture: defaultLecture, tutorial: defaultTutorial };
@@ -229,6 +244,12 @@ export function InteractiveLessonExperience({
 
   const practiceProblems = hostedLesson.practiceProblems ?? [];
   const hasPractice = practiceProblems.length > 0;
+  const codingProblems = hostedLesson.codingProblems ?? [];
+  const hasCode = codingProblems.length > 0;
+  const tutorialSteps = hostedLesson.tutorialSteps ?? [];
+  const misconceptions = hostedLesson.misconceptions ?? [];
+  const reflectionPrompts = hostedLesson.reflectionPrompts ?? [];
+  const masteryChecklist = hostedLesson.masteryChecklist ?? [];
 
   const [activePhase, setActivePhase] = useState<PhaseId>(() =>
     computeInitialPhase(storageKey, hostedLesson, quiz),
@@ -272,8 +293,8 @@ export function InteractiveLessonExperience({
     (state.quizSubmitted ? 1 : 0);
   const totalUnits =
     hostedLesson.lectureSegments.length +
-    hostedLesson.tutorialSteps.length +
-    hostedLesson.masteryChecklist.length +
+    tutorialSteps.length +
+    masteryChecklist.length +
     1;
   const progressPercent = Math.round((completedUnits / Math.max(totalUnits, 1)) * 100);
 
@@ -303,26 +324,37 @@ export function InteractiveLessonExperience({
   const phases: PhaseInfo[] = [
     {
       id: "lecture",
-      label: "Lecture",
+      label: "Watch & Read",
       done: state.completedLectureSegments.filter(Boolean).length,
       total: hostedLesson.lectureSegments.length,
       complete: lectureComplete,
     },
     {
       id: "tutorial",
-      label: "Tutorial",
+      label: "Guided Exercises",
       done: state.completedTutorialSteps.filter(Boolean).length,
-      total: hostedLesson.tutorialSteps.length,
+      total: tutorialSteps.length,
       complete: tutorialComplete,
     },
     ...(hasPractice
       ? [
           {
             id: "practice" as PhaseId,
-            label: "Practice",
+            label: "Written Problems",
             done: assessedCount,
             total: practiceProblems.length,
             complete: practiceComplete,
+          },
+        ]
+      : []),
+    ...(hasCode
+      ? [
+          {
+            id: "code" as PhaseId,
+            label: "Coding Challenge",
+            done: Object.values(state.codingProblemsPassedById).filter(Boolean).length,
+            total: codingProblems.length,
+            complete: Object.values(state.codingProblemsPassedById).filter(Boolean).length === codingProblems.length,
           },
         ]
       : []),
@@ -335,9 +367,9 @@ export function InteractiveLessonExperience({
     },
     {
       id: "mastery",
-      label: "Mastery",
+      label: "Self-Check",
       done: state.completedMasteryItems.filter(Boolean).length,
-      total: hostedLesson.masteryChecklist.length,
+      total: masteryChecklist.length,
       complete: masteryComplete,
     },
   ];
@@ -406,7 +438,7 @@ export function InteractiveLessonExperience({
     updateState((current) => ({ ...current, quizSubmitted: true }));
     setMessage(
       score >= quiz.grading.passingScore
-        ? "Quiz passed — move to the Mastery phase."
+        ? "Quiz passed — move to the Self-Check phase."
         : `Score: ${score}/${quiz.questions.length}. Review the explanations, then reset to try again.`,
     );
   }
@@ -550,6 +582,34 @@ export function InteractiveLessonExperience({
       {/* ═══ LECTURE PHASE ═══ */}
       {activePhase === "lecture" && (
         <div className="space-y-3">
+          <div className="rounded-2xl border border-indigo-400/20 bg-indigo-500/5 px-5 py-4">
+            <p className="text-sm font-semibold text-indigo-200">Watch &amp; Read</p>
+            <p className="mt-1 text-sm leading-6 text-slate-400">
+              Watch the video, then read each segment below. When you feel confident you
+              understand a segment, click <span className="text-slate-200">Done</span> to
+              collapse it and move on. Answer the checkpoint question in your own words before
+              marking a segment complete.
+            </p>
+          </div>
+          {/* Lesson video — shown when the lesson has a hosted video file */}
+          {hostedLesson.videoUrl && (
+            <div className="rounded-3xl border border-white/10 bg-slate-950/80">
+              <div className="flex items-center gap-3 border-b border-white/10 px-5 py-3">
+                <span className="rounded-full border border-indigo-400/30 bg-indigo-500/10 px-3 py-0.5 font-mono text-[11px] uppercase tracking-[0.18em] text-indigo-300">
+                  Lesson video
+                </span>
+              </div>
+              {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+              <video
+                src={hostedLesson.videoUrl}
+                controls
+                controlsList="nodownload"
+                preload="metadata"
+                className="w-full rounded-b-3xl"
+                style={{ display: "block", background: "#000" }}
+              />
+            </div>
+          )}
           {hostedLesson.lectureSegments.map((segment, index) => {
             const isDone = state.completedLectureSegments[index];
             const isExpanded = expandedLectureSegments[index];
@@ -682,7 +742,17 @@ export function InteractiveLessonExperience({
       {/* ═══ TUTORIAL PHASE ═══ */}
       {activePhase === "tutorial" && (
         <div className="space-y-3">
-          {hostedLesson.tutorialSteps.map((step, index) => {
+          <div className="rounded-2xl border border-indigo-400/20 bg-indigo-500/5 px-5 py-4">
+            <p className="text-sm font-semibold text-indigo-200">Guided Exercises</p>
+            <p className="mt-1 text-sm leading-6 text-slate-400">
+              Each exercise has a goal, a set of steps to carry out, and a success signal
+              that tells you when you&apos;ve genuinely understood it. Work through the steps
+              yourself — on paper, in a scratch file, or in your head — before marking the
+              exercise done. The &ldquo;common failure mode&rdquo; card tells you the most
+              frequent shortcut that produces wrong understanding.
+            </p>
+          </div>
+          {tutorialSteps.map((step, index) => {
             const isDone = state.completedTutorialSteps[index];
             const isExpanded = expandedTutorialSteps[index];
 
@@ -794,6 +864,21 @@ export function InteractiveLessonExperience({
       {/* ═══ PRACTICE PHASE ═══ */}
       {activePhase === "practice" && hasPractice && (
         <div className="space-y-4">
+          <div className="rounded-2xl border border-indigo-400/20 bg-indigo-500/5 px-5 py-4">
+            <p className="text-sm font-semibold text-indigo-200">Written Problems</p>
+            <p className="mt-1 text-sm leading-6 text-slate-400">
+              These are open-ended written problems — no code runner. Read the prompt and
+              work out your answer independently before revealing anything. Use the{" "}
+              <span className="text-slate-200">Hint</span> only if you&apos;re genuinely
+              stuck, and the{" "}
+              <span className="text-slate-200">Solution</span> only to check work you&apos;ve
+              already done. After seeing the solution, honestly self-assess:{" "}
+              <span className="text-emerald-300">Got it</span> means you could reproduce the
+              answer without looking;{" "}
+              <span className="text-amber-300">Needs work</span> means you need to revisit
+              this concept before the quiz.
+            </p>
+          </div>
           {practiceProblems.map((problem) => {
             const hintRevealed = state.practiceRevealedHintsByProblemId[problem.id] === true;
             const solutionRevealed =
@@ -980,21 +1065,89 @@ export function InteractiveLessonExperience({
         </div>
       )}
 
+      {/* ═══ CODE PHASE ═══ */}
+      {activePhase === "code" && hasCode && (
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-indigo-400/20 bg-indigo-500/5 px-5 py-4">
+            <p className="text-sm font-semibold text-indigo-200">Coding Challenge</p>
+            <p className="mt-1 text-sm leading-6 text-slate-400">
+              Implement the solution yourself in the editor before using any hints. Click{" "}
+              <span className="text-slate-200">▶ Run</span> to execute your code against the
+              test cases — all tests must pass to complete a problem. The{" "}
+              <span className="text-amber-300">Hint</span> nudges you in the right direction;
+              the <span className="text-emerald-300">Solution</span> reveals a reference
+              implementation. Python runs entirely in your browser via Pyodide — no server
+              required.
+            </p>
+          </div>
+
+          {codingProblems.map((problem) => {
+            const passed = state.codingProblemsPassedById[problem.id] === true;
+            return (
+              <div key={problem.id} className="space-y-2">
+                {passed && (
+                  <div className="flex items-center gap-2 px-1">
+                    <span className="text-sm text-emerald-400">✓</span>
+                    <span className="text-sm text-emerald-300">
+                      {problem.title} — all tests passed
+                    </span>
+                  </div>
+                )}
+                <PythonCodeRunner
+                  problem={problem}
+                  onAllPassed={() =>
+                    updateState((current) => ({
+                      ...current,
+                      codingProblemsPassedById: {
+                        ...current.codingProblemsPassedById,
+                        [problem.id]: true,
+                      },
+                    }))
+                  }
+                />
+              </div>
+            );
+          })}
+
+          {nextPhase && (
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => changePhase(nextPhase.id)}
+                className={[
+                  "rounded-full border px-5 py-2.5 text-sm font-semibold transition-colors",
+                  Object.values(state.codingProblemsPassedById).filter(Boolean).length ===
+                  codingProblems.length
+                    ? "border-indigo-400/40 bg-indigo-500/15 text-indigo-100 hover:border-indigo-300"
+                    : "border-white/10 text-slate-400 hover:border-slate-500",
+                ].join(" ")}
+              >
+                {Object.values(state.codingProblemsPassedById).filter(Boolean).length ===
+                codingProblems.length
+                  ? `Continue to ${nextPhase.label} →`
+                  : `Skip to ${nextPhase.label} →`}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ═══ QUIZ PHASE ═══ */}
       {activePhase === "quiz" && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-indigo-300">
-                Assessment
-              </p>
-              <h3 className="mt-1 text-lg font-semibold text-slate-100">
-                Interactive lesson quiz
-              </h3>
+          <div className="rounded-2xl border border-indigo-400/20 bg-indigo-500/5 px-5 py-4">
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-sm font-semibold text-indigo-200">Quiz</p>
+              <span className="rounded-full border border-white/10 px-3 py-1 font-mono text-xs text-slate-400">
+                Pass {quiz.grading.passingScore}/{quiz.grading.maxScore}
+              </span>
             </div>
-            <span className="rounded-full border border-white/10 px-3 py-1 font-mono text-xs text-slate-400">
-              Pass {quiz.grading.passingScore}/{quiz.grading.maxScore}
-            </span>
+            <p className="mt-1 text-sm leading-6 text-slate-400">
+              Select one answer per question, then click{" "}
+              <span className="text-slate-200">Submit quiz</span>. You must reach the passing
+              score to unlock the final Self-Check phase and mark the lesson complete. If you
+              don&apos;t pass, review the explanations and reset to try again.
+            </p>
           </div>
 
           <div className="space-y-4">
@@ -1102,6 +1255,15 @@ export function InteractiveLessonExperience({
       {/* ═══ MASTERY PHASE ═══ */}
       {activePhase === "mastery" && (
         <div className="space-y-5">
+          <div className="rounded-2xl border border-indigo-400/20 bg-indigo-500/5 px-5 py-4">
+            <p className="text-sm font-semibold text-indigo-200">Self-Check</p>
+            <p className="mt-1 text-sm leading-6 text-slate-400">
+              Review the common traps, then tick each item on the mastery checklist only if
+              you could explain or demonstrate it without looking anything up. Honest
+              self-assessment here is what determines whether you&apos;re ready to move on —
+              not whether the box is checked.
+            </p>
+          </div>
           {/* Misconceptions — informational, not gating */}
           <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-5">
             <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-indigo-300">
@@ -1109,7 +1271,7 @@ export function InteractiveLessonExperience({
             </p>
             <h3 className="mt-2 text-base font-semibold text-slate-100">Common traps</h3>
             <div className="mt-3 space-y-3">
-              {hostedLesson.misconceptions.map((item) => (
+              {misconceptions.map((item) => (
                 <div
                   key={item}
                   className="rounded-2xl border border-white/10 bg-slate-950/55 p-4 text-sm leading-6 text-slate-300"
@@ -1138,7 +1300,7 @@ export function InteractiveLessonExperience({
               className="mt-3 w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm leading-6 text-slate-100 outline-none placeholder:text-slate-500 focus:border-indigo-400/40"
             />
             <ul className="mt-3 space-y-1 text-sm leading-6 text-slate-400">
-              {hostedLesson.reflectionPrompts.map((item) => (
+              {reflectionPrompts.map((item) => (
                 <li key={item}>- {item}</li>
               ))}
             </ul>
@@ -1151,7 +1313,7 @@ export function InteractiveLessonExperience({
             </p>
             <h3 className="mt-2 text-lg font-semibold text-slate-100">Lesson checklist</h3>
             <div className="mt-4 space-y-3">
-              {hostedLesson.masteryChecklist.map((item, index) => (
+              {masteryChecklist.map((item, index) => (
                 <button
                   key={item}
                   type="button"

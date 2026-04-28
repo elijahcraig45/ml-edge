@@ -15,6 +15,7 @@ import {
   readLessonProgressSnapshot,
   subscribeToLessonProgress,
 } from "@/lib/lesson-progress";
+import { PythonCodeRunner } from "@/components/curriculum/python-code-runner";
 import type { AuthoredAcademyCourse } from "@/lib/authored-academy";
 
 type StoredAssessmentState = {
@@ -23,6 +24,7 @@ type StoredAssessmentState = {
   passed: boolean;
   badgeAwarded: boolean;
   earnedAt: string | null;
+  codingProblemsPassedById: Record<string, boolean>;
 };
 
 type CourseBadgeAssessmentProps = {
@@ -36,6 +38,7 @@ function buildDefaultState(course: AuthoredAcademyCourse): StoredAssessmentState
     passed: false,
     badgeAwarded: false,
     earnedAt: null,
+    codingProblemsPassedById: {},
   };
 }
 
@@ -60,6 +63,12 @@ function normalizeStoredAssessmentState(
     passed: stored.passed === true,
     badgeAwarded: stored.badgeAwarded === true,
     earnedAt: typeof stored.earnedAt === "string" ? stored.earnedAt : null,
+    codingProblemsPassedById:
+      stored.codingProblemsPassedById &&
+      typeof stored.codingProblemsPassedById === "object" &&
+      !Array.isArray(stored.codingProblemsPassedById)
+        ? (stored.codingProblemsPassedById as Record<string, boolean>)
+        : {},
   };
 }
 
@@ -122,6 +131,13 @@ export function CourseBadgeAssessment({ course }: CourseBadgeAssessmentProps) {
   }, 0);
   const readyForAssessment = completedLessons === course.lessons.length;
   const passingScore = course.finalAssessment.passingScore;
+  const codingProblems = course.finalAssessment.codingProblems ?? [];
+  const allCodingPassed =
+    codingProblems.length === 0 ||
+    codingProblems.every((p) => state.codingProblemsPassedById[p.id] === true);
+  const codingPassedCount = codingProblems.filter(
+    (p) => state.codingProblemsPassedById[p.id] === true,
+  ).length;
 
   function setAnswer(questionIndex: number, answerIndex: number) {
     updateState((current) => ({
@@ -173,6 +189,13 @@ export function CourseBadgeAssessment({ course }: CourseBadgeAssessmentProps) {
 
     if (state.answers.some((answer) => answer === null)) {
       setMessage("Answer every question before grading the badge test.");
+      return;
+    }
+
+    if (!allCodingPassed) {
+      setMessage(
+        `Pass all coding challenges before submitting (${codingPassedCount}/${codingProblems.length} complete).`,
+      );
       return;
     }
 
@@ -263,9 +286,54 @@ export function CourseBadgeAssessment({ course }: CourseBadgeAssessmentProps) {
           {course.finalAssessment.description}
         </p>
         <p className="mt-3 text-xs leading-5 text-slate-500">
-          Pass {passingScore}/{course.finalAssessment.questions.length} to earn the badge.
+          Pass {passingScore}/{course.finalAssessment.questions.length} multiple-choice
+          {codingProblems.length > 0
+            ? ` + all ${codingProblems.length} coding challenge${codingProblems.length > 1 ? "s" : ""}`
+            : ""}{" "}
+          to earn the badge.
         </p>
       </div>
+
+      {codingProblems.length > 0 && (
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-indigo-400/20 bg-indigo-500/5 px-5 py-4">
+            <p className="text-sm font-semibold text-indigo-200">
+              Coding Challenges — {codingPassedCount}/{codingProblems.length} passed
+            </p>
+            <p className="mt-1 text-sm leading-6 text-slate-400">
+              Implement both solutions and pass all test cases before submitting the badge
+              test. Python runs in-browser via Pyodide.
+            </p>
+          </div>
+          {codingProblems.map((problem) => {
+            const passed = state.codingProblemsPassedById[problem.id] === true;
+            return (
+              <div key={problem.id} className="space-y-2">
+                {passed && (
+                  <div className="flex items-center gap-2 px-1">
+                    <span className="text-sm text-emerald-400">✓</span>
+                    <span className="text-sm text-emerald-300">
+                      {problem.title} — all tests passed
+                    </span>
+                  </div>
+                )}
+                <PythonCodeRunner
+                  problem={problem}
+                  onAllPassed={() =>
+                    updateState((current) => ({
+                      ...current,
+                      codingProblemsPassedById: {
+                        ...current.codingProblemsPassedById,
+                        [problem.id]: true,
+                      },
+                    }))
+                  }
+                />
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div className="space-y-4">
         {course.finalAssessment.questions.map((question, index) => (

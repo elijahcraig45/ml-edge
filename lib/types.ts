@@ -180,6 +180,25 @@ export type CurriculumCourse = {
   capstone: CurriculumProject;
 };
 
+export type CodingTestCase = {
+  label: string;
+  /** Python assertion statement(s) executed after the user's code.
+   *  Must raise AssertionError on failure, otherwise considered passed. */
+  assertion: string;
+  hidden?: boolean;
+};
+
+export type CodingProblem = {
+  id: string;
+  title: string;
+  difficulty: "easy" | "medium" | "hard";
+  prompt: string;
+  starterCode: string;
+  testCases: CodingTestCase[];
+  hint: string;
+  solution: string;
+};
+
 export type ResourceAccessModel = "open-license" | "free-access" | "metadata-only";
 
 export type OpenResource = {

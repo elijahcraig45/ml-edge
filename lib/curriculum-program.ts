@@ -483,6 +483,600 @@ const additionalCourses: CurriculumCourse[] = [
           ],
         ),
       ),
+      // -----------------------------------------------------------------------
+      // 13-lesson authored academy expansion (math-lesson-1 … math-lesson-13)
+      // -----------------------------------------------------------------------
+      module(
+        "math-authored-mod-1",
+        "Beginner",
+        "Module 1 — Linear Algebra as a Modeling Language",
+        "Understand that matrices are operators that transform representations, and learn to find signals in subspaces.",
+        [
+          lesson(
+            "math-lesson-1",
+            "Vectors & The Right Signal",
+            "45 min",
+            "Understand vectors, bases, spans, and subspaces as the geometry of what a model can and cannot express.",
+            [
+              "Vectors as structured representations of meaning",
+              "Bases, spans, and subspaces as modeling language",
+              "Debugging with the subspace question: does the right signal exist in the space you gave the model?",
+            ],
+            [
+              "A feature space is a subspace you chose; when the model fails, ask whether the task signal even lives there.",
+              "Different coordinate systems describe the same reality with very different usefulness.",
+            ],
+            [],
+            [
+              exercise(
+                "math-ex-1",
+                "Map one pipeline to its representational subspace",
+                "analysis",
+                "Choose a familiar model, describe the subspace its features span, and argue whether the task signal can be expressed within it.",
+                ["One-page framing memo"],
+                ["What would change if you expanded the feature subspace?"],
+              ),
+            ],
+            quiz(
+              [
+                question(
+                  "math-q1",
+                  "What is the most useful ML interpretation of a vector's basis?",
+                  [
+                    "The number of rows in the dataset",
+                    "The coordinate system that determines how a representation is described and how useful that description is",
+                    "A threshold for classification",
+                    "The number of hidden layers",
+                  ],
+                  1,
+                  "A basis defines how a space is parameterized; changing the basis can expose or hide useful structure.",
+                ),
+              ],
+              "Practice describing model representations geometrically before writing any code.",
+            ),
+          ),
+          lesson(
+            "math-lesson-2",
+            "Matrices as Actions",
+            "45 min",
+            "See matrix multiplication as composition of linear transformations, not bookkeeping.",
+            [
+              "Matrix multiplication as a linear map: stretching, rotating, projecting",
+              "Change of basis — expressing the same data in better coordinates",
+              "Stacked weight matrices as composed representation transformations",
+            ],
+            [
+              "Every weight matrix in a neural network is an operator that changes one representation into another.",
+              "Deep models are stacked linear maps interrupted by nonlinearities.",
+            ],
+            [],
+            [
+              exercise(
+                "math-ex-2",
+                "Describe one model layer as a linear operator",
+                "analysis",
+                "Pick a specific layer in a network and describe the geometric action its weight matrix performs.",
+                ["Short written explanation"],
+                ["Does the transformation make useful distinctions easier or harder downstream?"],
+              ),
+            ],
+            quiz(
+              [
+                question(
+                  "math-q2",
+                  "What is the correct interpretation of a weight matrix in a neural network?",
+                  [
+                    "A fixed lookup table for feature values",
+                    "A linear operator that transforms one representation space into another",
+                    "A probability distribution over outputs",
+                    "A stored copy of the training data",
+                  ],
+                  1,
+                  "Weight matrices perform representation transformation — each one changes the coordinate system the data lives in.",
+                ),
+              ],
+              "Revisit at least one layer in a model you have used and describe its geometric action.",
+            ),
+          ),
+          lesson(
+            "math-lesson-3",
+            "NumPy for Linear Algebra — Lab",
+            "60 min",
+            "Replace Python loops with vectorized NumPy operations and physically manipulate data in vector space.",
+            [
+              "Broadcasting and vectorized operations vs. Python loops",
+              "Mapping data pipelines into pure matrix operations",
+              "Using NumPy to rotate and stretch data — seeing the transformations physically",
+            ],
+            [
+              "Vectorized code is not just faster; it forces you to think in linear algebra terms.",
+              "Once you can express a pipeline as matrix operations, the geometry becomes inspectable.",
+            ],
+            [],
+            [
+              exercise(
+                "math-ex-3",
+                "Rewrite a loop-based pipeline in pure NumPy",
+                "lab",
+                "Take a Python loop that processes features and rewrite it entirely as vectorized matrix operations. Verify outputs match.",
+                ["Vectorized implementation", "Timing comparison"],
+                ["What geometric operation does each vectorized step perform?"],
+              ),
+            ],
+            quiz(
+              [
+                question(
+                  "math-q3",
+                  "What is the main advantage of expressing a data pipeline as matrix operations beyond speed?",
+                  [
+                    "It removes the need for training data",
+                    "It forces you to think in terms of linear transformations and makes the geometry of each step inspectable",
+                    "It automatically improves model accuracy",
+                    "It eliminates the need for testing",
+                  ],
+                  1,
+                  "Matrix operations make the geometric action of each step explicit and inspectable.",
+                ),
+              ],
+              "After the lab, verify you can describe each matrix operation as a geometric action.",
+            ),
+          ),
+          lesson(
+            "math-lesson-4",
+            "Projections & Dropping Geometric Shadows",
+            "45 min",
+            "Understand orthogonality and projection as the core geometric approximation move in ML.",
+            [
+              "Orthogonality — why perpendicular directions provide clean separation",
+              "Projection as the fundamental approximation operation",
+              "Why the least squares residual must be orthogonal to the feature space",
+            ],
+            [
+              "Projection is how ML approximates: given limited capacity, project onto the best available subspace.",
+              "The orthogonality of residuals is not a formula to memorize — it is a geometric necessity.",
+            ],
+            [],
+            [
+              exercise(
+                "math-ex-4",
+                "Derive the orthogonality condition for least squares",
+                "analysis",
+                "Without looking at formulas, draw the geometry of least squares and explain why the residual must be perpendicular to the feature subspace.",
+                ["Geometric derivation", "One-paragraph intuition statement"],
+                ["What happens to the error when you add a new orthogonal feature?"],
+              ),
+            ],
+            quiz(
+              [
+                question(
+                  "math-q4",
+                  "Why must the least squares residual be orthogonal to the column space of X?",
+                  [
+                    "Because that is how NumPy was programmed",
+                    "Because if it were not, we could project it onto X to reduce error further — contradicting the claim of minimality",
+                    "Because residuals are always zero",
+                    "Because orthogonality is defined that way in textbooks",
+                  ],
+                  1,
+                  "If any component of the residual lived in the feature span, we could use it to improve the fit — so the minimum must have an orthogonal residual.",
+                ),
+              ],
+              "Reconstruct the geometry of projection from scratch until orthogonality feels inevitable.",
+            ),
+          ),
+          lesson(
+            "math-lesson-5",
+            "Least Squares from Scratch — Lab",
+            "60 min",
+            "Re-derive and implement least squares using raw NumPy, verifying the projection theorem holds.",
+            [
+              "Deriving the normal equations from the projection condition",
+              "Implementing and solving with np.linalg.solve",
+              "Verifying the orthogonality of residuals numerically",
+            ],
+            [
+              "You haven't truly understood least squares until you can derive and verify the normal equations yourself.",
+              "The numerical orthogonality check is your proof the geometry worked.",
+            ],
+            [],
+            [
+              exercise(
+                "math-ex-5",
+                "Implement and verify least squares without sklearn",
+                "lab",
+                "Implement the normal equations solver and verify the residual-orthogonality condition numerically on several datasets.",
+                ["Working implementation", "Orthogonality verification notebook"],
+                ["What breaks when X is rank-deficient? How does regularization fix it?"],
+              ),
+            ],
+            quiz(
+              [
+                question(
+                  "math-q5",
+                  "What does np.linalg.solve(X.T @ X, X.T @ y) compute?",
+                  [
+                    "The raw mean of y",
+                    "The coefficients that minimize the squared residuals by solving the normal equations",
+                    "The eigenvalues of X",
+                    "A sorted list of features",
+                  ],
+                  1,
+                  "This solves (X.T @ X) b = X.T @ y — the normal equations derived from the projection condition.",
+                ),
+              ],
+              "Verify your implementation against sklearn's LinearRegression on several datasets.",
+            ),
+          ),
+          lesson(
+            "math-lesson-6",
+            "PCA & Variance vs. True Signal",
+            "45 min",
+            "Understand PCA as a geometric rotation and recognize when high-variance directions mislead you.",
+            [
+              "PCA as a search for directions of maximum projected variance",
+              "Eigendecomposition as the mechanism that finds those directions",
+              "The trap: high-variance directions are not always the most useful directions for the task",
+            ],
+            [
+              "PCA finds the best linear compression by variance — but variance is not the same as task relevance.",
+              "Understanding PCA geometrically helps you know when to use it and when to distrust it.",
+            ],
+            [],
+            [
+              exercise(
+                "math-ex-6",
+                "Interrogate PCA on two contrasting datasets",
+                "analysis",
+                "Apply PCA to one dataset where it helps and one where it discards task-relevant structure. Write a comparison memo.",
+                ["PCA analysis on two datasets", "Comparison memo"],
+                ["What signal did PCA discard? Would a supervised approach have caught it?"],
+              ),
+            ],
+            quiz(
+              [
+                question(
+                  "math-q6",
+                  "When is PCA most likely to mislead you?",
+                  [
+                    "When the data has more than 10 features",
+                    "When the task-relevant structure lives in low-variance or nonlinear directions that PCA discards",
+                    "When you use NumPy instead of sklearn",
+                    "When the dataset is larger than 1000 rows",
+                  ],
+                  1,
+                  "PCA maximizes variance preservation — but the signal that matters for a task may be subtle, low-variance, or nonlinear.",
+                ),
+              ],
+              "Practice asking 'does high variance imply usefulness here?' before applying PCA.",
+            ),
+          ),
+          lesson(
+            "math-lesson-7",
+            "PCA from Scratch — Lab",
+            "60 min",
+            "Implement PCA via eigendecomposition without libraries, then interrogate it on real data.",
+            [
+              "Covariance matrix construction and eigendecomposition with np.linalg.eigh",
+              "Sorting by eigenvalue, projecting onto principal components",
+              "Comparing PCA on a well-structured vs. a misleading dataset",
+            ],
+            [
+              "Implementing PCA from scratch forces you to understand every step rather than calling fit_transform blindly.",
+              "The lab is where you make the trap concrete: watch PCA confidently discard the useful signal.",
+            ],
+            [],
+            [
+              exercise(
+                "math-ex-7",
+                "PCA implementation and critical audit",
+                "lab",
+                "Implement PCA from eigendecomposition and verify components are orthonormal. Then run it on a dataset where variance and task relevance diverge.",
+                ["Working PCA implementation", "Critical audit on one misleading dataset"],
+                ["What would a supervised method have done differently?"],
+              ),
+            ],
+            quiz(
+              [
+                question(
+                  "math-q7",
+                  "Why does np.linalg.eigh return eigenvectors in ascending eigenvalue order?",
+                  [
+                    "It is a bug in NumPy",
+                    "By convention, and you must reverse the ordering to get the highest-variance directions first",
+                    "Because eigenvalues are always negative",
+                    "Because PCA sorts by label, not variance",
+                  ],
+                  1,
+                  "eigh returns ascending order; you must argsort and reverse to get descending variance order for PCA.",
+                ),
+              ],
+              "Run your implementation on at least one dataset where PCA's answer is technically correct but misleading for the task.",
+            ),
+          ),
+        ],
+      ),
+      module(
+        "math-authored-mod-2",
+        "Beginner",
+        "Module 2 — Gradients, Chain Rule, and Optimization Surfaces",
+        "Use derivatives operationally to see how tiny parameter changes move the loss.",
+        [
+          lesson(
+            "math-lesson-8",
+            "Reading the Optimization Landscape",
+            "50 min",
+            "Understand gradients, Jacobians, and Hessians as tools for diagnosing model training behavior.",
+            [
+              "Gradients as bundles of first-order local sensitivities",
+              "Directional derivatives and why direction matters as much as magnitude",
+              "Jacobians for layered networks; Hessians and curvature (bowls, plateaus, saddles, ravines)",
+            ],
+            [
+              "A gradient tells you which local direction improves the loss — curvature tells you how far to trust it.",
+              "Training instability is usually a local geometry problem before it is a model architecture problem.",
+            ],
+            [],
+            [
+              exercise(
+                "math-ex-8",
+                "Diagnose a training failure in calculus language",
+                "analysis",
+                "Take a real or synthetic training run that fails. Describe the failure using gradient, curvature, and local landscape language rather than vague intuition.",
+                ["Calculus-language diagnosis", "Proposed intervention tied to the mechanism"],
+                ["Is the problem gradient scale, curvature, or instability in the update direction?"],
+              ),
+            ],
+            quiz(
+              [
+                question(
+                  "math-q8",
+                  "What additional information does the Hessian provide beyond the gradient?",
+                  [
+                    "The global optimum",
+                    "The learning rate to use",
+                    "Local curvature — how the gradient itself is changing and how trustworthy the linear approximation is",
+                    "The model architecture",
+                  ],
+                  1,
+                  "The Hessian captures second-order curvature that tells you how stable and trustworthy the local gradient direction is.",
+                ),
+              ],
+              "Read training curves until you can describe failure modes in derivative language, not just observations.",
+            ),
+          ),
+          lesson(
+            "math-lesson-9",
+            "Backpropagation & Autograd — Lab",
+            "60 min",
+            "Demystify backprop by computing gradients manually, then numerically, then comparing to autograd.",
+            [
+              "Backpropagation as chain rule bookkeeping over a computation graph, not magic",
+              "Computing a gradient by hand for a tiny network",
+              "Numerical gradient check as a debugging tool",
+            ],
+            [
+              "Once you implement a gradient check, backprop stops being magic and becomes traceable engineering.",
+              "A mismatched gradient check is one of the most useful debugging signals you can have.",
+            ],
+            [],
+            [
+              exercise(
+                "math-ex-9",
+                "Gradient check one layer",
+                "lab",
+                "Implement numerical gradient checking and verify it against an analytical gradient for at least one function. Introduce a deliberate bug and verify the check catches it.",
+                ["Numerical gradient implementation", "Bug-detection test report"],
+                ["What kinds of bugs does a gradient check catch vs. miss?"],
+              ),
+            ],
+            quiz(
+              [
+                question(
+                  "math-q9",
+                  "Why is numerical gradient checking useful even after you trust autograd?",
+                  [
+                    "It replaces autograd entirely",
+                    "It catches bugs in custom gradient implementations or loss functions that autograd may not surface",
+                    "It makes training faster",
+                    "It removes the need for a test set",
+                  ],
+                  1,
+                  "Gradient checking is a verification tool for custom gradients and loss designs, not a replacement for autograd.",
+                ),
+              ],
+              "Build the habit of running a gradient check on any custom loss or layer you implement.",
+            ),
+          ),
+        ],
+      ),
+      module(
+        "math-authored-mod-3",
+        "Beginner",
+        "Module 3 — Probability, Estimation, and Bias-Variance",
+        "Realize that a model score is an estimate built from a sample, not a revealed truth about the world.",
+        [
+          lesson(
+            "math-lesson-10",
+            "The Illusion of the Global Metric",
+            "45 min",
+            "Understand why conditioning is the most important move in probabilistic ML reasoning.",
+            [
+              "Random variables, expectations, variance, and covariance as operational tools",
+              "Conditioning — asking for model behavior within a specific context or cohort, not in aggregate",
+              "Why one global number is almost always the wrong question in deployed systems",
+            ],
+            [
+              "Conditional reasoning replaces 'how good is the model?' with 'how good is it for whom, when, and given what context?'",
+              "Covariance tells you when signals or errors move together — essential for redundancy, confounding, and ensemble design.",
+            ],
+            [],
+            [
+              exercise(
+                "math-ex-10",
+                "Re-read one aggregate metric as a conditional story",
+                "analysis",
+                "Take a headline model metric and decompose it into at least three conditional views (by cohort, context, or time). Write what the aggregate hid.",
+                ["Conditional breakdown", "What the aggregate obscured memo"],
+                ["Which conditioning variable would most change your deployment decision?"],
+              ),
+            ],
+            quiz(
+              [
+                question(
+                  "math-q10",
+                  "Why is conditional reasoning more useful than unconditional averages in deployed ML?",
+                  [
+                    "Because it is easier to compute",
+                    "Because deployed systems serve specific contexts and populations where aggregate performance can mask important failures",
+                    "Because global metrics are always invalid",
+                    "Because conditioning removes the need for test data",
+                  ],
+                  1,
+                  "Deployed systems face specific cohorts and contexts; aggregate metrics can hide failures that matter most operationally.",
+                ),
+              ],
+              "Practice decomposing every metric you see into at least one conditional view before trusting it.",
+            ),
+          ),
+          lesson(
+            "math-lesson-11",
+            "Uncertainty & Stability Audits — Lab",
+            "60 min",
+            "Treat every held-out metric as an estimate and run bootstrap stability checks to see how metrics shift.",
+            [
+              "Sampling uncertainty — why every metric is a sample-dependent estimate",
+              "Bootstrap resampling as a stability check",
+              "Bias-variance decomposition: diagnosing systematic misspecification vs. high-variance instability",
+            ],
+            [
+              "A metric that wobbles under resampling is not a trustworthy basis for a deployment decision.",
+              "Bias-variance language gives you a vocabulary for *why* a model fails, not just *that* it fails.",
+            ],
+            [],
+            [
+              exercise(
+                "math-ex-11",
+                "Bootstrap audit and bias-variance diagnosis",
+                "lab",
+                "Run bootstrap stability checks on two model results. Write a diagnosis for each using bias-variance language.",
+                ["Bootstrap analysis results", "Bias-variance diagnosis memo"],
+                ["What would you need to see before calling a result stable enough to ship?"],
+              ),
+            ],
+            quiz(
+              [
+                question(
+                  "math-q11",
+                  "What does a wide bootstrap interval around a metric tell you?",
+                  [
+                    "That the model is definitely bad",
+                    "That the metric is sensitive to which samples ended up in the evaluation set — the estimate is unstable",
+                    "That you should use a larger model",
+                    "That the data is corrupted",
+                  ],
+                  1,
+                  "A wide bootstrap interval means the metric would likely change substantially under different evaluation draws — it is not a robust estimate.",
+                ),
+              ],
+              "Before shipping any model, run a bootstrap stability check on the primary metric.",
+            ),
+          ),
+        ],
+      ),
+      module(
+        "math-authored-mod-4",
+        "Beginner",
+        "Module 4 — Convexity, Constraints, and Optimization Honesty",
+        "Know when your problem has mathematical guarantees and when you are navigating a messy landscape relying on judgment.",
+        [
+          lesson(
+            "math-lesson-12",
+            "Guarantees and Hidden Tradeoffs",
+            "50 min",
+            "Understand convex geometry, Lagrangian thinking, and why deep learning works despite lacking convex guarantees.",
+            [
+              "Convex sets and objectives — geometry with fewer traps and stronger guarantees",
+              "Lagrangian formulation — forcing hidden tradeoffs like accuracy vs. latency or fairness into the open",
+              "Why deep learning is nonconvex but still works: overparameterization, normalization, architecture priors",
+            ],
+            [
+              "If you know why a convex guarantee holds, you also know exactly when it disappears.",
+              "Real ML systems have operational constraints; Lagrangian thinking makes them explicit instead of hidden.",
+            ],
+            [],
+            [
+              exercise(
+                "math-ex-12",
+                "Write a constrained objective for one real ML task",
+                "analysis",
+                "Choose an ML system with at least two operational constraints. Write the Lagrangian formulation and explain what each penalty term models.",
+                ["Formal constrained objective", "Explanation of tradeoffs each term encodes"],
+                ["What changes in the system's behavior when you raise or lower one Lagrange multiplier?"],
+              ),
+            ],
+            quiz(
+              [
+                question(
+                  "math-q12",
+                  "What does a Lagrangian formulation make explicit that a plain single-objective formulation hides?",
+                  [
+                    "The number of parameters",
+                    "The operational tradeoffs between the main objective and the constraints that the system must respect",
+                    "The learning rate",
+                    "The evaluation split",
+                  ],
+                  1,
+                  "Lagrangian thinking forces you to write down every constraint as a term with a penalty — making tradeoffs visible instead of implicit.",
+                ),
+              ],
+              "Identify at least two hidden constraints in a system you have worked on and formalize them as Lagrangian terms.",
+            ),
+          ),
+          lesson(
+            "math-lesson-13",
+            "Operational Constraints — Lab",
+            "60 min",
+            "Classify objectives by structure, implement gradient descent, and enforce constraints via ridge regularization.",
+            [
+              "Classifying toy objectives: which structural properties create which guarantees?",
+              "Gradient descent from scratch — the update loop on convex and nonconvex surfaces",
+              "Ridge regression as a Lagrangian penalty: how λ trades fit for constraint satisfaction",
+            ],
+            [
+              "Running gradient descent on a convex quadratic makes the convergence guarantee concrete and observable.",
+              "Ridge regression is the canonical example of a Lagrangian constraint turned into a penalized objective.",
+            ],
+            [],
+            [
+              exercise(
+                "math-ex-13",
+                "Gradient descent and ridge regression lab",
+                "lab",
+                "Implement gradient descent from scratch on several objectives. Then implement ridge regression and observe how λ controls the weight shrinkage toward the constraint.",
+                ["Gradient descent implementation with convergence plots", "Ridge regression implementation with λ sweep"],
+                ["At what λ does ridge regression behave most like plain least squares? Most like all-zeros?"],
+              ),
+            ],
+            quiz(
+              [
+                question(
+                  "math-q13",
+                  "What does increasing λ in ridge regression do to the weight vector?",
+                  [
+                    "Increases all weights toward infinity",
+                    "Shrinks weights toward zero — trading fit quality for constraint satisfaction on the weight norm",
+                    "Removes the bias term",
+                    "Makes the model nonlinear",
+                  ],
+                  1,
+                  "Ridge regression penalizes large weights; as λ grows the solution satisfies the constraint more strongly, shrinking weights toward zero.",
+                ),
+              ],
+              "Verify numerically that at λ=0 ridge matches OLS, and as λ→∞ weights approach zero.",
+            ),
+          ),
+        ],
+      ),
     ],
     capstone: project(
       "Course capstone: Graduate-readiness math dossier",

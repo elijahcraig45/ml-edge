@@ -6,6 +6,7 @@ import type {
   QuizQuestion,
 } from "@/lib/types";
 import type { HostedLessonContent, PracticeProblem } from "@/lib/hosted-lessons";
+import { DSA_CODING_PROBLEMS } from "@/lib/authored-dsa-coding-problems";
 
 type AuthoredDsaLessonBundle = {
   lesson: CurriculumLesson;
@@ -198,6 +199,7 @@ const AUTHORED_DSA_LESSONS: Record<string, AuthoredDsaLessonBundle> = {
       ),
     ),
     hostedLesson: {
+      videoUrl: "/dsa/lesson-1.mp4",
       hook:
         "This is where DS&A stops being interview folklore and becomes engineering reasoning. You are not memorizing that one structure is O(1) and another is O(n); you are building a cost model you can use when code mutates real state under latency pressure.",
       teachingPromise:
@@ -212,9 +214,9 @@ const AUTHORED_DSA_LESSONS: Record<string, AuthoredDsaLessonBundle> = {
         {
           title: "Cost models, Big-O, and why operation mix matters more than memorized tables",
           explanation: [
-            "Big-O is only useful when you are honest about what operation is being repeated and how often. Saying a structure is 'fast' without naming the workload is a category error. A data structure is only good relative to a stream of reads, writes, insertions, deletions, and memory behaviors.",
+            "Big-O is only useful when you are honest about what operation is being repeated and how often. The formal definition is f(n) = O(g(n)) if there exist constants c > 0 and n₀ ≥ 0 such that f(n) ≤ c·g(n) for all n ≥ n₀. That constant c is the factor Big-O deliberately hides — and constant factors are where real systems win or lose.",
             "The real move is to build an operation mix. If 95% of your work is append and iterate, an array-backed structure benefits from locality and predictable indexing. If your work repeatedly splices around known nodes, pointer-heavy structures start to make sense even though they look worse on a generic random-access benchmark.",
-            "This is also where asymptotics can mislead. Constant factors, cache locality, and branch behavior matter in real systems. Big-O gives the growth story; engineering still needs the constant story.",
+            "Two algorithms with the same O(n log n) growth rate can differ by 5× in wall-clock time because one is cache-friendly and the other is not. The Big-O story and the constant story are both necessary for honest engineering recommendations.",
           ],
           appliedLens:
             "When a teammate recommends a structure, ask for the workload it is optimized for before you ask for the complexity table.",
@@ -222,28 +224,28 @@ const AUTHORED_DSA_LESSONS: Record<string, AuthoredDsaLessonBundle> = {
             "What workload would make an array list superior to a linked list even if both have the same asymptotic append cost?",
         },
         {
-          title: "Recursion, recurrences, and invariant-driven reasoning",
+          title: "Cache locality and the memory hierarchy",
           explanation: [
-            "Recursion is not elegance for its own sake. It is a disciplined claim that a large problem can be reduced to one or more smaller problems with the same contract. If you cannot say what the subproblem guarantees, the recursion is not ready to exist.",
-            "Recurrences then tell you what that contract costs. A divide-and-conquer algorithm is not just a code pattern; it is a structural decomposition whose cost comes from subproblem count, shrink rate, and combination work. Reading T(n) = 2T(n/2) + n as a story is more useful than memorizing master-theorem rows.",
-            "Correct recursion depends on invariants, especially around indices, ownership, and shrinking state. Most recursive bugs are not mathematical; they are failures to maintain a clear boundary about what the call is responsible for.",
+            "Modern CPUs operate on a tiered memory hierarchy: registers → L1 cache (~4 cycles) → L2 cache (~12 cycles) → L3 cache (~40 cycles) → RAM (~200 cycles). When the CPU fetches from RAM it loads a full cache line — typically 64 bytes — not just the one word you asked for. This is spatial locality working in your favor: if data is laid out contiguously, the next 15 integers are already in cache after the first fetch.",
+            "Arrays are the canonical beneficiary. Walking an int array prefetches 16 values per cache-line fetch. Linked lists destroy this: each node's next pointer leads to a random heap address, forcing a fresh cache miss for every element. In modern machine-learning training pipelines this difference is called the 'memory wall' — memory bandwidth, not raw FLOPS, is often the binding constraint on throughput.",
+            "Temporal locality matters equally. A variable accessed in a tight loop stays resident in L1. Algorithms designed around this — like blocked matrix multiply — get their speedup from keeping data hot in cache, not from doing less work asymptotically. When you see an unexpected constant-factor gap in benchmarks, cache miss rate is the first thing to investigate.",
           ],
           appliedLens:
-            "If a recursive method feels clever but you cannot state its exact subproblem contract in one sentence, rewrite it before you debug it.",
+            "In HPC and ML workloads, 'this structure is O(n log n)' is rarely enough. Ask how many cache misses the access pattern produces per element.",
           checkpoint:
-            "Why is a base case not just a stopping trick but part of the correctness argument?",
+            "Why does iterating over a linked list cause more cache misses than iterating over an array holding the same number of elements?",
         },
         {
-          title: "Arrays, dynamic arrays, and linked lists under real mutation pressure",
+          title: "Dynamic arrays, the accounting method, and linked-list splices",
           explanation: [
-            "Array-backed sequences buy you locality, O(1) indexing, and simpler structural reasoning. Their weakness is mutation in the middle because preserving contiguity means shifting elements. That tradeoff is worth it in more workloads than beginners expect because locality is powerful.",
-            "Dynamic arrays add a second layer: capacity management. A bad growth policy turns a great interface into repeated copies and memory churn. A good policy makes append operationally cheap while preserving dense storage.",
-            "Linked lists flip the tradeoff. They make local splices natural if you already hold the right node, but they push complexity into pointer integrity, traversal cost, and poorer cache behavior. 'Insertion is O(1)' is only true after you pay to find the insertion point and after you maintain every structural pointer correctly.",
+            "A dynamic array maintains a dense contiguous block and doubles capacity when full. The accounting method gives a clean amortized proof: charge 3 units per insert — 1 for the write itself, 1 banked against future copying of this element, 1 banked against future copying of an existing element. When resize fires, the banked units exactly cover the O(n) copy. Any fixed-constant growth policy (e.g., +100 slots each time) breaks this: copying n elements every n inserts gives O(n) amortized cost, not O(1).",
+            "In code the resize path allocates a new array of size 2 × capacity, copies all elements, and updates the backing-store reference. The copy is O(n), but geometric doubling means total copies over n appends is bounded by 2n — so amortized cost per append is O(1).",
+            "Linked lists offer a different bargain. An O(1) splice requires that you already hold a reference to the node you want to insert after — the operation is one pointer rewire with no shifting. But arriving at that node costs O(n) traversal unless you cache references externally, and each node lives at a random heap address, paying a full cache-miss penalty on every traversal step. Separate the cost to locate from the cost to mutate; most linked-list debates blur those two.",
           ],
           appliedLens:
-            "Separate the cost to locate a position from the cost to mutate a structure once you are there. Many bad DS&A arguments quietly merge those two costs.",
+            "Separate the cost to locate a position from the cost to mutate a structure once you are there. Many DS&A debates quietly merge those two costs.",
           checkpoint:
-            "Why is the phrase 'linked-list insertion is O(1)' incomplete without a stronger precondition?",
+            "Why does a fixed-constant growth policy (adding 100 slots per resize) destroy the amortized O(1) guarantee that geometric doubling preserves?",
         },
       ],
       tutorialSteps: [
@@ -286,10 +288,10 @@ const AUTHORED_DSA_LESSONS: Record<string, AuthoredDsaLessonBundle> = {
         "Where do you personally blur the difference between worst-case and amortized guarantees?",
       ],
       masteryChecklist: [
-        "Choose among array lists and linked lists using a stated workload.",
-        "Explain why geometric resizing gives amortized O(1) append.",
-        "State a recursive subproblem contract precisely.",
-        "Name the invariant you would watch first when debugging a sequence structure.",
+        "Choose between array lists and linked lists using a stated workload and cache-locality argument.",
+        "Prove amortized O(1) append using the accounting method and explain why geometric growth is required.",
+        "Explain why spatial locality makes arrays faster than linked lists on modern CPUs even at equal asymptotic cost.",
+        "Name the invariant you would inspect first when debugging a sequence structure.",
       ],
       practiceProblems: [
         problem(
@@ -319,6 +321,7 @@ const AUTHORED_DSA_LESSONS: Record<string, AuthoredDsaLessonBundle> = {
           ],
         ),
       ],
+      codingProblems: DSA_CODING_PROBLEMS["dsa-lesson-1"],
     },
   },
   "dsa-lesson-2": {
@@ -390,6 +393,7 @@ const AUTHORED_DSA_LESSONS: Record<string, AuthoredDsaLessonBundle> = {
       ),
     ),
     hostedLesson: {
+      videoUrl: "/dsa/lesson-2.mp4",
       hook:
         "Stacks and queues look simple until you implement them without a library. Then every hidden decision about empty states, wraparound, and resize order becomes visible.",
       teachingPromise:
@@ -416,24 +420,24 @@ const AUTHORED_DSA_LESSONS: Record<string, AuthoredDsaLessonBundle> = {
         {
           title: "Circular arrays, front/back indices, and off-by-one failure modes",
           explanation: [
-            "The circular queue is a beautiful little system because it converts dead array space into reusable capacity with simple modular arithmetic. It is also a magnet for bugs because every implementation must make several meanings precise: does front point to the first element or the next insertion slot, and is back inclusive or exclusive?",
-            "Once those meanings are fixed, the update order matters. Removing from the front, then incrementing front modulo capacity, is not the same as incrementing first and then reading. Many bugs come from code that mixes two different index conventions without noticing.",
-            "Resizing adds one more layer. During copy, you must preserve logical order, not physical order. The right copy loop walks size elements starting from front and rewrites them into a fresh contiguous block.",
+            "The circular queue reuses dead array space with modulo indexing: next = (index + 1) % capacity. The subtlety is that modulo arithmetic alone cannot distinguish a full buffer from an empty one — both states can produce head == tail. The standard fixes are to maintain a separate `size` variable or to leave one slot permanently empty as a sentinel. Both work; mixing conventions in a single implementation is where bugs are born.",
+            "Every implementation must also make two meanings precise before any mutation code is written: does `front` point to the first live element or to the next-insertion slot, and is the `back` index inclusive or exclusive? Update order matters too — for addFirst you must decrement front before writing; for removeFirst you must read before incrementing front. Swapping those two lines is a textbook off-by-one.",
+            "In concurrent ML data pipelines, circular buffers underlie multi-producer multi-consumer (MPMC) queues where the GPU and CPU exchange tensor batches. Lock-free implementations replace the `size` variable with atomic compare-and-swap on head and tail indices, but the same full/empty disambiguation problem recurs at every level of the stack.",
           ],
           appliedLens:
-            "Write the index meaning in comments or documentation before you write the mutation code. It prevents entire classes of queue bugs.",
+            "Write the index meaning in comments before you write the mutation code. It prevents entire classes of queue bugs.",
           checkpoint:
-            "What is the most dangerous ambiguity in a circular queue implementation: index math, resize policy, or not defining what front means?",
+            "Why does maintaining a separate `size` variable disambiguate full from empty, when the modulo-wrapped head and tail indices alone cannot?",
         },
         {
-          title: "Amortized analysis as bookkeeping for resize-heavy structures",
+          title: "Amortized analysis and the five-point deque bug checklist",
           explanation: [
-            "Amortized analysis is a promise about a sequence, not a single event. The right mental model is that cheap operations save credit which later pays for expensive maintenance like copying into a larger array.",
-            "This matters because many practical structures rely on occasional structural work to keep their common path cheap. If you reason only in worst-case terms, dynamic structures look worse than they behave. If you reason only in average terms without proof, you can miss resize thrashing or bad growth policies.",
-            "The engineering payoff is that amortized reasoning lets you defend a design clearly. You can explain why a queue that occasionally performs O(n) work is still the right choice for long-running traffic patterns.",
+            "Amortized analysis is a promise about a sequence of operations, not a single event. An enqueue sequence can include O(n) resize events, and the guarantee holds as long as those events are spread across enough cheap operations. The proof mirrors the accounting-method argument from Lesson 1: charge a small credit on each cheap enqueue, and show the bank covers the occasional O(n) copy.",
+            "Resize in a circular deque has an extra wrinkle: elements must be copied in logical order starting from `front`, not in raw physical array order from index 0. If front is at position 6 and the queue wraps around, copying indices 0..n-1 directly scrambles the FIFO sequence. The correct copy loop walks `size` elements from `front mod capacity` and writes them into a fresh contiguous block.",
+            "Five-point bug checklist for any circular deque: (1) Is full/empty disambiguation unambiguous — size variable or one-slot sentinel, not guessed? (2) Does every mutation method agree on what `front` points to? (3) Does the modulo wrap happen on read or on write consistently? (4) Does resize copy in logical, not physical, order? (5) Are edge-case sizes 0 and 1 covered by tests before integration?",
           ],
           appliedLens:
-            "Use amortized arguments to justify policies; use invariants and tests to ensure the implementation actually matches the policy.",
+            "Use amortized arguments to justify resize policies; use invariants and tests to ensure the implementation actually matches the policy.",
           checkpoint:
             "Why is 'one enqueue can be O(n)' not a contradiction of 'enqueue is amortized O(1)'?",
         },
@@ -511,6 +515,7 @@ const AUTHORED_DSA_LESSONS: Record<string, AuthoredDsaLessonBundle> = {
           ],
         ),
       ],
+      codingProblems: DSA_CODING_PROBLEMS["dsa-lesson-2"],
     },
   },
   "dsa-lesson-3": {
@@ -582,6 +587,7 @@ const AUTHORED_DSA_LESSONS: Record<string, AuthoredDsaLessonBundle> = {
       ),
     ),
     hostedLesson: {
+      videoUrl: "/dsa/lesson-3.mp4",
       hook:
         "Trees are where local structure starts to buy global power. Ordered search, logarithmic height, and extreme-priority access all come from maintaining the right invariant, not from the fact that pointers happen to form a tree.",
       teachingPromise:
@@ -606,28 +612,40 @@ const AUTHORED_DSA_LESSONS: Record<string, AuthoredDsaLessonBundle> = {
             "Why does an in-order traversal of a valid BST return keys in sorted order without any extra sorting step?",
         },
         {
-          title: "AVL balance, rotations, and height guarantees",
+          title: "AVL balance factors, rotations, and height guarantees",
           explanation: [
-            "AVL trees strengthen the BST story by constraining height. The balance factor tells you whether one side has grown too much relative to the other. That extra bookkeeping buys logarithmic height in exchange for occasional rotations during update.",
-            "Rotations are local surgery. They change parent-child relationships in a tiny neighborhood while preserving the left-root-right ordering that made the tree searchable in the first place.",
-            "The important engineering intuition is that balancing work is not overhead for its own sake. It is preemptive maintenance that keeps future operations cheap and predictable.",
+            "AVL trees add a height invariant to the BST ordering: the Balance Factor of every node, defined as Height(left subtree) − Height(right subtree), must stay in {−1, 0, +1}. When an insertion violates this, a rotation restores balance in O(1) pointer operations. Rotations come in four named cases depending on which subtree grew: LL (left-left), RR (right-right), LR (left-right), RL (right-left).",
+            "A single rotation handles LL and RR. RR example: node A has right-heavy child B with right-heavy grandchild C. Step 1 — set A.right = B.left. Step 2 — set B.left = A. Step 3 — recalculate heights for A then B. B becomes the new local root. The in-order sequence A, B, C is unchanged; only parent-child pointers shift. LR and RL are zigzag imbalances requiring a double rotation: first a single rotation on the child, then a single rotation on the imbalanced node.",
+            "The engineering intuition is that rotations are preemptive maintenance, not overhead. A single missed rebalance on a hot path can silently degrade a logarithmic lookup to linear over many insertions, and the degradation is invisible in unit tests on small datasets.",
           ],
           appliedLens:
-            "If a self-balancing tree is slow, inspect whether the implementation is silently skipping a rebalance path before blaming the data structure idea.",
+            "If a self-balancing tree is slow in production, inspect whether the implementation silently skips a rebalance path before blaming the data structure design.",
           checkpoint:
-            "What does a double rotation fix that a single rotation cannot?",
+            "What does a double rotation (LR or RL) fix that a single rotation cannot, and why does the zigzag shape require two steps?",
         },
         {
           title: "Heaps and priority queues as partial-order data structures",
           explanation: [
-            "A heap relaxes the search-tree objective. It only promises that each parent has priority relative to its children. That partial order is enough to make extract-min or extract-max efficient, which is exactly what priority scheduling and Dijkstra-like algorithms need.",
-            "Because the invariant is weaker, the representation can be denser. Array-backed heaps map parents and children by index arithmetic, avoiding explicit pointers while keeping the structure nearly complete.",
-            "The tradeoff is intentional: heaps are excellent at repeated access to the most urgent item, but they give up efficient arbitrary search and ordered traversal.",
+            "A heap relaxes the search-tree objective. It only promises that each parent has priority relative to its children — not that siblings are ordered, and not that arbitrary keys can be searched efficiently. That partial order is exactly what priority scheduling, Dijkstra's algorithm, and beam-search decoding need: fast access to the single most urgent item.",
+            "The representation is an implicit array tree. For a node at index i, its left child is at 2i+1 and right child at 2i+2. This means no pointers, dense memory layout, and spatial locality on percolate operations. Extract-min replaces the root with the last element, then sifts it down by swapping with the smaller child until the invariant is restored.",
+            "Decision tree for heap vs AVL: choose a heap when the application repeatedly asks 'what is the next minimum or maximum?' and nothing else. Choose an AVL tree (or a balanced BST) when the application needs arbitrary key lookup, sorted traversal, predecessor/successor queries, or range queries — because the heap's partial order cannot answer any of those efficiently.",
           ],
           appliedLens:
-            "Pick a heap when your application repeatedly asks for the next best item, not when it needs full ordered queries.",
+            "Pick a heap when your application repeatedly asks for the next best item. Pick a balanced BST when it needs full ordered queries.",
           checkpoint:
-            "Why is heap order sufficient for a priority queue but insufficient for a map or set?",
+            "Why is heap order sufficient for a priority queue but insufficient for a map, set, or range query?",
+        },
+        {
+          title: "B-Trees and external-memory storage",
+          explanation: [
+            "A B-Tree generalizes the BST so each node holds up to m − 1 keys and m child pointers. Height becomes O(log_m n) — with m = 100, a B-Tree over one billion records is only four levels deep. Every step down the tree touches one node, and each node is sized to match exactly one disk block (commonly 4 KB), so a full lookup reads only four disk pages regardless of dataset size.",
+            "Self-balancing is maintained through splits (when a node overflows during insertion) and merges (when a node underflows after deletion). These are the B-Tree analogues of AVL rotations: local structural rewrites that keep height tightly bounded. Every non-root node must hold between ⌈m/2⌉ − 1 and m − 1 keys, preventing both sparseness and overflow.",
+            "In machine-learning infrastructure, B-Trees appear in feature stores and embedding-lookup tables where the full dataset lives on disk or object storage and must be queried by key during training or inference. The block-aligned access pattern is not cosmetic — it is the reason B-Trees dominate relational databases while AVL trees dominate in-memory indexes.",
+          ],
+          appliedLens:
+            "When your ML system queries external storage for features or embeddings, the access latency is dominated by disk-seek count — and B-Tree height is the seek count.",
+          checkpoint:
+            "Why does a B-Tree with branching factor 100 need far fewer disk reads than an AVL tree over the same dataset?",
         },
       ],
       tutorialSteps: [
@@ -670,10 +688,11 @@ const AUTHORED_DSA_LESSONS: Record<string, AuthoredDsaLessonBundle> = {
         "Where in production code would predictable logarithmic behavior matter more than simpler implementation?",
       ],
       masteryChecklist: [
-        "Explain BST ordering and traversal semantics.",
-        "Perform and justify AVL rotations.",
-        "Describe the exact promise a heap does and does not make.",
-        "Choose between BST, AVL, and heap based on workload.",
+        "Explain BST ordering and in-order traversal semantics.",
+        "Name all four AVL rotation cases (LL, RR, LR, RL) and explain when each applies.",
+        "Perform a single and double AVL rotation and verify in-order output is unchanged.",
+        "Describe the exact promise a heap does and does not make, and apply the heap-vs-BST decision tree.",
+        "Explain why B-Tree height O(log_m n) makes it suitable for disk-based external storage.",
       ],
       practiceProblems: [
         problem(
@@ -703,6 +722,7 @@ const AUTHORED_DSA_LESSONS: Record<string, AuthoredDsaLessonBundle> = {
           ],
         ),
       ],
+      codingProblems: DSA_CODING_PROBLEMS["dsa-lesson-3"],
     },
   },
   "dsa-lesson-4": {
@@ -774,6 +794,7 @@ const AUTHORED_DSA_LESSONS: Record<string, AuthoredDsaLessonBundle> = {
       ),
     ),
     hostedLesson: {
+      videoUrl: "/dsa/lesson-4.mp4",
       hook:
         "Hash tables feel magical when they work and mysterious when they do not. The difference is whether you understand that hashing is not about randomness in the abstract; it is about maintaining short, healthy search paths under a chosen collision policy.",
       teachingPromise:
@@ -800,26 +821,26 @@ const AUTHORED_DSA_LESSONS: Record<string, AuthoredDsaLessonBundle> = {
         {
           title: "Collision resolution, deletion semantics, and load-factor discipline",
           explanation: [
-            "Collisions are not bugs; they are the normal operating mode. The important decision is how the structure resolves them: separate chains, linear or quadratic probes, double hashing, and so on.",
-            "Deletion becomes subtle in open addressing because search depends on probe continuity. Removing an element by resetting its slot to empty can accidentally tell a later search to stop before it reaches the true target. Tombstones or careful rebuild policies solve this.",
-            "Load factor is the operational pressure gauge. Let it grow too high and clusters grow, probe sequences stretch, and the table stops feeling constant time.",
+            "Collisions are not bugs; they are the normal operating mode. The important decision is how the structure resolves them: separate chaining (each slot is a linked list), linear probing (scan forward to the next open slot), quadratic probing, or double hashing. Each trades differently on cache behavior, clustering risk, and implementation complexity.",
+            "Deletion in open addressing is subtle because lookup depends on probe-chain continuity. Concrete failure: insert X and Y, both hashing to slot 2. X lands at 2, Y probes to 3. Now delete X by clearing slot 2 to null. A search for Y hashes to slot 2, sees null, and stops — reporting 'not found' even though Y is alive at slot 3. This is a false negative caused by a broken probe chain. The fix is tombstones: a special marker that means 'this slot is vacant, but keep probing.' Two common implementations are a static sentinel value (a special reserved key) and a separate bit-masking metadata array, where each slot has a 'deleted' bit. The bit-masking approach is more cache-friendly because the metadata is dense and separate from the keys.",
+            "Load factor (items / slots) is the pressure gauge. Past roughly 0.7 for open addressing, clusters grow superlinearly and probe sequences stretch. A resize that rehashes all entries into a larger table is an O(n) event, but with geometric growth it is amortized over many insertions — the same accounting-method argument as dynamic arrays.",
           ],
           appliedLens:
-            "The health of a hash table is something you can monitor: cluster size, tombstone count, and load factor all tell a performance story.",
+            "Monitor cluster size, tombstone count, and load factor in production hash tables. They tell the performance story before latency alerts fire.",
           checkpoint:
-            "Why is deletion usually simpler in separate chaining than in open addressing?",
+            "Why does clearing a deleted slot to null in linear probing create false negatives, and how does a tombstone prevent them?",
         },
         {
-          title: "Choosing between maps, sets, and ordered structures",
+          title: "Choosing between hash maps, ordered trees, and B-Trees",
           explanation: [
-            "A map associates keys to values; a set is the membership-only version. Both can be backed by hashing when equality lookup is the main workload.",
-            "But hashing deliberately throws away order. If your application needs range queries, nearest neighbors by key, or reproducible sorted iteration, an ordered tree is structurally better even if raw point lookup is slower in expectation.",
-            "The broader lesson is that 'fastest membership structure' is not a universal objective. The right structure depends on which queries are native to the product.",
+            "A hash map optimizes equality-based lookup at expected O(1) cost. It deliberately destroys key ordering. If your application needs predecessor/successor queries, range queries, sorted iteration, or reproducible order, an ordered tree is structurally better — even though raw point lookup is slower by a small constant.",
+            "B-Trees occupy a third category: ordered like a BST, but with high branching factor and block-aligned nodes for disk or SSD access. When a feature store, database index, or embedding lookup table must be stored externally, B-Tree height O(log_m n) minimizes the number of disk-page fetches per lookup. A hash table stored externally cannot offer ordered access, and a standard AVL tree requires too many disk seeks per lookup because each node maps to a separate page.",
+            "The decision framework: use a hash map for high-throughput equality lookup with no ordering requirements; use an AVL or red-black tree for in-memory ordered collections; use a B-Tree when data lives on disk or object storage and key ordering must be preserved.",
           ],
           appliedLens:
             "Choose the structure that matches the product's query language, not the one with the most flattering single-operation benchmark.",
           checkpoint:
-            "What query class becomes awkward the moment you pick a plain hash table?",
+            "What query class becomes awkward the moment you pick a plain hash map over an ordered structure?",
         },
       ],
       tutorialSteps: [
@@ -895,6 +916,7 @@ const AUTHORED_DSA_LESSONS: Record<string, AuthoredDsaLessonBundle> = {
           ],
         ),
       ],
+      codingProblems: DSA_CODING_PROBLEMS["dsa-lesson-4"],
     },
   },
   "dsa-lesson-5": {
@@ -966,6 +988,7 @@ const AUTHORED_DSA_LESSONS: Record<string, AuthoredDsaLessonBundle> = {
       ),
     ),
     hostedLesson: {
+      videoUrl: "/dsa/lesson-5.mp4",
       hook:
         "Sorting is a compressed course in algorithm design. It teaches invariants, divide-and-conquer, partial order, and the idea that 'best algorithm' always depends on what else the system needs.",
       teachingPromise:
@@ -992,26 +1015,26 @@ const AUTHORED_DSA_LESSONS: Record<string, AuthoredDsaLessonBundle> = {
         {
           title: "Merge sort, quicksort, heap sort, and radix sort as different design bets",
           explanation: [
-            "Merge sort bets on predictable O(n log n) time and clean stable merging, paying with extra memory. Quicksort bets on excellent practical performance and partition locality, paying with bad pivot-pathology risk unless mitigated. Heap sort bets on in-place O(n log n), paying with weaker constant factors and cache behavior. Radix sort bets on non-comparison structure, paying with assumptions about key representation.",
-            "Each algorithm reflects a design philosophy. There is no universal winner because the environment changes what counts as expensive or valuable.",
-            "Strong engineers therefore memorize fewer slogans and ask more structural questions: Do I need stability? Is extra memory acceptable? Are keys numeric and bounded? Is worst-case behavior visible to the product?",
+            "Merge sort bets on guaranteed O(n log n) time and stable merging, paying with O(n) extra memory. It is the right choice when you need multi-key stability — for example, sorting purchase records first by value and then by timestamp requires a stable sort so the timestamp ordering is preserved within equal-value groups.",
+            "Quicksort bets on excellent practical performance through cache-friendly in-place partitioning. Because all work happens within the original array, quicksort rarely triggers cache misses during the partition step, while merge sort allocates a scratch buffer that may not fit in L1/L2. The downside is O(n²) worst-case behavior on adversarial or already-sorted inputs unless pivot selection is randomized. Quicksort is also unstable.",
+            "Heap sort achieves in-place O(n log n) with guaranteed worst-case behavior, but its random access pattern into the heap array produces poor spatial locality — it is rarely the fastest in practice. Radix sort bypasses the Ω(n log n) comparison lower bound entirely: it processes digits or bytes of bounded-width integers in O(n) total time. Workload A: nearly sorted streaming logs where n is large — use insertion sort or an adaptive sort that exploits existing order. Workload B: objects with a primary key and a secondary key — use merge sort to guarantee that equal primary keys preserve secondary-key ordering.",
           ],
           appliedLens:
-            "The right sort is usually the one whose failure mode your product can tolerate.",
+            "The right sort is usually the one whose failure mode your product can tolerate — worst-case blowup for quicksort, extra memory for merge sort, or key-format assumptions for radix sort.",
           checkpoint:
-            "What hidden assumption lets radix sort beat comparison-based lower bounds?",
+            "Why does quicksort's in-place partitioning give it a cache-locality advantage over merge sort even when both run O(n log n) comparisons?",
         },
         {
-          title: "Partition invariants and quickselect for top-k style problems",
+          title: "Partition invariants and quickselect for top-k problems",
           explanation: [
-            "Partitioning is powerful because it imposes enough order to be useful without fully sorting everything. The key invariant is that elements on one side satisfy one relation to the pivot and elements on the other side satisfy the opposite relation.",
-            "Quicksort recursively refines both sides because it wants full order. Quickselect refines only the side containing the target rank, which is why it is often the right tool for median, kth smallest, or top-k boundary problems.",
-            "The lesson is broader than one algorithm: partial order is often enough. Many systems overpay by forcing total order onto problems that only ask for a frontier.",
+            "Partitioning imposes enough order to be useful without fully sorting everything. The loop invariant is: all elements to the left of boundary index i are less than or equal to the pivot, and all elements between i and the scan pointer are strictly greater. Maintaining this invariant through every iteration is what makes the algorithm correct; a single swap that violates it before the loop ends produces a silently wrong partition.",
+            "Quicksort recurses on both sides because it wants total order. Quickselect recurses only on the side that contains the target rank — expected O(n) work versus O(n log n) — because it throws away the irrelevant partition. This makes quickselect the natural tool for: finding the median activation value in a neural network layer, selecting the top-k logits before a softmax, or finding the kth-smallest loss value across a training batch.",
+            "The broader lesson is that partial order is often enough. Many systems overpay by forcing total sort order onto problems that only ask for a frontier. When the requirement says 'top 100 recommendations' or 'median latency,' ask whether full sorting is necessary at all.",
           ],
           appliedLens:
-            "Whenever a requirement says 'top 100' or 'median latency,' ask whether full sorting is necessary at all.",
+            "Whenever a requirement says 'top k' or 'median,' ask whether full sorting is necessary at all before reaching for a sort.",
           checkpoint:
-            "Why does quickselect usually do less work than quicksort for the kth element problem?",
+            "Why does quickselect usually do less total work than quicksort for the kth-element problem, and what does the loop invariant guarantee at partition end?",
         },
       ],
       tutorialSteps: [
@@ -1087,6 +1110,7 @@ const AUTHORED_DSA_LESSONS: Record<string, AuthoredDsaLessonBundle> = {
           ],
         ),
       ],
+      codingProblems: DSA_CODING_PROBLEMS["dsa-lesson-5"],
     },
   },
   "dsa-lesson-6": {
@@ -1158,6 +1182,7 @@ const AUTHORED_DSA_LESSONS: Record<string, AuthoredDsaLessonBundle> = {
       ),
     ),
     hostedLesson: {
+      videoUrl: "/dsa/lesson-6.mp4",
       hook:
         "This is the point where algorithm design becomes a general language. Traversals, shortest paths, greedy methods, and dynamic programming all ask the same meta-question: what state do we maintain, and why is it enough to trust the next step?",
       teachingPromise:
@@ -1182,28 +1207,40 @@ const AUTHORED_DSA_LESSONS: Record<string, AuthoredDsaLessonBundle> = {
             "Why does using a queue instead of a stack change BFS from a generic walk into a shortest-path tool on unweighted graphs?",
         },
         {
-          title: "Dijkstra, minimum spanning trees, and greedy algorithm preconditions",
+          title: "Dijkstra, greedy algorithm preconditions, and Bellman-Ford",
           explanation: [
-            "Dijkstra's algorithm is a greedy commitment: once the smallest tentative distance is extracted, that node's shortest path is finalized. This is only safe because nonnegative edges prevent later detours from undercutting that distance.",
-            "Minimum spanning tree algorithms make a different greedy move. They choose safe edges that connect components cheaply without forming cycles. The correctness argument depends on cut and cycle properties, not on luck.",
-            "The common thread is that greedy algorithms are not 'locally good guesses.' They are local choices proven to be globally safe under specific problem structure.",
+            "Dijkstra's algorithm is a greedy commitment: once a node is extracted from the min-heap with the smallest tentative distance, that distance is finalized. This is safe exactly because nonnegative edge weights ensure no future path can undercut an already-settled distance. The invariant at every extraction step is: the extracted node's distance is the true shortest path from the source.",
+            "If any edge has negative weight, that invariant breaks. A later path through a negative edge can produce a shorter total distance to an already-settled node, meaning Dijkstra's finalization was premature. The correct algorithm for graphs with negative edges is Bellman-Ford, which relaxes every edge n − 1 times and can detect negative-weight cycles. In reinforcement learning, state-transition graphs can have negative rewards that create exactly this scenario.",
+            "Minimum spanning tree algorithms make a structurally different greedy move: they add the cheapest safe edge that connects two components without forming a cycle. The correctness proof relies on cut and cycle properties, not on distance monotonicity. Both Dijkstra and MST algorithms demonstrate that greedy approaches are not 'locally good guesses' — they are local choices proven globally safe under specific structural preconditions.",
           ],
           appliedLens:
-            "Before trusting a greedy algorithm, identify the property that makes a local choice irreversible in a safe way.",
+            "Before trusting a greedy algorithm, identify the structural property that makes a local choice irreversible in a globally safe way.",
           checkpoint:
-            "What exactly breaks in Dijkstra when a negative edge exists?",
+            "What exactly breaks in Dijkstra when a single negative-weight edge exists, and which algorithm handles that case correctly?",
+        },
+        {
+          title: "Frontiers vs States: the bridge from graph search to dynamic programming",
+          explanation: [
+            "Graph search and dynamic programming look different on the surface but share a common skeleton. In BFS or Dijkstra, the frontier is the boundary of explored nodes; an edge is a physical transition in the graph; the visited set prevents redundant work. In dynamic programming, the state is a snapshot of a subproblem; a recurrence relation is the transition; the memo table prevents redundant computation. The mapping is exact: frontier ↔ state table, edge ↔ recurrence, BFS layer ↔ DP dependency order.",
+            "This connection matters because it tells you how to debug both families. If BFS gives wrong shortest-path distances, check what the frontier represents and whether the visited condition is correct. If DP gives wrong optimal values, check whether the state captures all variables that affect future decisions — the exact same question asked about the frontier invariant.",
+            "It also suggests a design strategy: when a DP problem feels opaque, try drawing it as a directed acyclic graph where each node is a state and each edge is a recurrence transition. The problem becomes 'find the best path through this DAG,' which is exactly shortest-path or longest-path depending on the objective.",
+          ],
+          appliedLens:
+            "When DP code fails, draw the implicit state DAG and verify that every edge (recurrence transition) corresponds to a valid subproblem reduction.",
+          checkpoint:
+            "How does the BFS frontier invariant map onto the DP memo table, and what does the analogy reveal about debugging both algorithms?",
         },
         {
           title: "Dynamic programming, memoization, and state design",
           explanation: [
-            "Dynamic programming begins by asking what subproblem information is sufficient. The state is the contract. If it is missing needed context, the recurrence becomes invalid. If it stores too much, the algorithm becomes slow or redundant.",
-            "Memoization and tabulation are execution strategies for the same recurrence logic. One works top-down by caching discovered subproblems; the other fills them bottom-up according to dependency order.",
-            "The practical insight is that many problems become easier once you draw the implicit state graph. DP is not a pile of tables. It is shortest path or exhaustive search over a DAG of subproblems with overlap.",
+            "Dynamic programming begins by asking what subproblem information is sufficient. The state is the contract. If it is missing needed context, the recurrence becomes invalid. If it stores too much, the algorithm becomes slow or redundant. The first serious design decision in DP is always defining the state — not choosing a table layout, not deciding between top-down and bottom-up.",
+            "Memoization (top-down) and tabulation (bottom-up) are execution strategies for the same recurrence. Top-down caches discovered subproblems recursively; bottom-up fills them in dependency order. A common memoization pitfall is testing `if memo[key]` to check for a cached result when the valid answer might be 0, False, or another falsy value. The robust check is `if key in memo` — presence, not truthiness.",
+            "The practical insight is that many problems become clear once you draw the implicit state graph. DP is not a pile of tables. It is optimal-path search over a DAG of overlapping subproblems, where the memo table stores already-solved shortest (or longest) path distances.",
           ],
           appliedLens:
-            "When DP code fails, inspect the state definition first. Most bugs there are conceptual, not syntactic.",
+            "When DP code fails, inspect the state definition first. Most bugs there are conceptual — the state forgot a decision variable — not syntactic.",
           checkpoint:
-            "Why is a beautifully implemented DP table still useless if the state forgot one decision variable that affects future outcomes?",
+            "Why is a correctly implemented DP table still useless if the state forgot one decision variable that affects future outcomes?",
         },
       ],
       tutorialSteps: [
@@ -1247,9 +1284,10 @@ const AUTHORED_DSA_LESSONS: Record<string, AuthoredDsaLessonBundle> = {
       ],
       masteryChecklist: [
         "Choose BFS or DFS based on the frontier invariant you need.",
-        "Explain why Dijkstra requires nonnegative edges.",
-        "State a DP subproblem and recurrence cleanly.",
-        "Debug graph or DP code by checking state meaning first.",
+        "Explain why Dijkstra requires nonnegative edges and name the correct algorithm when negative edges exist.",
+        "Map the BFS frontier / visited-set pattern onto the DP state / memo-table pattern.",
+        "State a DP subproblem and recurrence cleanly, starting from state definition.",
+        "Debug graph or DP code by checking state meaning before inspecting loop logic.",
       ],
       practiceProblems: [
         problem(
@@ -1279,6 +1317,7 @@ const AUTHORED_DSA_LESSONS: Record<string, AuthoredDsaLessonBundle> = {
           ],
         ),
       ],
+      codingProblems: DSA_CODING_PROBLEMS["dsa-lesson-6"],
     },
   },
 };
