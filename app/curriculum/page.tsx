@@ -118,6 +118,12 @@ export default async function CurriculumPage() {
               </p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <Link
+                  href="/curriculum/path"
+                  className="rounded-full border border-indigo-400/60 bg-indigo-500/25 px-4 py-2 text-sm font-semibold text-indigo-50 hover:border-indigo-300 hover:bg-indigo-500/35"
+                >
+                  View your ML Engineer path →
+                </Link>
+                <Link
                   href={`/curriculum/authored/${coreAuthoredCourses[0]?.slug ?? ""}`}
                   className="rounded-full border border-indigo-400/40 bg-indigo-500/15 px-4 py-2 text-sm font-semibold text-indigo-50 hover:border-indigo-300 hover:bg-indigo-500/25"
                 >

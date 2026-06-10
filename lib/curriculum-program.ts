@@ -1252,6 +1252,278 @@ const additionalCourses: CurriculumCourse[] = [
               "Practice identifying what evidence supports predictive claims versus intervention claims before making product recommendations.",
             ),
           ),
+          lesson(
+            "stats-lesson-3",
+            "Probability Calibration and Proper Scoring Rules",
+            "90 min",
+            "Make your model's predicted probabilities mean what they say, and measure whether they do, so that thresholds and expected-value decisions are trustworthy.",
+            [
+              "Why a predicted probability of 0.9 must correspond to being right 90% of the time",
+              "Reliability diagrams, Brier score, and log loss as calibration evidence",
+              "Platt scaling and isotonic regression as post-hoc calibration fixes",
+            ],
+            [
+              "A high-AUC model can still be badly calibrated; ranking quality and probability quality are different goals.",
+              "Calibrate on held-out data and measure it, because thresholding and expected-value decisions depend on honest probabilities.",
+            ],
+            [
+              video("scikit-learn: Probability calibration", "Anchor calibration on the canonical reference with reliability diagrams and worked methods.", {
+                creator: "scikit-learn",
+                platform: "Documentation",
+                url: "https://scikit-learn.org/stable/modules/calibration.html",
+              }),
+            ],
+            [
+              exercise(
+                "stats-ex-3",
+                "Diagnose and fix a miscalibrated classifier",
+                "lab",
+                "Take a probabilistic classifier, plot its reliability diagram on held-out data, compute its Brier score, then apply Platt scaling or isotonic regression and re-measure.",
+                [
+                  "A before/after reliability diagram",
+                  "Brier and log-loss numbers before and after calibration",
+                  "A short note on which method you chose and why",
+                ],
+                [
+                  "Is the model over-confident or under-confident, and in which probability range?",
+                  "Why must calibration be fit and evaluated on data the model did not train on?",
+                ],
+              ),
+            ],
+            quiz(
+              [
+                question(
+                  "stats-q5",
+                  "A model has excellent AUC but its predicted probabilities are useless for setting a decision threshold by expected value. How is this possible?",
+                  [
+                    "AUC is undefined for calibrated models",
+                    "AUC only measures ranking; it is invariant to any monotonic squashing of scores, so probabilities can be systematically off while ranking is perfect",
+                    "High AUC guarantees calibration, so this cannot happen",
+                    "Probabilities never matter once AUC is high",
+                  ],
+                  1,
+                  "AUC depends only on the order of scores. A model can rank perfectly (AUC near 1) yet output probabilities that are all compressed near 0.5 or systematically inflated.",
+                ),
+                question(
+                  "stats-q6",
+                  "Why is log loss (or Brier score) preferred over accuracy when evaluating probability quality?",
+                  [
+                    "Because they are faster to compute",
+                    "Because they are proper scoring rules: they are optimized only by reporting your true probability, so they reward honest calibration, not just correct hard labels",
+                    "Because accuracy cannot be computed for probabilistic models",
+                    "Because they ignore the labels entirely",
+                  ],
+                  1,
+                  "Proper scoring rules are minimized in expectation only when you report your true belief, so they penalize over- and under-confidence that accuracy is blind to.",
+                ),
+              ],
+              "Revisit calibration until you can separate 'ranks well' from 'probabilities are trustworthy' and measure each.",
+            ),
+          ),
+          lesson(
+            "stats-lesson-4",
+            "Resampling Done Right: Cross-Validation, Leakage, and the Bootstrap",
+            "95 min",
+            "Estimate generalization honestly by understanding what cross-validation measures, how leakage silently inflates it, and when nested CV and the bootstrap are the right tools.",
+            [
+              "Cross-validation as an estimator of generalization, and the variance of that estimate",
+              "Data leakage: the silent inflator of cross-validation scores",
+              "Nested cross-validation for honest model selection, and the bootstrap for uncertainty",
+            ],
+            [
+              "Any preprocessing fit on the full dataset before splitting leaks information and inflates your scores.",
+              "Model selection and performance estimation must use separate splits, or you are reporting the luck of your tuning.",
+            ],
+            [
+              video("scikit-learn: Cross-validation", "Use the canonical reference for CV strategies, pitfalls, and nested CV.", {
+                creator: "scikit-learn",
+                platform: "Documentation",
+                url: "https://scikit-learn.org/stable/modules/cross_validation.html",
+              }),
+            ],
+            [
+              exercise(
+                "stats-ex-4",
+                "Find the leak in a too-good cross-validation pipeline",
+                "analysis",
+                "You are given a pipeline that scales features and selects the top-k by correlation with the target before running cross-validation, and reports suspiciously high accuracy. Identify the leak, fix the pipeline, and report the corrected score.",
+                [
+                  "An explanation of exactly where information leaked",
+                  "A corrected pipeline that fits preprocessing inside each fold",
+                  "The before/after CV scores and the size of the inflation",
+                ],
+                [
+                  "What did the model 'see' about the held-out fold during preprocessing?",
+                  "Why does feature selection on the full dataset count as fitting on the test data?",
+                ],
+              ),
+            ],
+            quiz(
+              [
+                question(
+                  "stats-q7",
+                  "You standardize features and select features using the entire dataset, then run 5-fold cross-validation. Why are the resulting scores optimistically biased?",
+                  [
+                    "Because standardization always reduces accuracy",
+                    "Because the preprocessing was fit using information from the held-out folds, so each fold's 'test' data already influenced the features and scaling — the test data leaked into training",
+                    "Because 5 folds is too few",
+                    "Because cross-validation cannot be used with standardization",
+                  ],
+                  1,
+                  "Any transformation fit on the full data uses the held-out folds; preprocessing must be fit inside each training fold only.",
+                ),
+                question(
+                  "stats-q8",
+                  "What problem does nested cross-validation solve that ordinary k-fold does not?",
+                  [
+                    "It makes training faster",
+                    "It separates hyperparameter selection (inner loop) from performance estimation (outer loop), so the reported score is not biased by tuning on the same data used to evaluate",
+                    "It removes the need for a test set forever",
+                    "It guarantees a higher score",
+                  ],
+                  1,
+                  "Tuning and evaluating on the same splits reports your tuning luck; nested CV uses an inner loop to select and an outer loop to estimate.",
+                ),
+              ],
+              "Practice spotting leakage and keeping selection and estimation on separate data until it is automatic.",
+            ),
+          ),
+          lesson(
+            "stats-lesson-5",
+            "Maximum Likelihood and MAP: The Engine Behind Your Loss Functions",
+            "100 min",
+            "See common loss functions as maximum-likelihood estimation under specific noise models, and regularization as a prior, so you can choose objectives deliberately instead of by default.",
+            [
+              "Likelihood, log-likelihood, and why we minimize negative log-likelihood",
+              "MSE and cross-entropy as MLE under specific noise assumptions",
+              "MAP estimation: priors as regularization (L2 as a Gaussian prior, L1 as a Laplace prior)",
+            ],
+            [
+              "Most loss functions are MLE under an assumed noise distribution; choosing the loss is choosing a noise model.",
+              "Regularization is not a hack — it is a prior, and its strength encodes how much you trust the data versus the prior.",
+            ],
+            [
+              video("MIT OCW 18.05 Introduction to Probability and Statistics", "Ground likelihood and Bayesian estimation in a rigorous open course.", {
+                creator: "MIT OpenCourseWare",
+                platform: "Open course",
+                url: "https://ocw.mit.edu/courses/18-05-introduction-to-probability-and-statistics-spring-2014/",
+              }),
+            ],
+            [
+              exercise(
+                "stats-ex-5",
+                "Derive a loss from a noise assumption",
+                "analysis",
+                "Starting from an explicit noise model (Gaussian for regression, Bernoulli/categorical for classification), derive the negative log-likelihood and show that it reduces to MSE or cross-entropy. Then add a Gaussian prior on the weights and show it produces the L2 penalty.",
+                [
+                  "A derivation from noise model to loss for one regression and one classification case",
+                  "The MAP derivation showing L2 emerges from a Gaussian prior",
+                  "A sentence on what changes if you assume heavy-tailed (e.g., Laplace) noise instead",
+                ],
+                [
+                  "What assumption about the residuals does squared error quietly encode?",
+                  "How does the prior variance map to the regularization strength lambda?",
+                ],
+              ),
+            ],
+            quiz(
+              [
+                question(
+                  "stats-q9",
+                  "Minimizing cross-entropy loss for a classifier is equivalent to what statistical procedure?",
+                  [
+                    "Minimizing the variance of the features",
+                    "Maximum likelihood estimation under a Bernoulli/categorical model of the labels",
+                    "Maximizing the AUC directly",
+                    "Computing the prior predictive distribution",
+                  ],
+                  1,
+                  "Cross-entropy is the negative log-likelihood of the labels under a categorical model, so minimizing it is MLE.",
+                ),
+                question(
+                  "stats-q10",
+                  "From a MAP perspective, what is L2 weight regularization?",
+                  [
+                    "A learning-rate schedule",
+                    "A zero-mean Gaussian prior on the weights, whose precision sets the regularization strength",
+                    "A way to increase model capacity",
+                    "A method that removes the need for data",
+                  ],
+                  1,
+                  "L2 regularization is the log of a Gaussian prior on the weights; stronger priors (smaller variance) mean larger lambda.",
+                ),
+              ],
+              "Revisit until you can name the noise model behind a loss and the prior behind a regularizer.",
+            ),
+          ),
+          lesson(
+            "stats-lesson-6",
+            "Statistical Power and Sample Size: Will Your Experiment Even Answer the Question?",
+            "85 min",
+            "Design experiments that can actually detect the effects you care about by reasoning about effect size, power, and sample size before you collect a single data point.",
+            [
+              "Effect size, significance level, power, and sample size as one coupled system",
+              "Underpowered experiments: why 'no significant difference' is often 'no information'",
+              "Estimating the sample size you need before running anything",
+            ],
+            [
+              "An underpowered test that finds nothing tells you almost nothing; power must be designed in advance, not checked afterward.",
+              "Small effects require large samples — decide the minimum effect worth detecting first, then size the experiment to it.",
+            ],
+            [
+              video("MIT OCW 18.05 Introduction to Probability and Statistics", "Use a rigorous open course to ground hypothesis testing, error rates, and power.", {
+                creator: "MIT OpenCourseWare",
+                platform: "Open course",
+                url: "https://ocw.mit.edu/courses/18-05-introduction-to-probability-and-statistics-spring-2014/",
+              }),
+            ],
+            [
+              exercise(
+                "stats-ex-6",
+                "Run a power analysis for a proposed A/B test",
+                "analysis",
+                "Given a baseline conversion rate and a minimum detectable effect that would actually matter for the business, compute the per-arm sample size needed for 80% power at a 5% significance level, and state how long the experiment must run given the traffic.",
+                [
+                  "The chosen minimum detectable effect and its justification",
+                  "The computed sample size and the assumptions behind it",
+                  "A go/no-go recommendation given realistic traffic and timeline",
+                ],
+                [
+                  "What is the smallest effect that would change the decision, and why detect anything smaller?",
+                  "What happens to required sample size as the effect you want to detect shrinks?",
+                ],
+              ),
+            ],
+            quiz(
+              [
+                question(
+                  "stats-q11",
+                  "What does the statistical power of an experiment measure?",
+                  [
+                    "The probability of a false positive",
+                    "The probability of correctly detecting a true effect of a given size (1 minus the false-negative rate)",
+                    "The total sample size collected",
+                    "The size of the p-value",
+                  ],
+                  1,
+                  "Power is the probability of rejecting the null when a real effect of the assumed size exists; low power means you will likely miss real effects.",
+                ),
+                question(
+                  "stats-q12",
+                  "An underpowered A/B test returns 'no significant difference.' What is the correct interpretation?",
+                  [
+                    "The two variants are definitely equivalent",
+                    "The experiment likely lacked the sensitivity to detect the effect, so the result is largely uninformative rather than evidence of no effect",
+                    "The treatment is harmful",
+                    "The significance threshold should be raised to 0.5",
+                  ],
+                  1,
+                  "Absence of significance in an underpowered test is not evidence of absence; the test simply could not detect a real effect of plausible size.",
+                ),
+              ],
+              "Practice sizing experiments to a minimum detectable effect before running them.",
+            ),
+          ),
         ],
       ),
     ],
@@ -1438,6 +1710,278 @@ const additionalCourses: CurriculumCourse[] = [
                 ),
               ],
               "Refine the workflow design until lineage, review, and rollback are all explicit.",
+            ),
+          ),
+          lesson(
+            "compute-lesson-3",
+            "Performance and Scaling: Making ML Code Fast",
+            "95 min",
+            "Find the real bottleneck and fix it, using vectorization, memory-aware data layout, and batching to keep accelerators fed instead of guessing at micro-optimizations.",
+            [
+              "Vectorization, memory layout, and why Python loops are the wrong tool for numeric work",
+              "Batching and data loading: keeping the accelerator fed",
+              "Profiling first: locate the real bottleneck before optimizing anything",
+            ],
+            [
+              "Most ML slowness is data-pipeline or memory-bound, not compute-bound; profile before you optimize.",
+              "Vectorized, cache-friendly, batched code beats clever micro-optimizations almost every time.",
+            ],
+            [
+              video("PyTorch Performance Tuning Guide", "Anchor performance work on concrete, measured tuning practices rather than folklore.", {
+                creator: "PyTorch",
+                platform: "Documentation",
+                url: "https://pytorch.org/tutorials/recipes/recipes/tuning_guide.html",
+              }),
+            ],
+            [
+              exercise(
+                "compute-ex-3",
+                "Profile and speed up a slow training step",
+                "lab",
+                "Take a training loop that runs slower than expected, profile it to find where time is actually spent, and apply the highest-leverage fix (vectorization, better data loading, or batching), then measure the speedup.",
+                [
+                  "A profiler output identifying the dominant cost",
+                  "The change you made and why it targeted the real bottleneck",
+                  "Before/after timings and accelerator utilization",
+                ],
+                [
+                  "Is the GPU actually busy, or is it waiting on the data loader?",
+                  "Which line or stage consumed the most wall-clock time before you changed anything?",
+                ],
+              ),
+            ],
+            quiz(
+              [
+                question(
+                  "compute-q5",
+                  "Before optimizing a slow training pipeline, what should you do first?",
+                  [
+                    "Rewrite the hottest-looking loop in C",
+                    "Profile it to find where time is actually spent, since the bottleneck is often data loading or memory, not the compute you assume",
+                    "Buy a bigger GPU",
+                    "Reduce the dataset size",
+                  ],
+                  1,
+                  "Optimizing without profiling usually targets the wrong thing; the real bottleneck is frequently the input pipeline, not the model math.",
+                ),
+                question(
+                  "compute-q6",
+                  "Your GPU utilization sits at 20% during training. What is the most likely cause?",
+                  [
+                    "The model is too large",
+                    "The accelerator is starved — the data loading/preprocessing pipeline cannot supply batches fast enough to keep it busy",
+                    "The learning rate is too high",
+                    "The GPU is broken",
+                  ],
+                  1,
+                  "Low accelerator utilization usually means the input pipeline is the bottleneck; fix data loading, prefetching, or augmentation before touching the model.",
+                ),
+              ],
+              "Revisit until profiling-before-optimizing and recognizing accelerator starvation are reflexes.",
+            ),
+          ),
+          lesson(
+            "compute-lesson-4",
+            "Training-Serving Skew and Feature Stores",
+            "95 min",
+            "Eliminate the silent production killer where features are computed differently at training and serving time, using feature stores and point-in-time correctness to guarantee consistency.",
+            [
+              "What training-serving skew is and why it silently degrades production models",
+              "Feature stores and the online/offline consistency contract",
+              "Point-in-time correctness and avoiding leakage across time",
+            ],
+            [
+              "If features are computed differently at train and serve time, your offline metrics are fiction.",
+              "A feature store exists to guarantee the same transformation runs in both worlds, with point-in-time correctness.",
+            ],
+            [
+              video("Feast: Feature Store Documentation", "Ground the feature-store concepts in a real open-source implementation.", {
+                creator: "Feast",
+                platform: "Documentation",
+                url: "https://docs.feast.dev/",
+              }),
+            ],
+            [
+              exercise(
+                "compute-ex-4",
+                "Audit a pipeline for training-serving skew",
+                "analysis",
+                "Take a model where training features are computed in a batch SQL job and serving features are computed in application code, and identify every place the two could diverge, then propose a design that guarantees consistency.",
+                [
+                  "A list of concrete skew risks (logic, data freshness, defaults, types)",
+                  "A proposed consistent-feature design (shared transform or feature store)",
+                  "A plan for point-in-time-correct training data generation",
+                ],
+                [
+                  "Where could the serving code and the training query compute the same feature differently?",
+                  "How do you ensure a training row only uses information available at that row's timestamp?",
+                ],
+              ),
+            ],
+            quiz(
+              [
+                question(
+                  "compute-q7",
+                  "What is training-serving skew?",
+                  [
+                    "When the training set is larger than the serving set",
+                    "When a feature is computed differently (different code, data freshness, or defaults) at training time versus serving time, so the model sees inconsistent inputs in production",
+                    "When the model is trained on a GPU but served on a CPU",
+                    "When training takes longer than serving",
+                  ],
+                  1,
+                  "Skew is an inconsistency between how features are produced offline and online; it makes offline metrics unrepresentative of production.",
+                ),
+                question(
+                  "compute-q8",
+                  "Why is point-in-time correctness essential when generating training data?",
+                  [
+                    "It makes queries run faster",
+                    "It ensures each training row uses only feature values that were actually available at that row's timestamp, preventing future information from leaking into the past",
+                    "It compresses the dataset",
+                    "It is only needed for image data",
+                  ],
+                  1,
+                  "Without point-in-time joins, aggregate features can include data from after the label event, leaking the future and inflating offline performance.",
+                ),
+              ],
+              "Practice tracing a single feature from serving code back to its training definition until divergence is impossible.",
+            ),
+          ),
+          lesson(
+            "compute-lesson-5",
+            "Distributed Training: When More Machines Actually Help",
+            "100 min",
+            "Decide when to distribute training and how, understanding data parallelism, the communication cost of gradient synchronization, and when a single accelerator is the better choice.",
+            [
+              "Data parallelism: replicate the model, shard the batch, synchronize gradients",
+              "Model, tensor, and pipeline parallelism: when the model itself does not fit",
+              "Communication cost, scaling efficiency, and when distribution hurts",
+            ],
+            [
+              "Data parallelism scales throughput, but gradient synchronization (all-reduce) is the bottleneck and the effective batch size grows.",
+              "Distribution adds communication and complexity; for small models a single accelerator is often faster and cheaper.",
+            ],
+            [
+              video("PyTorch Distributed Data Parallel Tutorial", "Anchor distributed training on a concrete, widely used implementation.", {
+                creator: "PyTorch",
+                platform: "Documentation",
+                url: "https://pytorch.org/tutorials/intermediate/ddp_tutorial.html",
+              }),
+            ],
+            [
+              exercise(
+                "compute-ex-5",
+                "Decide whether a workload should be distributed",
+                "systems-design",
+                "Given a model size, dataset size, and per-step timing on one accelerator, reason about whether data-parallel distribution would help, estimate the communication overhead, and recommend a configuration or argue for staying single-device.",
+                [
+                  "An estimate of compute time versus communication (all-reduce) time per step",
+                  "A recommendation with the expected scaling efficiency",
+                  "The effect on effective batch size and what must change (e.g., learning rate)",
+                ],
+                [
+                  "Is each step long enough that gradient sync is a small fraction of it?",
+                  "What happens to the effective batch size when you add workers, and how must the learning rate respond?",
+                ],
+              ),
+            ],
+            quiz(
+              [
+                question(
+                  "compute-q9",
+                  "In synchronous data-parallel training, what is the primary scaling bottleneck?",
+                  [
+                    "The size of the validation set",
+                    "Gradient synchronization across workers (all-reduce communication), which must complete each step before the next begins",
+                    "The number of epochs",
+                    "The choice of optimizer",
+                  ],
+                  1,
+                  "Each step requires averaging gradients across all workers; this communication cost limits scaling efficiency, especially for small per-step compute.",
+                ),
+                question(
+                  "compute-q10",
+                  "When is distributing training across many machines likely to hurt rather than help?",
+                  [
+                    "When the model is enormous",
+                    "When the model and steps are small, so communication overhead dominates the short per-step compute and a single device would be faster and cheaper",
+                    "When you have lots of data",
+                    "Distribution always helps",
+                  ],
+                  1,
+                  "If per-step compute is small relative to communication, adding workers mostly adds sync overhead; single-device training is often better for small models.",
+                ),
+              ],
+              "Revisit until you can estimate compute-versus-communication balance before reaching for more machines.",
+            ),
+          ),
+          lesson(
+            "compute-lesson-6",
+            "Data Access for ML: Formats, Warehouses, and Efficient Loading",
+            "90 min",
+            "Load training data efficiently by choosing columnar formats, pushing work into the warehouse, and avoiding the data-loader bottlenecks that quietly cap throughput.",
+            [
+              "Row versus columnar formats (CSV/JSON versus Parquet/Arrow) and why columnar wins for ML",
+              "Pulling training data from warehouses: SQL pushdown, partitioning, and sampling",
+              "Streaming, sharding, and not melting your data loader",
+            ],
+            [
+              "Columnar formats let you read only the columns and row-groups you need; this dominates load time at scale.",
+              "Push filtering and aggregation into the warehouse with SQL instead of pulling everything into memory first.",
+            ],
+            [
+              video("Apache Parquet Documentation", "Ground the columnar-format reasoning in the canonical specification.", {
+                creator: "Apache Parquet",
+                platform: "Documentation",
+                url: "https://parquet.apache.org/docs/",
+              }),
+            ],
+            [
+              exercise(
+                "compute-ex-6",
+                "Redesign a slow CSV-based loader",
+                "lab",
+                "Take a training job that reads large CSV files and filters/aggregates them in pandas, and redesign the data access to use a columnar format and push selection into the source, then measure the improvement in load time and memory.",
+                [
+                  "The original versus redesigned data-access path",
+                  "Before/after load time and peak memory",
+                  "An explanation of which change (columnar read, projection, pushdown) mattered most",
+                ],
+                [
+                  "Which columns and rows does the job actually need, and is it currently reading more than that?",
+                  "What work is being done in pandas that the warehouse or file format could do during the read?",
+                ],
+              ),
+            ],
+            quiz(
+              [
+                question(
+                  "compute-q11",
+                  "Why are columnar formats like Parquet usually faster than CSV for ML training data?",
+                  [
+                    "They are always smaller on disk regardless of content",
+                    "They let you read only the columns and row-groups you need (projection and predicate pushdown) and compress each column well, instead of scanning every byte of every row",
+                    "They store data as images",
+                    "They require no schema",
+                  ],
+                  1,
+                  "Columnar storage enables reading just the needed columns and skipping irrelevant row-groups, which dominates I/O at scale; row formats must scan everything.",
+                ),
+                question(
+                  "compute-q12",
+                  "What does 'SQL pushdown' mean when loading training data from a warehouse?",
+                  [
+                    "Rewriting SQL into Python loops",
+                    "Performing filtering, projection, and aggregation in the warehouse so only the needed, reduced result is transferred, instead of pulling all rows into memory and filtering locally",
+                    "Pushing the model into the database",
+                    "Disabling indexes",
+                  ],
+                  1,
+                  "Pushdown moves data-reduction work to where the data lives, minimizing transfer and local memory pressure.",
+                ),
+              ],
+              "Practice tracing exactly which columns and rows a job needs and reading only those.",
             ),
           ),
         ],

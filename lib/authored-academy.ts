@@ -360,6 +360,10 @@ const AUTHORED_ACADEMY_COURSES: AuthoredAcademyCourse[] = [
     lessons: [
       buildAuthoredAcademyLesson("stats-lesson-1"),
       buildAuthoredAcademyLesson("stats-lesson-2"),
+      buildAuthoredAcademyLesson("stats-lesson-3"),
+      buildAuthoredAcademyLesson("stats-lesson-4"),
+      buildAuthoredAcademyLesson("stats-lesson-5"),
+      buildAuthoredAcademyLesson("stats-lesson-6"),
     ],
     badge: {
       id: "badge-statistical-inference",
@@ -459,6 +463,10 @@ const AUTHORED_ACADEMY_COURSES: AuthoredAcademyCourse[] = [
     lessons: [
       buildAuthoredAcademyLesson("compute-lesson-1"),
       buildAuthoredAcademyLesson("compute-lesson-2"),
+      buildAuthoredAcademyLesson("compute-lesson-3"),
+      buildAuthoredAcademyLesson("compute-lesson-4"),
+      buildAuthoredAcademyLesson("compute-lesson-5"),
+      buildAuthoredAcademyLesson("compute-lesson-6"),
     ],
     badge: {
       id: "badge-mle-systems",

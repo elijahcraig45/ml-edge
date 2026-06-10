@@ -44,9 +44,24 @@ export default async function CoursePage({ params }: CoursePageProps) {
   return (
     <div className="console-grid min-h-full overflow-y-auto p-6 sm:p-8">
       <div className="mx-auto max-w-6xl space-y-6">
-        <Panel eyebrow={`${course.level} course`} title={course.title}>
+        <Panel eyebrow={`Capability-map reference · ${course.level}`} title={course.title}>
           <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
             <div>
+              <p className="mb-4 rounded-2xl border border-amber-400/20 bg-amber-500/5 px-4 py-3 text-xs leading-5 text-amber-100/90">
+                Reference roadmap, not the primary path. For the structured, progress-tracked
+                journey, follow your{" "}
+                <Link href="/curriculum/path" className="font-semibold underline hover:text-amber-50">
+                  ML Engineer path
+                </Link>{" "}
+                and the{" "}
+                <Link
+                  href="/curriculum/authored"
+                  className="font-semibold underline hover:text-amber-50"
+                >
+                  authored academy
+                </Link>
+                .
+              </p>
               <p className="text-sm leading-7 text-slate-300">{course.summary}</p>
               <p className="mt-4 text-sm leading-7 text-slate-400">
                 <span className="font-semibold text-slate-100">Why it matters:</span>{" "}

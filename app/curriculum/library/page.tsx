@@ -39,11 +39,19 @@ export default async function CurriculumLibraryPage() {
     <div className="console-grid min-h-full overflow-y-auto p-6 sm:p-8">
       <div className="mx-auto max-w-7xl space-y-6">
         <Panel
-          eyebrow="Imported lesson library"
+          eyebrow="Reference library · supplementary"
           title="Real external lessons, organized into a source-backed curriculum"
         >
           <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
             <div className="space-y-4">
+              <p className="rounded-2xl border border-amber-400/20 bg-amber-500/5 px-4 py-3 text-xs leading-5 text-amber-100/90">
+                Supplementary, not the primary path. Use this when you want another
+                explanation or extra reps on a topic you are already studying in your{" "}
+                <Link href="/curriculum/path" className="font-semibold underline hover:text-amber-50">
+                  ML Engineer path
+                </Link>
+                .
+              </p>
               <p className="text-sm leading-7 text-slate-300">
                 These are not just references. Each library lesson includes a TA-style
                 briefing, theory equations, an implementation lab, ten practice problems,

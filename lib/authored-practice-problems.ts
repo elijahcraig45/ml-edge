@@ -1,6 +1,422 @@
 import type { PracticeProblem } from "@/lib/hosted-lessons";
 
 export const AUTHORED_PRACTICE_PROBLEMS: Record<string, PracticeProblem[]> = {
+  "math-lesson-1": [
+    {
+      id: "math-lesson-1-pp1",
+      difficulty: "warm-up",
+      prompt:
+        "An embedding layer maps each token to a 768-dimensional vector. State precisely what it means for two token embeddings to be 'close,' and what the span of a set of embeddings represents. Why is 'close' only meaningful relative to a chosen distance, not an absolute property of the vectors?",
+      hint:
+        "Distinguish the vector (a point) from the geometry you impose on the space (a metric). Cosine similarity and Euclidean distance can disagree about which pairs are 'close.'",
+      solution:
+        "Two embeddings are 'close' only with respect to a chosen metric: cosine similarity measures the angle between them (direction/meaning), while Euclidean distance also depends on magnitude. The same pair can be cosine-close but Euclidean-far if one vector is scaled up. The span of a set of embeddings is the subspace of all linear combinations they can produce — it describes the directions of variation the model has actually represented. 'Close' is not absolute because the raw coordinates carry no meaning until you fix a metric; changing the metric (or normalizing) re-ranks which pairs count as similar. In practice this is why cosine is the default for semantic similarity: it ignores magnitude, which often encodes frequency rather than meaning.",
+      checkYourWork: [
+        "Can you give a concrete pair where cosine says 'close' but Euclidean says 'far'?",
+        "Can you state what the span of the embeddings tells you about model capacity?",
+        "Can you explain why you would normalize embeddings before a similarity search?",
+      ],
+    },
+    {
+      id: "math-lesson-1-pp2",
+      difficulty: "challenge",
+      prompt:
+        "You have 50,000 word embeddings stored in 300 dimensions. A teammate claims 'the model uses all 300 dimensions equally.' Construct a concrete scenario where the effective dimensionality (the rank of the span) is far below 300, explain how you would detect it, and say why it matters operationally.",
+      hint:
+        "If embeddings cluster near a lower-dimensional subspace, most singular values of the stacked matrix are tiny. What does that imply for downstream layers and for storage?",
+      solution:
+        "If the embeddings were trained on a narrow corpus, they may lie close to, say, a 40-dimensional subspace embedded in the 300-dimensional space — the remaining 260 directions carry almost no variance. You detect this by stacking the embeddings into a 50,000×300 matrix and inspecting its singular values (or the eigenvalues of the covariance): a sharp decay to near-zero after ~40 components reveals the true effective rank. Operationally this matters because (1) the extra dimensions waste memory and compute while adding noise, (2) a downstream linear classifier has far fewer truly independent features than 300 suggests, so its effective capacity and overfitting behavior differ from naive expectation, and (3) you can compress to the effective subspace with negligible loss. 'Uses all 300 equally' is a claim about the variance spectrum, and the spectrum is measurable.",
+      checkYourWork: [
+        "Can you name the computation (SVD / covariance eigendecomposition) that reveals effective rank?",
+        "Can you explain why low effective rank changes overfitting risk for a downstream model?",
+        "Can you state one action you would take after discovering effective rank of 40?",
+      ],
+    },
+  ],
+  "math-lesson-2": [
+    {
+      id: "math-lesson-2-pp1",
+      difficulty: "warm-up",
+      prompt:
+        "Two linear layers are stacked with no nonlinearity between them: y = W2 (W1 x), with W1 of shape [256, 512] and W2 of shape [64, 256]. What single operation is this equivalent to, what is its shape, and what does this equivalence tell you about the model's capacity?",
+      hint:
+        "Matrix multiplication is associative. What is W2 W1?",
+      solution:
+        "By associativity, y = (W2 W1) x = W x, where W = W2 W1 has shape [64, 512]. So two stacked linear layers with no nonlinearity collapse into a single linear map — they have exactly the capacity of one [64, 512] linear layer, no more. This is the core reason nonlinearities exist: without them, depth buys nothing, because any composition of linear maps is itself a linear map. The intermediate 256-dimensional 'bottleneck' constrains the rank of W to at most 256, but otherwise adds no expressive power. Stacking matters only once you insert a nonlinear function between the layers, which breaks the collapse.",
+      checkYourWork: [
+        "Can you compute the shape of W2 W1 and confirm it matches a single layer?",
+        "Can you explain why the rank of the composed map is capped at 256?",
+        "Can you state what the nonlinearity adds that linear depth cannot?",
+      ],
+    },
+    {
+      id: "math-lesson-2-pp2",
+      difficulty: "challenge",
+      prompt:
+        "A linear classifier fails to separate two classes in raw feature coordinates. A colleague applies a change of basis (an orthogonal rotation) and reports the same failure. A different transform makes the classes trivially separable. Construct a concrete example illustrating when a change of basis can and cannot help a linear model, and explain the principle.",
+      hint:
+        "A rotation preserves linear separability — it cannot create it. What kind of transform actually changes what a linear boundary can express?",
+      solution:
+        "An orthogonal change of basis is a rotation/reflection: it preserves all distances and angles, so a dataset that is not linearly separable stays not linearly separable — the colleague's result is expected, not a bug. Example: the XOR pattern (classes at (0,0),(1,1) vs (0,1),(1,0)) cannot be split by any line, and no rotation fixes that. What helps is a transform that changes the geometry nonlinearly or adds dimensions: mapping (x1, x2) to (x1, x2, x1*x2) makes XOR separable by a plane in 3D. The principle: a linear model's expressive power is fixed by the feature space's geometry; invertible linear maps (including rotations) only relabel coordinates and never change separability, whereas feature engineering or kernels that add nonlinear coordinates do.",
+      checkYourWork: [
+        "Can you explain why an orthogonal rotation cannot create linear separability?",
+        "Can you give a transform that does make XOR separable and say why?",
+        "Can you distinguish a change of basis from a genuine feature map?",
+      ],
+    },
+  ],
+  "math-lesson-3": [
+    {
+      id: "math-lesson-3-pp1",
+      difficulty: "warm-up",
+      prompt:
+        "You compute dot products between one query vector q (shape [d]) and N stored vectors in a Python for-loop. Rewrite this as a single matrix operation, give the shapes involved, and explain why vectorization is faster in terms more precise than 'loops are slow.'",
+      hint:
+        "Stack the N vectors into a matrix. The speedup comes from where the computation runs and how memory is accessed, not from Python avoiding iteration per se.",
+      solution:
+        "Stack the N stored vectors into a matrix S of shape [N, d]; then all dot products are S @ q, producing a vector of shape [N]. Vectorization is faster for concrete reasons: (1) the loop runs in optimized, compiled BLAS routines instead of the Python interpreter, eliminating per-iteration interpreter overhead; (2) BLAS uses cache-friendly memory access and SIMD vector instructions that process multiple elements per CPU cycle; (3) on a GPU the rows are computed in parallel across thousands of cores. The win is not that 'a loop exists' but that a Python-level loop forces interpreted, scalar, cache-unfriendly execution, whereas the matrix form dispatches to hardware-optimized parallel kernels.",
+      checkYourWork: [
+        "Can you state the output shape of S @ q without running it?",
+        "Can you name two distinct hardware reasons vectorization is faster?",
+        "Can you explain why this matters more on a GPU than a CPU?",
+      ],
+    },
+    {
+      id: "math-lesson-3-pp2",
+      difficulty: "challenge",
+      prompt:
+        "You need pairwise squared Euclidean distances between N samples (matrix A, [N, d]) and M prototypes (matrix B, [M, d]). The naive double loop is O(N*M*d) in Python. Express the full [N, M] distance matrix using matrix operations via the expansion ||a-b||^2 = ||a||^2 - 2 a·b + ||b||^2, and identify the numerical pitfall this trick introduces.",
+      hint:
+        "The cross term -2 A B^T is a single matmul. Add the squared norms with broadcasting. Then think about subtracting large nearly-equal numbers.",
+      solution:
+        "Compute sqA = sum(A^2, axis=1) of shape [N], sqB = sum(B^2, axis=1) of shape [M], and the cross term C = A @ B^T of shape [N, M]. Then D = sqA[:, None] - 2*C + sqB[None, :], an [N, M] matrix, via one matmul plus broadcasting — far faster than the triple loop. The numerical pitfall: when a and b are close, ||a||^2 and 2 a·b are large and nearly equal, so their difference suffers catastrophic cancellation and can yield small negative values where the true distance is ~0. Fixes: clamp the result to a minimum of 0 before taking square roots, and prefer float64 or the cancellation-safe direct formulation when distances must be precise (e.g., for downstream sqrt or log).",
+      checkYourWork: [
+        "Can you write the [N, M] distance expression with correct broadcasting?",
+        "Can you explain why the expansion can produce small negative distances?",
+        "Can you state the guard you would add before sqrt?",
+      ],
+    },
+  ],
+  "math-lesson-4": [
+    {
+      id: "math-lesson-4-pp1",
+      difficulty: "warm-up",
+      prompt:
+        "Write the formula for projecting a vector b onto the line spanned by a single nonzero vector a. State what the residual r = b - proj_a(b) is, and prove in one or two lines that r is orthogonal to a.",
+      hint:
+        "The projection is the scalar (a·b)/(a·a) times a. Compute a·r and simplify.",
+      solution:
+        "proj_a(b) = ((a·b)/(a·a)) a. The residual is r = b - ((a·b)/(a·a)) a. Check orthogonality: a·r = a·b - ((a·b)/(a·a))(a·a) = a·b - a·b = 0. So r ⊥ a by construction. Geometrically, the projection is the closest point to b on the line through a, and the residual is the perpendicular dropped from b to that line — the shortest connecting vector is always orthogonal to the subspace, which is exactly why least-squares minimizes the residual.",
+      checkYourWork: [
+        "Can you reproduce the projection formula from memory?",
+        "Can you show a·r = 0 algebraically?",
+        "Can you connect 'closest point' to 'orthogonal residual'?",
+      ],
+    },
+    {
+      id: "math-lesson-4-pp2",
+      difficulty: "challenge",
+      prompt:
+        "In ordinary least squares, the residual vector is orthogonal to the column space of the design matrix X by construction. Suppose you plot residuals against a variable z that is NOT in your model and find a clear linear trend. Explain what this does and does not contradict, and what it tells you to do.",
+      hint:
+        "Orthogonality holds with respect to the columns of X only. z is not one of them. What does residual structure against an omitted variable indicate?",
+      solution:
+        "There is no contradiction: OLS guarantees the residual is orthogonal to the columns of X (the features you included), not to arbitrary external variables. A linear trend of residuals against an omitted variable z means z carries predictive signal the current model has not absorbed — classic omitted-variable structure. This tells you the model is misspecified with respect to z: the orthogonality to X is satisfied, but z explains part of what the model currently treats as noise. The action is to add z (or a transform of it) as a feature, after which the residual will become orthogonal to z as well. If z is unavailable, you at least know your residuals are not pure noise and your uncertainty estimates may be biased.",
+      checkYourWork: [
+        "Can you state precisely which subspace the residual is orthogonal to?",
+        "Can you explain why a trend against an omitted variable is not a violation?",
+        "Can you name the corrective action and its effect on the residual?",
+      ],
+    },
+  ],
+  "math-lesson-5": [
+    {
+      id: "math-lesson-5-pp1",
+      difficulty: "warm-up",
+      prompt:
+        "Write the normal equations for least squares with design matrix X and target y. State what condition on X is required for the closed-form solution (X^T X)^{-1} X^T y to exist, and explain what that condition means geometrically.",
+      hint:
+        "Invertibility of X^T X is equivalent to a rank condition on the columns of X.",
+      solution:
+        "The normal equations are X^T X w = X^T y, with closed-form solution w = (X^T X)^{-1} X^T y when X^T X is invertible. X^T X is invertible if and only if X has full column rank — i.e., its columns (features) are linearly independent. Geometrically, full column rank means no feature is a linear combination of the others, so the column space has the full dimension and there is a unique best projection of y onto it. If columns are linearly dependent (collinear features), X^T X is singular, the projection is still unique but the coefficients that produce it are not, so the inverse does not exist and the closed form breaks down.",
+      checkYourWork: [
+        "Can you write the normal equations from the projection idea?",
+        "Can you state the rank condition for invertibility?",
+        "Can you explain why the projection can be unique even when coefficients are not?",
+      ],
+    },
+    {
+      id: "math-lesson-5-pp2",
+      difficulty: "challenge",
+      prompt:
+        "A teammate accidentally includes a feature twice (an exact duplicate column) in X, then a third feature that is the sum of two others. They run the normal equations and the matrix inversion fails or returns wildly unstable coefficients. Explain what happened in rank/geometry terms, what you would observe, and why ridge regression fixes it.",
+      hint:
+        "Duplicated and summed columns make X rank-deficient. What does adding λI to X^T X do to its eigenvalues?",
+      solution:
+        "The duplicate and the summed feature are exact linear combinations of other columns, so X is rank-deficient and X^T X is singular (or numerically near-singular). Geometrically the columns no longer span a full-dimensional space, so infinitely many coefficient vectors yield the same projection of y — the solution is not unique. You would observe a failed inversion, or huge, sign-flipping coefficients that change drastically with tiny data perturbations (the hallmark of an ill-conditioned X^T X with near-zero eigenvalues). Ridge regression solves (X^T X + λI) w = X^T y: adding λI shifts every eigenvalue up by λ, making the matrix invertible and well-conditioned, and selects the minimum-norm solution among the otherwise-degenerate set. This is why ridge both stabilizes and uniquely determines coefficients under collinearity.",
+      checkYourWork: [
+        "Can you identify why both added columns destroy full column rank?",
+        "Can you describe what unstable coefficients look like and why?",
+        "Can you explain, via eigenvalues, why λI restores invertibility?",
+      ],
+    },
+  ],
+  "math-lesson-6": [
+    {
+      id: "math-lesson-6-pp1",
+      difficulty: "warm-up",
+      prompt:
+        "PCA finds directions of maximum variance as the top eigenvectors of the data covariance matrix. Explain why you must center the data (subtract the mean) before computing PCA, and what goes wrong if you skip this step.",
+      hint:
+        "The covariance is defined on centered data. What does the first principal component point toward if the data is far from the origin and not centered?",
+      solution:
+        "Centering subtracts the feature means so the data cloud is positioned around the origin; the covariance matrix is defined in terms of these centered deviations. If you skip centering and compute the second-moment matrix instead, the largest 'variance' direction is dominated by the offset of the data from the origin — the first component tends to point toward the data's mean location rather than along the direction of true spread. The result is that PCA captures where the data sits, not how it varies, so the components are misleading and the explained-variance interpretation breaks. Centering ensures the eigenvectors describe the shape of the spread, which is what PCA is meant to find.",
+      checkYourWork: [
+        "Can you state what centering does to the data cloud?",
+        "Can you explain what the top component captures if you forget to center?",
+        "Can you say why explained-variance ratios require centered data?",
+      ],
+    },
+    {
+      id: "math-lesson-6-pp2",
+      difficulty: "challenge",
+      prompt:
+        "You apply PCA to vibration-sensor data to predict machine failure and keep the top 3 components, which explain 95% of variance. Failure prediction gets worse than using raw features. Construct the mechanism for this failure using variance-vs-relevance reasoning, and propose a better dimensionality-reduction choice.",
+      hint:
+        "PCA maximizes variance, not correlation with the failure label. What if the failure signal is a small-variance direction?",
+      solution:
+        "The vibration data is likely dominated by a large-amplitude but irrelevant source — e.g., normal motor RPM oscillation or ambient temperature drift — which accounts for most of the variance and therefore the top components. The actual failure precursor may be a subtle, low-variance deviation in a specific frequency band; it explains little total variance, so PCA discards it when you keep only the top 3 components. By projecting onto high-variance directions you literally delete the predictive subspace, which is why raw features beat the PCA features. PCA is unsupervised and never looks at the label. Better choices: a supervised reduction like Linear Discriminant Analysis or Partial Least Squares (which maximize class/target separation), or feature selection guided by mutual information with the failure label, so the retained directions are chosen for relevance rather than raw spread.",
+      checkYourWork: [
+        "Can you explain why high explained variance does not imply predictive value?",
+        "Can you name the high-variance nuisance source in this scenario?",
+        "Can you propose a supervised alternative and say what it optimizes?",
+      ],
+    },
+  ],
+  "math-lesson-7": [
+    {
+      id: "math-lesson-7-pp1",
+      difficulty: "warm-up",
+      prompt:
+        "Outline the steps to implement PCA from a covariance eigendecomposition, given a centered data matrix. Explain why you sort eigenvalues in descending order and what the explained-variance ratio of a component equals.",
+      hint:
+        "Covariance = (1/(n-1)) X^T X for centered X. Eigenvectors are the components; eigenvalues are the variances along them.",
+      solution:
+        "Steps: (1) center the data; (2) form the covariance matrix C = (1/(n-1)) X^T X; (3) compute its eigenvalues and eigenvectors; (4) sort eigenpairs by eigenvalue descending; (5) take the top k eigenvectors as the projection matrix and project the data onto them. You sort descending because each eigenvalue equals the variance captured along its eigenvector, so the largest eigenvalues correspond to the directions that retain the most information — you keep those first. The explained-variance ratio of a component is its eigenvalue divided by the sum of all eigenvalues (the total variance), giving the fraction of total variance that component accounts for. Cumulative ratios let you choose k for a target retained variance.",
+      checkYourWork: [
+        "Can you list the PCA steps in order without notes?",
+        "Can you state what an eigenvalue represents here?",
+        "Can you write the explained-variance ratio formula?",
+      ],
+    },
+    {
+      id: "math-lesson-7-pp2",
+      difficulty: "challenge",
+      prompt:
+        "Your PCA implementation occasionally returns eigenvectors with tiny imaginary parts or a small negative eigenvalue, which then breaks an explained-variance calculation. Diagnose the likely causes and describe how you would make the implementation numerically robust.",
+      hint:
+        "A true covariance matrix is symmetric and positive semidefinite. Which numerical routine did you call, and what guarantees does it (not) provide?",
+      solution:
+        "A covariance matrix is symmetric and positive semidefinite, so its eigenvalues are real and non-negative and its eigenvectors are real. Tiny imaginary parts or small negative eigenvalues are numerical artifacts, with two common causes: (1) you called a general eigensolver (e.g., np.linalg.eig) that does not assume symmetry, so floating-point error leaks into complex results — use the symmetric solver np.linalg.eigh, which guarantees real outputs; (2) round-off in forming C made it slightly non-symmetric or pushed a true-zero eigenvalue (from rank deficiency) just below zero. Robust fixes: symmetrize C as (C + C^T)/2 before decomposition, use eigh, clamp eigenvalues at 0, and prefer computing PCA via the SVD of the centered data matrix, which is more numerically stable and avoids forming X^T X explicitly.",
+      checkYourWork: [
+        "Can you state the two mathematical properties of a covariance matrix that should hold?",
+        "Can you name the correct solver and why it matters?",
+        "Can you explain why SVD of X is more stable than eig of X^T X?",
+      ],
+    },
+  ],
+  "math-lesson-8": [
+    {
+      id: "math-lesson-8-pp1",
+      difficulty: "warm-up",
+      prompt:
+        "For a function f: R^n -> R^m, state the shapes of the gradient, the Jacobian, and the Hessian, and say in one sentence each what they tell you. For which of these does m need to equal 1?",
+      hint:
+        "Gradient and Hessian are defined for scalar-valued functions; the Jacobian generalizes the first derivative to vector-valued ones.",
+      solution:
+        "The gradient is defined when m = 1 (scalar output): it is a length-n vector of first partial derivatives pointing in the direction of steepest ascent. The Jacobian is the general first-derivative object for f: R^n -> R^m: an m×n matrix whose rows are the gradients of each output component — it describes how each output changes with each input. The Hessian also requires m = 1: it is the n×n matrix of second partial derivatives describing local curvature (how the gradient itself changes). So gradient and Hessian need a scalar output, while the Jacobian handles vector outputs; for m = 1 the Jacobian is just the gradient as a row vector.",
+      checkYourWork: [
+        "Can you give the exact shapes (n, m×n, n×n) for each?",
+        "Can you say which require a scalar output and why?",
+        "Can you state what curvature (the Hessian) adds beyond the gradient?",
+      ],
+    },
+    {
+      id: "math-lesson-8-pp2",
+      difficulty: "challenge",
+      prompt:
+        "Training loss decreases for a while, then plateaus while oscillating, even though you are far from a good solution. Using curvature language (the Hessian and its condition number), explain why a single global learning rate struggles here and what changes would help.",
+      hint:
+        "An ill-conditioned loss surface has very different curvature along different directions. What does one scalar learning rate do across directions with mismatched curvature?",
+      solution:
+        "An ill-conditioned loss has a large Hessian condition number: curvature is steep along some directions and nearly flat along others (a long, narrow ravine). A single global learning rate must be small enough to avoid diverging along the steep, high-curvature directions, but that same small rate makes almost no progress along the flat, low-curvature directions — so the optimizer oscillates across the steep walls of the ravine while crawling along its floor, producing the plateau-with-oscillation you observe. Remedies that address curvature: (1) per-parameter adaptive methods (Adam, RMSProp) that effectively rescale steps by direction; (2) momentum, which accelerates progress along the consistent low-curvature direction and damps oscillation; (3) normalization (batch/layer norm) or better initialization to reduce the condition number; (4) second-order or preconditioned methods that explicitly account for curvature.",
+      checkYourWork: [
+        "Can you define condition number in terms of Hessian eigenvalues?",
+        "Can you explain the steep-vs-flat tradeoff a single LR cannot resolve?",
+        "Can you name two fixes and say which curvature problem each addresses?",
+      ],
+    },
+  ],
+  "math-lesson-9": [
+    {
+      id: "math-lesson-9-pp1",
+      difficulty: "warm-up",
+      prompt:
+        "For linear regression with loss L = (1/n) * sum_i (w·x_i - y_i)^2, derive the gradient dL/dw using the chain rule, step by step. State the shape of the result.",
+      hint:
+        "Let r_i = w·x_i - y_i. Differentiate the square, then the inner product.",
+      solution:
+        "Let the residual r_i = w·x_i - y_i. Then L = (1/n) sum_i r_i^2. By the chain rule, dL/dw = (1/n) sum_i 2 r_i * d r_i/dw, and d r_i/dw = x_i. So dL/dw = (2/n) sum_i (w·x_i - y_i) x_i, a vector of the same shape as w (length d). In matrix form with design matrix X and residual vector r = Xw - y, this is (2/n) X^T r. The gradient is a weighted sum of the input vectors, each weighted by its signed error — points the model gets wrong (large |r_i|) pull the weights most.",
+      checkYourWork: [
+        "Can you show each chain-rule factor (outer square, inner dot product)?",
+        "Can you confirm the gradient has the same shape as w?",
+        "Can you write the vectorized form (2/n) X^T (Xw - y)?",
+      ],
+    },
+    {
+      id: "math-lesson-9-pp2",
+      difficulty: "challenge",
+      prompt:
+        "Your numerical gradient check disagrees with your analytical (backprop) gradient by about 1e-2, far above the ~1e-7 you expected. List the most likely causes and describe a systematic procedure to localize which layer or operation is wrong.",
+      hint:
+        "Think about epsilon size, non-differentiable points, forgetting to scale by batch size, and reusing buffers. Then think about isolating layers one at a time.",
+      solution:
+        "Likely causes: (1) a genuine bug in the analytical gradient of one op (e.g., a missing transpose, wrong sum axis, or dropped scaling by 1/n); (2) checking at a non-differentiable point such as a ReLU kink, where finite differences and the subgradient legitimately disagree; (3) an inappropriate epsilon — too large gives truncation error, too small gives floating-point round-off; (4) randomness (dropout, data shuffling) changing the forward pass between the two evaluations; (5) numerical precision (use float64 for the check). Localization procedure: switch to a tiny fixed input with no dropout in float64; use centered differences (f(x+eps) - f(x-eps))/(2 eps) with eps ~1e-5; then gradient-check each layer in isolation by feeding a known input and comparing only that layer's analytic vs numeric gradient, walking from the output layer backward until the relative error jumps — that layer contains the bug. Compute relative error |g_ana - g_num| / max(|g_ana|, |g_num|, 1e-8) rather than absolute error.",
+      checkYourWork: [
+        "Can you list at least three distinct causes of a failing gradient check?",
+        "Can you explain why a ReLU kink can cause a legitimate mismatch?",
+        "Can you describe how layer-by-layer isolation localizes the bug?",
+      ],
+    },
+  ],
+  "math-lesson-10": [
+    {
+      id: "math-lesson-10-pp1",
+      difficulty: "warm-up",
+      prompt:
+        "Your overall model accuracy is 90%, computed across three user cohorts of sizes 8000, 1500, and 500. Explain why the overall number is a weighted average, and why a high overall accuracy can hide a cohort where the model performs poorly. Use conditioning language.",
+      hint:
+        "Overall accuracy = sum over cohorts of P(cohort) * accuracy given cohort. Which term dominates?",
+      solution:
+        "Overall accuracy is the law of total probability applied to correctness: P(correct) = sum_c P(cohort = c) * P(correct | cohort = c). The cohort weights are 0.80, 0.15, and 0.05, so the largest cohort dominates the aggregate — if it scores 95%, the overall number stays high even if the 500-user cohort scores 50%, because that cohort contributes only 0.05 of the weight. This is why an impressive headline accuracy can mask a failing minority cohort: the aggregate is a weighted average, and small cohorts are nearly invisible in it. The fix is to always report conditional (per-cohort) accuracy P(correct | cohort) alongside the overall figure.",
+      checkYourWork: [
+        "Can you write overall accuracy as a sum of conditional terms?",
+        "Can you compute the cohort weights and identify the dominant one?",
+        "Can you explain why per-cohort reporting is necessary?",
+      ],
+    },
+    {
+      id: "math-lesson-10-pp2",
+      difficulty: "challenge",
+      prompt:
+        "You drop features whose Pearson correlation with the target is near zero, assuming they are useless. Construct a concrete example of a feature with ~zero correlation to the target that is nonetheless highly predictive, and explain the general principle about what correlation does and does not measure.",
+      hint:
+        "Pearson correlation measures only linear association. What about a U-shaped or interaction relationship?",
+      solution:
+        "Pearson correlation measures only the strength of a *linear* relationship. Example: let the target y = x^2 with x symmetric around 0 (e.g., uniform on [-1, 1]); then y is fully determined by x, yet the linear correlation between x and y is exactly 0 because the positive and negative slopes cancel. Dropping x would discard a perfectly predictive feature. Another case: a feature predictive only via interaction (x is useless alone but x1*x2 separates classes) shows near-zero marginal correlation. The principle: zero correlation means no *linear* association, not independence — a nonlinear or interaction-based dependence can be strong while correlation is zero. Use mutual information, model-based importance, or nonlinear screening instead of correlation alone for feature selection.",
+      checkYourWork: [
+        "Can you give a closed-form relationship with zero correlation but full dependence?",
+        "Can you state the difference between 'zero correlation' and 'independent'?",
+        "Can you name a selection metric that captures nonlinear dependence?",
+      ],
+    },
+  ],
+  "math-lesson-11": [
+    {
+      id: "math-lesson-11-pp1",
+      difficulty: "warm-up",
+      prompt:
+        "A model scores 88% accuracy on a 400-sample test set. Compute an approximate 95% confidence interval for the true accuracy using the normal approximation, and describe the bootstrap procedure you would use to get an interval without assuming a formula.",
+      hint:
+        "Standard error of a proportion is sqrt(p(1-p)/n). Bootstrap means resampling the test set with replacement.",
+      solution:
+        "The standard error is sqrt(p(1-p)/n) = sqrt(0.88*0.12/400) = sqrt(0.1056/400) ≈ 0.0162. A 95% interval is roughly p ± 1.96 * SE = 0.88 ± 0.032, i.e., about [0.848, 0.912]. Bootstrap alternative: resample the 400 test examples with replacement to form B (e.g., 2000) bootstrap test sets, compute accuracy on each, and take the 2.5th and 97.5th percentiles of those B accuracies as the interval. The bootstrap makes no normality assumption and naturally captures asymmetry; both approaches communicate that 88% is an estimate with roughly ±3 points of sampling uncertainty at this sample size, so small differences from a baseline inside that band are not yet meaningful.",
+      checkYourWork: [
+        "Can you compute the standard error and the resulting interval?",
+        "Can you describe the bootstrap resampling steps?",
+        "Can you say why reporting the interval changes a ship/no-ship decision?",
+      ],
+    },
+    {
+      id: "math-lesson-11-pp2",
+      difficulty: "challenge",
+      prompt:
+        "You train the same model architecture 20 times on bootstrapped training sets and evaluate each on a fixed test point, getting 20 predictions. Describe how you would empirically estimate the bias^2 and variance components of the error at that point, and how the dominant component changes what you do next.",
+      hint:
+        "Bias is about the average prediction vs. truth; variance is the spread of predictions across training sets.",
+      solution:
+        "Let the 20 predictions at the test point be f_1..f_20 with true value y. Estimate the average prediction f_bar = mean(f_i). Then variance ≈ mean((f_i - f_bar)^2) — the spread of predictions due to training-set randomness — and bias^2 ≈ (f_bar - y)^2 — how far the average prediction is from truth. (Total expected squared error ≈ bias^2 + variance + irreducible noise.) Interpretation and action: if variance dominates (predictions scatter widely around a roughly-correct mean), the model is overfitting — reduce capacity, add regularization, get more data, or ensemble/bag to average out variance. If bias^2 dominates (predictions cluster tightly but far from y), the model is underfitting — increase capacity, add features, or reduce regularization. Measuring both tells you which lever actually moves error, instead of guessing.",
+      checkYourWork: [
+        "Can you write the empirical estimators for bias^2 and variance from the 20 runs?",
+        "Can you state which remedy applies when variance dominates vs bias?",
+        "Can you explain why one train/test split cannot reveal this decomposition?",
+      ],
+    },
+  ],
+  "math-lesson-12": [
+    {
+      id: "math-lesson-12-pp1",
+      difficulty: "warm-up",
+      prompt:
+        "State the key guarantee that convexity gives an optimization problem. Then say whether each of these objectives is convex in its parameters: (a) linear-regression squared loss, (b) logistic-regression log loss, (c) the training loss of a 2-layer neural network with ReLU. Briefly justify.",
+      hint:
+        "Convex objectives have no spurious local minima. Composition with nonlinear hidden layers usually destroys convexity.",
+      solution:
+        "Key guarantee: for a convex objective over a convex set, every local minimum is a global minimum, so gradient descent (with a suitable step size) converges to the global optimum — no spurious local minima exist. (a) Linear-regression squared loss is convex (in fact a positive semidefinite quadratic in w). (b) Logistic-regression log loss is convex in its weights — a standard result, which is why it trains reliably. (c) A 2-layer ReLU network's training loss is generally non-convex in its parameters: composing the loss with hidden-layer nonlinearities and the product of weight matrices creates many local minima and saddle points. So the convexity guarantee applies to (a) and (b) but not to (c).",
+      checkYourWork: [
+        "Can you state the local=global guarantee precisely?",
+        "Can you classify each of the three objectives correctly?",
+        "Can you explain why hidden layers break convexity?",
+      ],
+    },
+    {
+      id: "math-lesson-12-pp2",
+      difficulty: "challenge",
+      prompt:
+        "You want to minimize a training loss L(w) subject to a budget constraint ||w||^2 <= c. Write the Lagrangian, state the KKT stationarity condition, and explain the precise relationship between the Lagrange multiplier and the ridge-regression penalty lambda. What does the multiplier's value tell you operationally?",
+      hint:
+        "The Lagrangian adds mu*(||w||^2 - c). Stationarity gives grad L + 2 mu w = 0, which is the ridge gradient condition.",
+      solution:
+        "Form the Lagrangian Λ(w, μ) = L(w) + μ(||w||^2 - c) with multiplier μ >= 0. KKT stationarity in w gives ∇L(w) + 2μ w = 0, which is exactly the optimality condition for ridge regression with penalty λ = 2μ (minimizing L(w) + μ||w||^2). So the constrained problem (budget c) and the penalized problem (penalty λ) are equivalent: every budget c corresponds to some λ and vice versa. Complementary slackness says μ(||w||^2 - c) = 0: if μ > 0 the constraint is active (the unconstrained solution would have violated the budget, so weights sit on the boundary ||w||^2 = c), and if μ = 0 the constraint is slack (the unconstrained optimum already satisfies it). Operationally, the multiplier measures how hard the budget binds — a large μ (large effective λ) means the constraint is costing you a lot of training loss, i.e., heavy regularization pressure; μ = 0 means regularization is not biting at all.",
+      checkYourWork: [
+        "Can you write the Lagrangian and the stationarity condition?",
+        "Can you state the exact relation λ = 2μ to ridge?",
+        "Can you interpret μ = 0 vs μ large via complementary slackness?",
+      ],
+    },
+  ],
+  "math-lesson-13": [
+    {
+      id: "math-lesson-13-pp1",
+      difficulty: "warm-up",
+      prompt:
+        "Write the gradient-descent update rule and explain, using the local quadratic (second-order Taylor) picture of the loss, what happens when the learning rate is far too large versus far too small.",
+      hint:
+        "Near a minimum the loss looks like a bowl; the step interacts with the curvature. Compare to the critical rate ~ 1/curvature.",
+      solution:
+        "The update is w <- w - η ∇L(w), where η is the learning rate. Locally the loss looks like a quadratic bowl whose steepness is set by the curvature (Hessian eigenvalues). If η is far too small, each step moves a tiny fraction toward the bottom, so convergence is correct but painfully slow — many steps to make progress. If η is far too large (roughly above 2/curvature along the steepest direction), each step overshoots the minimum and lands further up the opposite wall, so the iterates oscillate with growing magnitude and the loss diverges. The well-behaved regime is an intermediate η that is large enough to make real progress but below the stability threshold set by the largest curvature.",
+      checkYourWork: [
+        "Can you write the update rule and name each term?",
+        "Can you describe the too-small and too-large failure modes distinctly?",
+        "Can you connect the stability threshold to curvature?",
+      ],
+    },
+    {
+      id: "math-lesson-13-pp2",
+      difficulty: "challenge",
+      prompt:
+        "On a loss surface shaped like a long narrow ravine, plain gradient descent zig-zags across the steep walls and barely advances along the floor. Explain geometrically why momentum (and adaptive methods like Adam) help, and construct a small scenario where momentum clearly outperforms vanilla GD.",
+      hint:
+        "The gradient mostly points across the ravine, not along it. What does accumulating a velocity vector do to the across-direction oscillations versus the along-direction drift?",
+      solution:
+        "In a ravine the curvature is very different along two directions: steep across the walls, nearly flat along the floor. Plain GD's gradient points mostly across the ravine, so steps oscillate side to side while the consistent but small down-the-floor component advances slowly. Momentum maintains a running velocity v <- β v + ∇L and steps with v: the across-ravine components flip sign each step and cancel in the accumulation, while the along-the-floor component has consistent sign and accumulates, accelerating progress in the productive direction and damping the oscillation. Adam additionally rescales each coordinate by its recent gradient magnitude, effectively giving the flat direction a larger effective step and the steep direction a smaller one. Scenario: minimize L(x, y) = 0.01 x^2 + y^2 (condition number 100). Vanilla GD must use a small η to stay stable in y, so x converges extremely slowly and the path zig-zags; momentum accumulates the steady x-gradient and reaches the minimum in far fewer steps. This is the canonical illustration of why momentum/adaptive optimizers dominate on ill-conditioned losses.",
+      checkYourWork: [
+        "Can you explain why across-ravine gradient components cancel under momentum?",
+        "Can you state how Adam's per-coordinate scaling helps the flat direction?",
+        "Can you give an ill-conditioned quadratic where momentum clearly wins?",
+      ],
+    },
+  ],
   "math-foundations-lesson-1": [
     {
       id: "math-l1-pp1",
@@ -321,6 +737,134 @@ export const AUTHORED_PRACTICE_PROBLEMS: Record<string, PracticeProblem[]> = {
       ],
     },
   ],
+  "stats-lesson-3": [
+    {
+      id: "stats-lesson-3-pp1",
+      difficulty: "warm-up",
+      prompt:
+        "A churn model has AUC 0.94, but when you bin its predictions, every case it labels '0.8' churns only about 55% of the time. A PM wants to 'auto-cancel retention offers below 0.5 probability.' Explain why the high AUC does not make this safe, and what you would measure before agreeing.",
+      hint:
+        "AUC is invariant to any monotonic transformation of the scores. What does that imply about the literal meaning of '0.8'?",
+      solution:
+        "AUC measures only ranking — it is unchanged by any monotonic squashing of the scores — so a model can rank churners above non-churners almost perfectly (AUC 0.94) while its probabilities are systematically inflated, as the data shows (0.8 means ~55%). The PM's rule reads the probability literally to make an expected-value decision, so it depends on calibration, not ranking. Acting on the uncalibrated 0.5 cutoff would mis-allocate retention offers because 0.5 does not correspond to a 50% churn rate. Before agreeing, measure calibration: plot a reliability diagram on held-out data, compute Brier score and log loss, and if miscalibrated, apply Platt scaling or isotonic regression and re-measure. Only then is a probability-based threshold meaningful.",
+      checkYourWork: [
+        "Can you explain why AUC is blind to miscalibration?",
+        "Can you distinguish a decision that needs ranking from one that needs calibrated probabilities?",
+        "Can you name the diagnostic and the fix you would apply?",
+      ],
+    },
+    {
+      id: "stats-lesson-3-pp2",
+      difficulty: "challenge",
+      prompt:
+        "You recalibrate a model with isotonic regression and the reliability diagram on your calibration split looks perfect, but in production the probabilities are off again. Construct the most likely cause and explain how you would have caught it, distinguishing it from a genuine modeling problem.",
+      hint:
+        "Isotonic regression is flexible and the calibration split may be small. Where was the perfect diagram measured?",
+      solution:
+        "The most likely cause is overfitting the calibration map: isotonic regression fits a flexible monotonic step function, and on a small calibration split it can fit that split's noise, producing a reliability diagram that looks perfect on the very data it was tuned on. Evaluated on the same split, you are measuring memorization, not calibration. You would have caught it by evaluating calibration on a third, untouched test set — the diagram and Brier score there would reveal the degradation before production did. To distinguish from a genuine modeling problem (e.g., distribution shift), check whether the miscalibration also appears on the held-out test set drawn from the same period: if test calibration is fine but production drifts, it is shift; if test calibration is already poor, it is calibration overfitting. The remedy for the overfitting case is Platt scaling (fewer parameters) or more calibration data; for shift, recalibrate on recent data.",
+      checkYourWork: [
+        "Can you explain why a perfect diagram on the fitting split is not evidence of calibration?",
+        "Can you describe the third-split test that exposes the problem?",
+        "Can you separate calibration overfitting from distribution shift?",
+      ],
+    },
+  ],
+  "stats-lesson-4": [
+    {
+      id: "stats-lesson-4-pp1",
+      difficulty: "warm-up",
+      prompt:
+        "A colleague standardizes all features and imputes missing values using the full dataset's column means, then runs 10-fold cross-validation and reports 96% accuracy. Identify the leak, explain the mechanism, and describe the corrected procedure.",
+      hint:
+        "Where did the column means and standardization statistics come from, relative to each fold's held-out data?",
+      solution:
+        "The leak is fitting preprocessing (the standardization statistics and the imputation means) on the full dataset before cross-validation. Those statistics are computed using the held-out fold's rows, so each fold's 'test' data has already influenced the features the model trains on — information crosses the split and inflates the score. The corrected procedure wraps imputation, scaling, and the model in a single pipeline and fits the entire pipeline inside each training fold, computing means and scaling statistics from training rows only, then applying them to the held-out fold. After this fix the cross-validation accuracy will typically drop to a more honest value, and the gap is the size of the inflation the leak produced.",
+      checkYourWork: [
+        "Can you state exactly what information crossed the train/test boundary?",
+        "Can you describe the pipeline-inside-the-fold fix?",
+        "Can you predict the direction the corrected score moves?",
+      ],
+    },
+    {
+      id: "stats-lesson-4-pp2",
+      difficulty: "challenge",
+      prompt:
+        "You build a model to predict whether a user will churn next month, using a random 80/20 split and 5-fold CV, and get strong offline numbers that collapse in production. The features include per-user aggregates and the data spans two years. Diagnose the two distinct leakage problems and design the correct validation.",
+      hint:
+        "Think about (1) rows from the same user and (2) the direction of time relative to the prediction.",
+      solution:
+        "Two distinct leaks are present. First, group leakage: a random split puts rows from the same user in both train and test, so the model memorizes per-user behavior rather than generalizing to new users, and per-user aggregate features make this worse. Second, time leakage: a random split lets the model train on future months and predict past ones, and the per-user aggregates may be computed over the whole two years, embedding future information into features used to predict an earlier label. The correct validation respects both structures: split by user so no user appears in both sets (GroupKFold), and split by time so training data strictly precedes the prediction window (forward-chaining / time-based split), computing all aggregate features using only data available before the prediction point (point-in-time correctness). Production predicts the future for users it has seen evolving, so the validation must mimic exactly that.",
+      checkYourWork: [
+        "Can you name both leakage types and how each inflates the offline score?",
+        "Can you explain point-in-time correctness for the aggregate features?",
+        "Can you specify a split that respects both user and time structure?",
+      ],
+    },
+  ],
+  "stats-lesson-5": [
+    {
+      id: "stats-lesson-5-pp1",
+      difficulty: "warm-up",
+      prompt:
+        "Show that minimizing mean squared error for regression is maximum likelihood estimation under a specific noise model. State the assumption explicitly and explain one practical consequence of that assumption being violated.",
+      hint:
+        "Assume y_i = f(x_i) + e_i with e_i ~ Normal(0, sigma^2). Write the likelihood, take the negative log, and drop constants.",
+      solution:
+        "Assume each target is the model output plus independent Gaussian noise: y_i = f(x_i) + e_i with e_i ~ N(0, sigma^2). The likelihood of the data is the product of Gaussian densities; its log is sum_i [ -(y_i - f(x_i))^2 / (2 sigma^2) - log(sqrt(2 pi) sigma) ]. Maximizing this over the model parameters is equivalent to minimizing sum_i (y_i - f(x_i))^2 once the constant terms (which do not depend on f) are dropped — i.e., minimizing MSE. So MSE is MLE under constant-variance Gaussian noise. Practical consequence: if the real noise is heavy-tailed (frequent large outliers), the Gaussian assumption is wrong, and because squared error grows quadratically, a few outliers dominate the gradient and distort the fit. The principled remedy is to change the noise model (e.g., Laplace, giving mean absolute error) rather than to ad hoc clip.",
+      checkYourWork: [
+        "Can you write the Gaussian log-likelihood and reduce it to MSE?",
+        "Can you state the constant-variance Gaussian assumption explicitly?",
+        "Can you explain what breaks under heavy-tailed noise and the principled fix?",
+      ],
+    },
+    {
+      id: "stats-lesson-5-pp2",
+      difficulty: "challenge",
+      prompt:
+        "A teammate says 'L2 regularization is just a trick to prevent overfitting; lambda is a knob we tune.' Reframe L2 rigorously using MAP estimation, derive what lambda corresponds to, and explain what choosing a large lambda actually assumes about the world.",
+      hint:
+        "MAP maximizes likelihood times prior. Put a zero-mean Gaussian prior on the weights and take the negative log.",
+      solution:
+        "MAP estimation maximizes the posterior, which by Bayes' rule is proportional to likelihood times prior. Put a zero-mean Gaussian prior on the weights, w ~ N(0, tau^2 I). Taking the negative log of (Gaussian likelihood × Gaussian prior) gives the data term (the negative log-likelihood, e.g., MSE scaled by 1/(2 sigma^2)) plus a term proportional to ||w||^2 / (2 tau^2). Collecting constants, this is exactly the ridge objective MSE + lambda ||w||^2 with lambda = sigma^2 / tau^2 — the ratio of noise variance to prior variance. So L2 is not a trick: it is the log-prior, and lambda encodes how tightly you believe, before seeing data, that weights are near zero. A large lambda means a small prior variance tau^2 — a strong prior belief that the true weights are tiny, so you shrink hard and trust the data little; lambda toward zero means a flat prior and you recover plain MLE. Choosing lambda is choosing the strength of that prior belief.",
+      checkYourWork: [
+        "Can you derive ridge from a Gaussian likelihood and Gaussian prior?",
+        "Can you express lambda as a ratio of variances?",
+        "Can you state what a large lambda assumes about the true weights?",
+      ],
+    },
+  ],
+  "stats-lesson-6": [
+    {
+      id: "stats-lesson-6-pp1",
+      difficulty: "warm-up",
+      prompt:
+        "An A/B test on a 4% baseline conversion rate runs for one week, collects 1,200 users per arm, and reports 'no significant difference, so the new checkout doesn't help.' Explain what is most likely wrong with this conclusion using power language, and what you would compute to check.",
+      hint:
+        "With a 4% baseline, how large an effect could 1,200 users per arm reliably detect? Think about what power the test had for a realistic lift.",
+      solution:
+        "The conclusion confuses 'not significant' with 'no effect.' With a 4% baseline and only 1,200 users per arm, the test has low power to detect a realistic lift (e.g., a relative improvement to 4.5–5%), because conversion is a rare event and the standard error of the difference is large at this sample size. So a null result is expected even if the new checkout genuinely helps — the experiment simply lacked the sensitivity to see it. To check, run a power analysis: given the 4% baseline, the minimum lift that matters, alpha = 0.05, and the achieved sample size, compute the power the test actually had. If power was, say, 20%, the test would miss a true effect 80% of the time, so 'no significant difference' carries almost no information. The right move is to size the experiment to a minimum detectable effect and run it long enough, or reduce variance, rather than concluding the feature does not work.",
+      checkYourWork: [
+        "Can you explain why a null result here is uninformative rather than evidence of no effect?",
+        "Can you describe the post-hoc power check you would run?",
+        "Can you state the correct next action instead of 'it doesn't work'?",
+      ],
+    },
+    {
+      id: "stats-lesson-6-pp2",
+      difficulty: "challenge",
+      prompt:
+        "Your team must choose between detecting a 1% absolute lift and a 0.25% absolute lift on a 10% baseline conversion rate, at 80% power and alpha 0.05. Without computing exact numbers, explain how the required sample sizes compare and why, and how variance reduction (e.g., CUPED) changes the calculation.",
+      hint:
+        "Required sample size scales roughly with 1 / (effect size)^2. How much bigger is detecting a 4x smaller effect?",
+      solution:
+        "Required sample size scales approximately with the inverse square of the effect size you want to detect. Detecting a 0.25% lift instead of a 1% lift means detecting an effect four times smaller, so the required sample size grows by roughly 4^2 = 16x — the smaller experiment is dramatically cheaper, and chasing the tiny effect may push the runtime from weeks to many months. This is why you fix the minimum effect worth detecting first: targeting a smaller effect than the decision actually requires can make the experiment infeasible. Variance reduction changes the calculation by shrinking the denominator's variance term: techniques like CUPED use a pre-experiment covariate to remove predictable variation, lowering the variance of the metric. Since required sample size scales with variance, halving the variance roughly halves the needed sample size for the same power — making an otherwise infeasible small-effect test feasible without changing alpha, power, or the effect you target.",
+      checkYourWork: [
+        "Can you state the inverse-square relationship between effect size and sample size?",
+        "Can you estimate the ~16x factor and explain its source?",
+        "Can you explain mechanically how variance reduction lowers the required sample size?",
+      ],
+    },
+  ],
   "compute-lesson-1": [
     {
       id: "compute-l1-pp1",
@@ -382,6 +926,134 @@ export const AUTHORED_PRACTICE_PROBLEMS: Record<string, PracticeProblem[]> = {
         "Can you state three criteria that each address a different failure mode?",
         "Can you explain what a failure on each criterion would mean operationally, not just technically?",
         "Is your gate designed so that passing all three gives genuine confidence — not just threshold theater?",
+      ],
+    },
+  ],
+  "compute-lesson-3": [
+    {
+      id: "compute-lesson-3-pp1",
+      difficulty: "warm-up",
+      prompt:
+        "A training job is slow. A teammate proposes rewriting the data augmentation in C for speed. Before agreeing, you check the profiler: the GPU is at 22% utilization and the CPU is pegged. Explain what this tells you, whether the C rewrite is the right fix, and what you would do instead.",
+      hint:
+        "Low GPU utilization with high CPU usage points to a specific class of bottleneck. Is the model math the problem?",
+      solution:
+        "Low GPU utilization (22%) with a pegged CPU means the workload is data-bound: the accelerator is starved because the CPU-side input pipeline (reading, decoding, augmenting, collating) cannot supply batches fast enough. The model math is not the bottleneck, so making augmentation faster in C might help only if augmentation is the specific CPU hot spot — but the more likely high-leverage fixes are pipeline-level: add prefetching to overlap data prep with compute, increase the number of parallel data-loading workers, cache or precompute expensive transforms, and use a faster data format. The right move is to profile the input pipeline specifically to find which stage dominates, then address that. A C rewrite is premature optimization of one stage before confirming it is the bottleneck; the goal is to raise GPU utilization by keeping the device fed.",
+      checkYourWork: [
+        "Can you classify the workload as data-bound from the utilization signals?",
+        "Can you explain why faster augmentation may not raise GPU utilization much?",
+        "Can you list pipeline-level fixes that target accelerator starvation?",
+      ],
+    },
+    {
+      id: "compute-lesson-3-pp2",
+      difficulty: "challenge",
+      prompt:
+        "You vectorize an inner loop and it gets faster, but a second 'optimization' — converting a large array from row-major to a transposed view and operating column-wise in a tight loop — makes things slower despite touching the same data. Explain the most likely cause and the general principle about memory you should apply.",
+      hint:
+        "Think about cache lines and how contiguous memory is fetched. What does operating column-wise on row-major data do to memory access?",
+      solution:
+        "The slowdown is almost certainly a cache/memory-locality problem. Row-major arrays store each row contiguously; iterating column-wise over a row-major array (or a transposed view that does not actually reorder memory) strides across memory by the row length on each access, so each read pulls a fresh cache line of which only one element is used. This defeats the cache and the hardware prefetcher, turning a memory-bandwidth-friendly pattern into many cache misses, even though the same data is touched. The general principle: performance depends not just on how many operations you do but on memory access patterns — operate along the contiguous dimension, keep arrays in the layout your access pattern expects, and materialize a real contiguous copy if you must operate in the other order. Vectorization helps only when the underlying memory access is cache-friendly; a transposed view does not change the physical layout, so the strided access dominates.",
+      checkYourWork: [
+        "Can you explain why column-wise access on row-major data causes cache misses?",
+        "Can you distinguish a transposed view from a contiguous reordering in memory?",
+        "Can you state the general access-pattern principle for fast numeric code?",
+      ],
+    },
+  ],
+  "compute-lesson-4": [
+    {
+      id: "compute-lesson-4-pp1",
+      difficulty: "warm-up",
+      prompt:
+        "Offline, your fraud model has 0.91 AUC. In production it performs like 0.78. You discover that a key feature, 'average transaction amount over the last 30 days,' is computed by a nightly SQL batch job for training but by a real-time service for serving that only has the last 7 days of data in its cache. Name the problem and explain the mechanism precisely.",
+      hint:
+        "Same feature name, two implementations, different windows. What is the model actually seeing at train versus serve time?",
+      solution:
+        "This is training-serving skew. The model was trained on a feature defined as a 30-day average but is served a feature that is effectively a 7-day average under the same name. The two implementations compute different values from different windows of data, so the input distribution at serving time does not match training. The model learned relationships against the 30-day statistic; in production it receives a systematically different quantity, degrading performance silently — nothing errors, the AUC just drops. The mechanism is that two separate implementations of 'the same' feature diverge (here by window length and data freshness). The fix is a single shared definition used by both paths — ideally a feature store serving the identical transformation offline and online — so the served value matches the trained one, plus monitoring of the feature's distribution to catch future drift.",
+      checkYourWork: [
+        "Can you name the problem and the specific source of divergence?",
+        "Can you explain why it shows up as a silent performance drop rather than an error?",
+        "Can you state the structural fix (one definition, two surfaces)?",
+      ],
+    },
+    {
+      id: "compute-lesson-4-pp2",
+      difficulty: "challenge",
+      prompt:
+        "You build training data for a 'will this user upgrade next month' model. For each user-month row you join the feature 'lifetime_orders' from your current production table. Offline metrics are excellent; production is mediocre. Explain the leakage, why point-in-time correctness matters, and how you would fix the training-data generation.",
+      hint:
+        "The 'lifetime_orders' value in the current table reflects today. What does attaching it to a row from eight months ago do?",
+      solution:
+        "The leak is a point-in-time violation. 'lifetime_orders' from the current production table is the value as of today, but you attached it to a historical user-month row (say, eight months ago). That value includes orders the user placed after the prediction point — future information the model could never have at serving time. So offline, the model exploits a feature correlated with the outcome via the future, inflating metrics; in production, the feature only reflects the genuine past, and the edge disappears. Point-in-time correctness matters because each training row's features must reflect only what was known at that row's timestamp. The fix is to generate features with an as-of (point-in-time) join: for each user-month row, compute 'lifetime_orders' using only orders up to that month's prediction time, not the current snapshot. A feature store with time-travel/as-of joins supports this directly; done by hand, you must reconstruct each feature value as of the label timestamp.",
+      checkYourWork: [
+        "Can you explain how the current-snapshot join leaks the future?",
+        "Can you define point-in-time correctness for this dataset?",
+        "Can you describe the as-of join that fixes the training data?",
+      ],
+    },
+  ],
+  "compute-lesson-5": [
+    {
+      id: "compute-lesson-5-pp1",
+      difficulty: "warm-up",
+      prompt:
+        "You move a small model from one GPU to four using synchronous data parallelism and see only a 1.6x speedup instead of the hoped-for 4x. Training also becomes unstable. Explain both observations using the mechanics of data-parallel training.",
+      hint:
+        "Two things changed: communication was added every step, and the effective batch size grew 4x.",
+      solution:
+        "Two mechanics explain it. First, the sublinear speedup: synchronous data parallelism adds an all-reduce to average gradients across the four workers every step. For a small model with short per-step compute, this communication is a large fraction of each step, so scaling efficiency is poor — you get 1.6x, not 4x, because the workers spend much of their time synchronizing rather than computing. Second, the instability: with four workers each processing a shard, the effective batch size is now 4x larger, which changes the optimization dynamics. The learning rate tuned for the single-device batch is now too small or too large for the bigger batch (commonly you must scale the learning rate up and add warmup). Without that adjustment, training becomes unstable or converges poorly. The fixes: recognize that small models scale badly and may be better on one device, and rescale the learning rate (with warmup) to match the enlarged effective batch.",
+      checkYourWork: [
+        "Can you attribute the sublinear speedup to the all-reduce cost relative to step compute?",
+        "Can you explain the instability via the enlarged effective batch size?",
+        "Can you state the learning-rate adjustment that data parallelism requires?",
+      ],
+    },
+    {
+      id: "compute-lesson-5-pp2",
+      difficulty: "challenge",
+      prompt:
+        "Your model no longer fits in a single GPU's memory. A colleague says 'just use more data-parallel workers.' Explain why that does not solve the problem, what kind of parallelism does, and the cost it introduces.",
+      hint:
+        "Data parallelism replicates the full model on each device. What does that assume about whether the model fits?",
+      solution:
+        "Data parallelism does not help, because it places a full copy of the model on each worker — it shards the batch, not the model. If the model does not fit on one GPU, it does not fit on any of the data-parallel replicas either; adding workers only adds more copies of an impossible fit. What you need is to split the model itself across devices: tensor parallelism partitions individual layers' computation across GPUs, and pipeline parallelism splits the model into sequential stages on different GPUs and streams micro-batches through them (often these are combined, and with data parallelism, in large systems). The cost: model-splitting is more communication-heavy and complex than data parallelism. Tensor parallelism adds within-layer communication on every forward/backward; pipeline parallelism introduces 'bubbles' where stages idle while the pipeline fills and drains, and requires careful micro-batch scheduling to keep devices busy. So you reach for it only when memory forces you to, and you accept added communication and engineering complexity in exchange for fitting the model.",
+      checkYourWork: [
+        "Can you explain why data parallelism cannot fit a too-large model?",
+        "Can you name the parallelism types that split the model and how they differ?",
+        "Can you state the specific costs (within-layer comms, pipeline bubbles)?",
+      ],
+    },
+  ],
+  "compute-lesson-6": [
+    {
+      id: "compute-lesson-6-pp1",
+      difficulty: "warm-up",
+      prompt:
+        "A training pipeline reads a 200-column CSV of 50 million rows into pandas, then selects 6 columns and filters to one region. It is slow and memory-hungry. Propose the two highest-leverage data-access changes and explain why each works.",
+      hint:
+        "Think about what CSV forces you to read, and where the filtering currently happens.",
+      solution:
+        "Two changes dominate. First, switch from CSV to a columnar format (e.g., Parquet): CSV is row-oriented, so reading any column requires scanning every byte of all 200 columns across 50M rows, and types must be re-parsed. A columnar format lets you read only the 6 columns you need (projection) and skips irrelevant row-groups via predicate pushdown, and it stores typed, compressed columns — typically an order-of-magnitude less I/O and memory for a wide table where you use few columns. Second, push the region filter (and column projection) into the source rather than filtering in pandas after a full load: with Parquet use partitioning by region so only the matching partition is read; with a warehouse, issue a SQL query that selects the 6 columns and filters the region server-side so only the reduced result transfers. Both work by reading/transferring only the data the job actually needs instead of materializing everything and discarding most of it, cutting both load time and peak memory.",
+      checkYourWork: [
+        "Can you explain why CSV forces reading all columns and rows?",
+        "Can you describe projection and predicate pushdown with a columnar format?",
+        "Can you explain how partitioning or SQL filtering reduces transfer?",
+      ],
+    },
+    {
+      id: "compute-lesson-6-pp2",
+      difficulty: "challenge",
+      prompt:
+        "Your dataset is 500 GB and does not fit in memory, and your GPU sits at 30% utilization during training. Design a data-access and loading strategy that lets you train on the full dataset while keeping the accelerator busy, and explain the tradeoffs of your choices.",
+      hint:
+        "You need streaming + sharding + prefetching, plus shuffling that does not require the whole dataset in RAM.",
+      solution:
+        "Store the data in a sharded columnar format (e.g., many Parquet files or a sharded record format) so it can be read in pieces and in parallel. Stream the data rather than loading it whole: each parallel loader worker reads different shards, decodes and collates batches, and a prefetch buffer overlaps this CPU-side work with GPU computation so the accelerator is fed continuously — directly addressing the 30% utilization, which signals starvation. Achieve randomness without full-dataset shuffling by combining shard-level shuffling (randomize shard order each epoch) with a shuffle buffer (a bounded in-memory window from which batches are sampled); this approximates global shuffling at fixed memory cost. Tune the number of loader workers up until GPU utilization plateaus, then stop to avoid CPU/memory thrashing. Tradeoffs: the shuffle buffer gives only approximate global randomness (smaller buffer = weaker shuffle, less memory); more workers raise throughput but consume CPU and RAM and hit diminishing returns; sharding adds preprocessing/storage overhead but is what enables parallel streaming. The goal is a steady stream where batch N+1 is prepared while the model computes batch N.",
+      checkYourWork: [
+        "Can you explain how sharding plus prefetching keeps the accelerator fed?",
+        "Can you describe shard-level + buffer shuffling and its randomness tradeoff?",
+        "Can you reason about tuning worker count against diminishing returns?",
       ],
     },
   ],
