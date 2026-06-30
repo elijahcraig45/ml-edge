@@ -13,6 +13,7 @@ import {
 import type { HostedLessonContent } from "@/lib/hosted-lessons";
 import type { LessonQuiz } from "@/lib/types";
 import { PythonCodeRunner } from "@/components/curriculum/python-code-runner";
+import { LessonNotebooksPanel } from "@/components/curriculum/lesson-notebooks-panel";
 
 type PhaseId = "lecture" | "tutorial" | "practice" | "code" | "quiz" | "mastery";
 
@@ -1365,6 +1366,11 @@ export function InteractiveLessonExperience({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Practice Lab notebooks — shown regardless of active phase */}
+      {(hostedLesson.practiceNotebooks ?? []).length > 0 && (
+        <LessonNotebooksPanel notebooks={hostedLesson.practiceNotebooks!} />
       )}
     </div>
   );

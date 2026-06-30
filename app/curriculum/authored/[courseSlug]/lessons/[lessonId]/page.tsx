@@ -37,10 +37,10 @@ export default async function AuthoredLessonPage({ params }: AuthoredLessonPageP
         <Panel eyebrow={course.shortTitle} title={lesson.title}>
           <div className="flex flex-wrap items-center gap-3">
             <span className="rounded-full border border-white/10 px-3 py-1 font-mono text-xs text-slate-400">
-              {course.title}
+              {course.shortTitle}
             </span>
-            <span className="rounded-full border border-emerald-400/30 px-3 py-1 font-mono text-xs text-emerald-200">
-              Authored lesson
+            <span className="rounded-full border border-indigo-400/30 bg-indigo-500/10 px-3 py-1 font-mono text-xs text-indigo-300">
+              Lesson {currentIndex + 1} of {course.lessons.length}
             </span>
             <span className="rounded-full border border-white/10 px-3 py-1 font-mono text-xs text-slate-400">
               {lesson.duration}

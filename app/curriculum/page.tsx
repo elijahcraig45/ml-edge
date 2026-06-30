@@ -167,7 +167,7 @@ export default async function CurriculumPage() {
           <p className="mt-4 text-xs leading-5 text-slate-500">{strategy}</p>
         </Panel>
 
-        <Panel eyebrow="Phase 1" title="Do these core authored courses in order">
+        <Panel eyebrow="Phase 0 — Foundations" title="Do these core authored courses in order">
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {coreAuthoredCourses.map((course) => {
               const firstLessonId = course.lessons[0]?.id;
@@ -219,7 +219,7 @@ export default async function CurriculumPage() {
           </div>
         </Panel>
 
-        <Panel eyebrow="Phase 2" title="Add parallel tracks after foundations">
+        <Panel eyebrow="Elective depth tracks" title="Add these in parallel after Phase 0">
           <p className="text-sm leading-7 text-slate-300">
             Once the core foundations sequence is underway, add these depth courses in
             parallel. DS&amp;A is a strong early companion — it builds the debugging
