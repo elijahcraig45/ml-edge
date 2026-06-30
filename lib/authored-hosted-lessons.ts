@@ -56,32 +56,57 @@ const AUTHORED_HOSTED_LESSONS: Record<string, HostedLessonContent> = {
     ],
     tutorialSteps: [
       {
-        title: "Map a pipeline to its representational geometry",
-        purpose: "Make the abstract subspace idea concrete for a model you already know.",
+        title: "Map a concrete pipeline to its representational geometry",
+        purpose: "Make the subspace idea tangible with a specific, worked example.",
         instructions: [
-          "Choose a familiar model — logistic regression, a small neural net, or an embedding model.",
-          "List the features or latent dimensions. For each, describe what direction of variation it represents.",
-          "Ask: can the task labels be separated by a hyperplane in this space? If not, what structure is missing?",
+          "Consider a house price model with four features: [sq_footage, num_bedrooms, age_years, distance_to_school]. Each feature is a dimension — one axis in a 4-dimensional space.",
+          "Ask: are sq_footage and num_bedrooms likely correlated? If they are, the effective subspace is lower than 4D — the two features define nearly the same direction. The model cannot cleanly separate their contributions.",
+          "Now ask: can 'price' be expressed as a linear combination of these four features? What signal might be missing — e.g., neighborhood desirability, school quality — that lives outside this subspace entirely?",
+          "State in one sentence the subspace gap: what direction of variation does your model lack that the task probably needs?",
         ],
         successSignal:
-          "You can point to a specific gap between what the subspace can express and what the task requires.",
+          "You can name a specific signal that is likely missing from the feature subspace, and explain why no amount of tuning on the current features can recover it.",
         failureMode:
-          "Listing feature names without saying what geometric direction each one represents.",
+          "Listing feature names without specifying what direction of variation each one adds or why correlated features collapse the subspace.",
+      },
+      {
+        title: "Apply the subspace diagnostic to a model failure",
+        purpose: "Build the habit of asking 'is the signal even in the space?' before touching training code.",
+        instructions: [
+          "Think of a model that plateaued, underfit, or produced consistently wrong predictions for one slice of data.",
+          "List the features that model used. For the failing slice, ask: does the failure slice differ from the success slice along any direction in the current feature space?",
+          "If yes: the signal exists but the model is not using it — likely an optimization or capacity problem.",
+          "If no: the signal does not exist in the current feature space — adding more data or training longer cannot fix it.",
+          "Write one sentence identifying which category the failure falls into.",
+        ],
+        successSignal:
+          "You can classify a specific failure as 'subspace gap' or 'optimization problem' with a geometric argument, not just an intuition.",
+        failureMode:
+          "Describing the failure as 'the model is bad' without distinguishing missing signal from poor fitting.",
       },
     ],
     misconceptions: [
       "A vector space is not just a convenient data structure — it is the geometry of what your model can express.",
-      "High-dimensional spaces are not just bigger low-dimensional spaces. Geometry in high dimensions behaves counterintuitively.",
-      "Changing the basis does not change the underlying data — it changes how you describe it.",
+      "High-dimensional spaces are not just bigger low-dimensional spaces. Geometry in high dimensions behaves counterintuitively: almost all volume lives near the surface, distances compress, and 'nearest neighbors' lose meaning.",
+      "Changing the basis does not change the underlying data — it changes how you describe it. PCA finds a basis that makes the variance structure visible; it does not add or remove information.",
     ],
     reflectionPrompts: [
       "Where in a past project did a model fail to learn something that was probably inexpressible in the feature subspace?",
-      "What would it mean to 'improve features' in purely geometric terms?",
+      "What would it mean to 'improve features' in purely geometric terms — and how would you verify that an improvement actually expanded the subspace in the right direction?",
+      "Two models trained on the same task with different feature sets both achieve similar accuracy on the test set. Can you conclude their feature subspaces are equivalent? Why or why not?",
     ],
     masteryChecklist: [
       "Describe a feature vector as a point in a subspace, not just an array.",
       "Explain what the span of a feature set means for what a linear model can learn.",
       "State one model failure that is a subspace problem rather than an optimization problem.",
+    ],
+    practiceNotebooks: [
+      {
+        filename: "01_python_numpy_for_ml.ipynb",
+        title: "Python + NumPy for ML",
+        description: "Hands-on notebook covering arrays, shapes, broadcasting, dot products, normalization, and top-k retrieval — the NumPy operations that appear in every ML pipeline. Complete all four exercises to cement the geometry you studied here.",
+        duration: "45–60 min",
+      },
     ],
   },
 
@@ -132,25 +157,42 @@ const AUTHORED_HOSTED_LESSONS: Record<string, HostedLessonContent> = {
     ],
     tutorialSteps: [
       {
-        title: "Describe one network layer as a linear operator",
-        purpose: "Make matrix-as-action concrete for a real model.",
+        title: "Describe a specific network layer as a linear operator",
+        purpose: "Make matrix-as-action concrete with a fully worked, specific example.",
         instructions: [
-          "Pick one weight matrix from a network you know.",
-          "Describe its input space and output space dimensions.",
-          "State whether the matrix is expanding, compressing, or rotating the representation, and what that implies for what information is preserved.",
+          "Consider a dense layer with weight matrix W of shape (128, 64): it takes a 128-dimensional representation and produces a 64-dimensional one.",
+          "This matrix is compressing: it maps a 128D space to a 64D subspace. Some directions in the input are preserved; others are collapsed. Directions that the training signal reinforces will be preserved; directions that do not predict anything will be collapsed toward zero.",
+          "Now ask: what information is this layer likely throwing away? Low-variance, low-gradient directions. And what is it preserving? Directions strongly predictive of the loss.",
+          "Repeat this analysis for a layer that expands (e.g., 64 → 512): it is projecting into a higher-dimensional space, giving downstream operations more room to express distinctions.",
         ],
         successSignal:
-          "You can characterize the layer's geometric action without looking at individual weight values.",
+          "You can characterize a layer's geometric action — compress, expand, or rotate — and name one thing it likely preserves and one thing it likely discards.",
         failureMode:
-          "Describing the matrix by its shape without saying what transformation it performs.",
+          "Describing the matrix only by its shape (128, 64) without stating what the transformation implies about information flow.",
+      },
+      {
+        title: "Inspect a trained model's weight matrix as geometry",
+        purpose: "Turn the abstract 'matrix as action' into something you can actually observe.",
+        instructions: [
+          "Load any trained model (a tiny PyTorch/Keras model, or even sklearn's LogisticRegression with a .coef_ matrix).",
+          "Compute the singular values of one weight matrix using np.linalg.svd(W, compute_uv=False). These tell you the effective rank: how many independent directions the matrix is actually using.",
+          "If the top singular value is much larger than the rest (fast decay), the matrix is nearly low-rank — most of its 'action' is happening in a few directions.",
+          "State what the singular value distribution tells you about the layer: is it using its full capacity, or is it nearly rank-deficient?",
+        ],
+        successSignal:
+          "You can interpret the singular value spectrum and connect it to a claim about the layer's effective representational capacity.",
+        failureMode:
+          "Running SVD and reporting numbers without interpreting what they mean geometrically.",
       },
     ],
     misconceptions: [
-      "Matrix multiplication is not just a computation — it is a geometric action on a representation space.",
-      "Different initializations of the same architecture produce different geometric actions — not just different numbers.",
+      "Matrix multiplication is not just a computation — it is a geometric action on a representation space. The 'row times column' rule is the implementation, not the concept.",
+      "Different initializations of the same architecture produce different geometric actions — not just different numbers. Two identically-structured layers can perform completely different rotations and scalings depending on how they were initialized and what they learned.",
+      "A matrix with many parameters is not automatically high-rank. Rank is about the number of independent directions the transformation uses, not the number of entries. A 1000×1000 matrix of all ones has rank 1.",
     ],
     reflectionPrompts: [
-      "Which layer in a model you have used is most likely performing a useful geometric transformation? How would you verify that?",
+      "Which layer in a model you have used is most likely performing a useful geometric transformation? How would you verify that with singular values or activation statistics?",
+      "If you could inspect the singular values of every layer in a trained network, what patterns would tell you that the model learned something nontrivial — and what patterns would suggest it mostly learned to compress the input without extracting useful structure?",
     ],
     masteryChecklist: [
       "Describe a matrix as a linear operator acting on a representation, not as a parameter table.",
@@ -192,6 +234,18 @@ const AUTHORED_HOSTED_LESSONS: Record<string, HostedLessonContent> = {
         checkpoint:
           "If you multiply a zero-mean, unit-variance data matrix by a matrix with eigenvectors of the covariance as columns, what has happened geometrically?",
       },
+      {
+        title: "Debugging matrix operations by shape and dtype",
+        explanation: [
+          "NumPy errors in ML pipelines almost always come from two sources: shape mismatches and dtype surprises. A shape error tells you that two matrices you tried to multiply or add are not compatible — and reading the error message as a geometry claim (these two spaces don't align) is more productive than just reshaping blindly to make it run.",
+          "Common traps: (1) `X @ W` expects X to be (n, d) and W to be (d, k). If W is (k, d) because someone stored it transposed, you get a silent or wrong result, not always an error. (2) Integer arrays silently truncate: `np.array([1, 2, 3]) / 7` produces a float, but `np.array([1, 2, 3], dtype=int) // 7` floors to zero. Always check `.shape` and `.dtype` before running an operation you haven't tested. (3) Broadcasting can silently succeed on a shape you didn't intend — e.g., adding a (3,) vector to a (3, 3) matrix broadcasts along the wrong axis.",
+          "Defensive NumPy: after every non-trivial operation, assert the output shape matches expectation (`assert result.shape == (n, k)`) and spot-check one row. This catches silent errors that propagate through many layers before manifesting as a loss spike.",
+        ],
+        appliedLens:
+          "Every time a matrix operation returns a shape you didn't predict, treat it as a geometry question: which input space or output space dimension did I miscount?",
+        checkpoint:
+          "You run `X @ W` and get shape (n, n) instead of (n, k). What went wrong, and how do you diagnose it without running the code again?",
+      },
     ],
     tutorialSteps: [
       {
@@ -222,11 +276,12 @@ const AUTHORED_HOSTED_LESSONS: Record<string, HostedLessonContent> = {
       },
     ],
     misconceptions: [
-      "NumPy broadcasting is not magic — it has precise rules about shape matching that are worth learning explicitly.",
-      "Vectorization is not just a performance optimization — it changes how you think about the operations.",
+      "NumPy broadcasting is not magic — it has precise rules about shape matching that are worth learning explicitly. Silently broadcasting along the wrong axis produces wrong results, not errors.",
+      "Vectorization is not just a performance optimization — it changes how you think about the operations. Loops hide the geometric structure; matrix expressions make it visible.",
     ],
     reflectionPrompts: [
-      "What loop in a past pipeline would you now rewrite as a matrix operation?",
+      "What loop in a past pipeline would you now rewrite as a matrix operation — and what geometric question does the vectorized version let you ask that the loop did not?",
+      "You are reviewing a teammate's preprocessing code and see several nested for-loops over array rows. What is the first question you ask before suggesting they vectorize it?",
     ],
     masteryChecklist: [
       "Rewrite a loop over rows as a single matrix multiply.",
@@ -310,11 +365,12 @@ const AUTHORED_HOSTED_LESSONS: Record<string, HostedLessonContent> = {
       },
     ],
     misconceptions: [
-      "The orthogonality of residuals is not a coincidence or a formula — it is the definition of 'minimum error' in geometric terms.",
-      "Projections do not minimize the distance in the original data space — they minimize the distance within the constraint of the feature subspace.",
+      "The orthogonality of residuals is not a coincidence or a formula — it is the definition of 'minimum error' in geometric terms. If the residual had any component in the feature space, you could improve the fit by moving in that direction.",
+      "Projections do not minimize the distance in the original data space — they minimize the distance within the constraint of the feature subspace. The 'shadow' lands on the subspace, not on the nearest point in the full space.",
     ],
     reflectionPrompts: [
       "Where else in ML have you seen an orthogonality condition appear? (Hint: PCA, attention, Gram-Schmidt.)",
+      "A colleague runs a linear regression and is puzzled that their R² is high but their residuals show a clear pattern. What does the orthogonality condition say about what the model is and is not capturing?",
     ],
     masteryChecklist: [
       "Explain why the least squares residual must be orthogonal to the feature columns.",
@@ -344,6 +400,18 @@ const AUTHORED_HOSTED_LESSONS: Record<string, HostedLessonContent> = {
           "Every time you use sklearn's LinearRegression or torch.linalg.lstsq, this is what is happening internally. Knowing the mechanics makes debugging unexpected results possible.",
         checkpoint:
           "Why is np.linalg.solve(X.T @ X, X.T @ y) preferred over np.linalg.inv(X.T @ X) @ X.T @ y?",
+      },
+      {
+        title: "When least squares breaks: rank deficiency and regularization",
+        explanation: [
+          "The normal equations require X.T @ X to be invertible — equivalently, the columns of X must be linearly independent (full column rank). When two features are identical or perfectly correlated, this fails. X.T @ X becomes singular, and np.linalg.solve will either error or return numerically garbage results.",
+          "The geometric interpretation: if two feature columns are the same direction, the projection has infinitely many solutions — any linear combination of those two directions that achieves the same projection onto the shared subspace is equally valid. L2 regularization (adding λI to X.T @ X) breaks this degeneracy by penalizing large coefficient magnitudes, making the system uniquely solvable. Geometrically, it is shrinking the solution toward the origin — a bias-variance tradeoff, not a computational trick.",
+          "In practice: collinear features, more features than samples (p > n), and poorly scaled features all cause rank deficiency. Checking np.linalg.matrix_rank(X.T @ X) before solving is a fast diagnostic. Ridge regression (L2) is the standard fix; Lasso (L1) goes further by setting some coefficients to exactly zero.",
+        ],
+        appliedLens:
+          "Before running any regression on high-dimensional or correlated features, check the condition number of X.T @ X. A condition number above 1e6 means your solution is numerically unreliable without regularization.",
+        checkpoint:
+          "A model has two features: square footage and area_in_sqft (same measurement, different column). What happens to the normal equations and why?",
       },
     ],
     tutorialSteps: [
@@ -376,11 +444,13 @@ const AUTHORED_HOSTED_LESSONS: Record<string, HostedLessonContent> = {
       },
     ],
     misconceptions: [
-      "The normal equations are not a separate theorem — they are a direct algebraic consequence of the projection condition.",
-      "np.linalg.solve does not invert the matrix — it solves the system more stably using factorization.",
+      "The normal equations are not a separate theorem — they are a direct algebraic consequence of the projection condition X.T @ residual = 0.",
+      "np.linalg.solve does not invert the matrix — it solves the system more stably using LU factorization. Explicit inversion with np.linalg.inv amplifies numerical errors.",
+      "Regularization is not just for overfitting prevention. It also fixes rank deficiency: adding λI to X.T @ X makes it strictly positive definite and always invertible, even when X is not full rank.",
     ],
     reflectionPrompts: [
-      "What would it mean if the orthogonality check failed after fitting? What could cause that numerically?",
+      "What would it mean if the orthogonality check (X.T @ residual ≈ 0) failed after fitting? Name two things that could cause that numerically.",
+      "Ridge regression adds λI to X.T @ X before solving. Without deriving anything, explain geometrically what this does to the solution and why it reduces variance at the cost of bias.",
     ],
     masteryChecklist: [
       "Implement solve_least_squares using np.linalg.solve.",
@@ -449,14 +519,29 @@ const AUTHORED_HOSTED_LESSONS: Record<string, HostedLessonContent> = {
         failureMode:
           "Celebrating dimensionality reduction in case 2 because the plot looks clean while ignoring that class labels are mixed.",
       },
+      {
+        title: "Inspect the principal component weights for meaning",
+        purpose: "Turn PCA from a black box into a readable analysis tool.",
+        instructions: [
+          "Load the sklearn Breast Cancer dataset (569 samples, 30 features). Fit PCA with n_components=2.",
+          "Print the first principal component vector (eigenvector with highest eigenvalue). Which features have the largest absolute weights?",
+          "Ask: does PC1 represent a biologically meaningful contrast, or is it dominated by features that happen to have high variance due to measurement scale?",
+          "Standardize the features (zero mean, unit variance) and re-run PCA. Compare the new PC1 weights to the original. Explain why standardization changed the result.",
+        ],
+        successSignal:
+          "You can interpret the PC1 weight vector and explain how standardization changes the principal directions and why that matters for interpretation.",
+        failureMode:
+          "Running PCA without standardizing and reporting the components as if feature scale did not affect the result.",
+      },
     ],
     misconceptions: [
-      "PCA does not find what matters — it finds directions of maximum variance, which is a narrower goal.",
-      "A large explained-variance ratio does not mean PCA preserved the task-relevant structure.",
-      "PCA cannot discover nonlinear structure; it is a linear rotation.",
+      "PCA does not find what matters — it finds directions of maximum variance, which is a narrower goal. Variance and usefulness are different properties.",
+      "A large explained-variance ratio does not mean PCA preserved the task-relevant structure. 80% explained variance could all be measurement noise.",
+      "PCA cannot discover nonlinear structure; it is a linear rotation. Manifold methods (t-SNE, UMAP) address this, at the cost of interpretability.",
     ],
     reflectionPrompts: [
       "Have you ever applied PCA and observed that downstream performance got worse? What do you think the first component was capturing?",
+      "Before your next PCA application, sketch what you expect the first component to capture based on domain knowledge. After running it, how close were you? If you were wrong, what does that tell you about the data?",
     ],
     masteryChecklist: [
       "Explain PCA as a rotation to the axes of maximum variance.",
@@ -486,6 +571,17 @@ const AUTHORED_HOSTED_LESSONS: Record<string, HostedLessonContent> = {
           "After implementing PCA, verify that comps @ comps.T ≈ I (components are orthonormal) — this is a quick test that the eigendecomposition and sorting worked correctly.",
         checkpoint:
           "Why must you project X_c (centered) rather than X (raw) when computing the PCA scores?",
+      },
+      {
+        title: "The scree plot: reading eigenvalue decay as a compression signal",
+        explanation: [
+          "After diagonalizing the covariance matrix, plot the eigenvalues in descending order. This is the scree plot. The shape of the decay tells you how compressible the dataset is: a fast decay (a few large eigenvalues, then near-zero) means the data lies near a low-dimensional subspace and PCA will preserve most variance in few components. A slow, uniform decay means the data is spread fairly evenly across all directions — PCA cannot compress it well without significant information loss.",
+          "The 'elbow' heuristic for choosing k (look for where the curve bends) is common but fragile — the bend is often ambiguous or absent. A more defensible approach is to choose k by a variance threshold (e.g., preserve 90% of total variance) and verify downstream that the compressed representation actually performs as well on the task. The elbow is a starting suggestion, not a rule.",
+        ],
+        appliedLens:
+          "Always plot the scree curve before choosing how many components to keep. A dataset with no clear elbow is telling you PCA may not be the right compression strategy for it.",
+        checkpoint:
+          "A scree plot shows eigenvalues [50, 48, 47, 2, 1, 1, 1, 1]. How many principal components would you keep and why?",
       },
     ],
     tutorialSteps: [
@@ -518,11 +614,13 @@ const AUTHORED_HOSTED_LESSONS: Record<string, HostedLessonContent> = {
       },
     ],
     misconceptions: [
-      "A high explained-variance ratio does not mean PCA preserved the task signal.",
-      "eigh returns ascending eigenvalues — forgetting to reverse the order produces the worst components first.",
+      "A high explained-variance ratio does not mean PCA preserved the task signal — it only means the compressed representation retains most of the raw variation in the data.",
+      "eigh returns ascending eigenvalues — forgetting to reverse the order produces the worst components first, which is a silent bug that causes incorrect projections.",
+      "The scree plot elbow is a heuristic suggestion, not a theorem. When the elbow is ambiguous, use a variance threshold and validate on a downstream task.",
     ],
     reflectionPrompts: [
       "Before your next PCA application, plot the top component colored by class label. Does it actually separate the classes?",
+      "You implement PCA correctly and it passes all your unit tests. What are two things that could still go wrong when you apply it in production on new data from a slightly different distribution?",
     ],
     masteryChecklist: [
       "Implement PCA from eigendecomposition in five steps.",
@@ -592,11 +690,25 @@ const AUTHORED_HOSTED_LESSONS: Record<string, HostedLessonContent> = {
         failureMode:
           "Labeling every failure a 'bad optimizer' problem without identifying what the derivatives were signaling.",
       },
+      {
+        title: "Compute and interpret gradient norms across training",
+        purpose: "Build the habit of monitoring gradient flow as an observable quantity.",
+        instructions: [
+          "Train a small two-layer network (or use a toy linear model) on any dataset. After each epoch, record the L2 norm of the gradient for each layer.",
+          "Plot gradient norm vs. epoch for layer 1 (early) and the final layer. Do they stay proportional, or does one layer's gradient shrink while the other stays constant?",
+          "If the early-layer gradient shrinks to near-zero within 5 epochs, the network is experiencing gradient vanishing — describe this as a Jacobian singular value problem.",
+          "Now increase the learning rate until training diverges. Record what the gradient norms look like in the divergent run and describe it in curvature language.",
+        ],
+        successSignal:
+          "You can interpret gradient norm plots as evidence about Jacobian health and learning rate compatibility with the local surface curvature.",
+        failureMode:
+          "Logging gradient norms without knowing what healthy vs. vanishing vs. exploding looks like in the numbers.",
+      },
     ],
     misconceptions: [
       "Do not treat the gradient as the whole story. First-order information is useful but blind to many curvature problems.",
-      "Do not assume optimization failures are mysterious — they are often local geometric failures you can inspect.",
-      "Gradient norms are not the only diagnostic — activation variance, weight norms, and loss curvature all matter.",
+      "Do not assume optimization failures are mysterious — they are often local geometric failures you can inspect with gradient norms, activation statistics, and loss curves.",
+      "Gradient norms are not the only diagnostic — activation variance, weight norms, and loss curvature all matter. A gradient norm that looks fine may still be flowing backward through a poor Jacobian.",
     ],
     reflectionPrompts: [
       "Which part of gradient language still feels symbolic rather than operational to you?",
@@ -675,10 +787,11 @@ const AUTHORED_HOSTED_LESSONS: Record<string, HostedLessonContent> = {
     ],
     misconceptions: [
       "Do not talk about backpropagation as if it were separate from calculus — it is calculus deployed efficiently on a computation graph.",
-      "Do not treat a passing gradient check as proof the whole loss function is correct — it only checks the gradient at one point.",
+      "Do not treat a passing gradient check as proof the whole loss function is correct — it only checks the gradient at one point in parameter space, and some bugs only appear in other regions.",
     ],
     reflectionPrompts: [
       "What custom loss or layer would you add a gradient check to in a current project?",
+      "You write a custom backward pass and the gradient check passes. Two weeks later, training diverges on a different dataset. What are three hypotheses about why the gradient check passed but training still broke?",
     ],
     masteryChecklist: [
       "Implement the central difference gradient check.",
@@ -749,6 +862,20 @@ const AUTHORED_HOSTED_LESSONS: Record<string, HostedLessonContent> = {
         failureMode:
           "Slicing by arbitrary variables rather than operationally meaningful ones.",
       },
+      {
+        title: "Estimate metric uncertainty using a bootstrap sanity check",
+        purpose: "Turn a single reported number into an interval you can defend.",
+        instructions: [
+          "Take any model evaluation result (accuracy, AUC, F1) from a test set of size n.",
+          "Bootstrap the test set 1000 times (sample with replacement, same size n). Compute the metric on each resample.",
+          "Report the 5th and 95th percentile of the bootstrap distribution as a 90% confidence interval.",
+          "Now ask: if this interval is wide (e.g., [0.71, 0.89] for 'accuracy 0.80'), what does that mean for the deployment decision?",
+        ],
+        successSignal:
+          "You can interpret the width of the bootstrap CI and connect it to a concrete claim about how much confidence the test result actually supports.",
+        failureMode:
+          "Reporting the point estimate as if it were the full story, or treating a narrow CI on a small test set as strong evidence.",
+      },
     ],
     misconceptions: [
       "Do not confuse a measured metric with ground truth about model quality — the metric is still a sample-dependent estimate.",
@@ -788,6 +915,17 @@ const AUTHORED_HOSTED_LESSONS: Record<string, HostedLessonContent> = {
         checkpoint:
           "What is the difference between observing a strong metric and having strong evidence that the model is truly better?",
       },
+      {
+        title: "The bias-variance decomposition as a model failure diagnostic",
+        explanation: [
+          "The expected squared error of any estimator decomposes as: E[(ŷ - y)²] = Bias² + Variance + Noise. Bias is the systematic gap between the expected prediction and the true value — how wrong the model is on average across samples. Variance is how much the prediction changes if you retrained on a different sample — how stable or fickle the model's output is. Noise is irreducible.",
+          "This decomposition is diagnostic: if a model has high bias, adding more training data typically does not help — the model is misspecified and needs more expressive capacity or better features. If a model has high variance, more data does help, as does regularization, ensemble averaging, or dropout. Running the decomposition empirically (by training many models on bootstrap samples and measuring their spread) makes these abstract concepts observable.",
+        ],
+        appliedLens:
+          "When a model underperforms on held-out data, start the diagnosis by estimating bias and variance separately. If variance dominates, regularize or add data. If bias dominates, change the model family or features.",
+        checkpoint:
+          "A model trained on 1000 samples performs well; when retrained on a different 1000-sample draw from the same distribution, it performs quite differently. Is the primary problem high bias or high variance? What would you do about it?",
+      },
     ],
     tutorialSteps: [
       {
@@ -819,10 +957,11 @@ const AUTHORED_HOSTED_LESSONS: Record<string, HostedLessonContent> = {
     ],
     misconceptions: [
       "Resampling does not manufacture new data — it exposes how sensitive your estimate is to the sample you happened to draw.",
-      "A high bias-squared means the model is systematically wrong, not just noisy — the fix is more expressiveness, not more data.",
+      "A high bias-squared means the model is systematically wrong, not just noisy — the fix is more expressiveness or better features, not more data.",
     ],
     reflectionPrompts: [
       "What is a metric you have reported before that now seems like it deserved a bootstrap stability check first?",
+      "A colleague says 'the model has 82% accuracy — it's better than the baseline at 79%.' What questions would you ask before accepting this as evidence that the new model should ship?",
     ],
     masteryChecklist: [
       "Implement bootstrap_ci and explain what the interval width means.",
@@ -892,6 +1031,20 @@ const AUTHORED_HOSTED_LESSONS: Record<string, HostedLessonContent> = {
           "Your formulation makes hidden tradeoffs visible and someone could use it to have a principled conversation about where to set the Lagrange multipliers.",
         failureMode:
           "Naming constraints in prose without writing the formal Lagrangian term for each.",
+      },
+      {
+        title: "Classify your past ML problems by convexity and draw the implications",
+        purpose: "Build intuition for what optimization guarantees you actually have in real systems.",
+        instructions: [
+          "List three ML models or training setups you have used or encountered: (1) logistic regression, (2) a two-layer neural net, (3) a deep transformer or ResNet (even hypothetically).",
+          "For each, answer: Is the loss convex in the parameters? Does the architecture introduce local optima? What optimization guarantee (if any) do you have?",
+          "For the nonconvex cases, list the structural elements (batch normalization, skip connections, careful initialization) that empirically tame the nonconvexity even without a guarantee.",
+          "Write one sentence per model: 'This system works because ___, not because of guarantee ___.'",
+        ],
+        successSignal:
+          "You can distinguish between guarantee-backed and empirically-tamed optimization, and you can name what specific structural choices substitute for the missing guarantees.",
+        failureMode:
+          "Saying 'neural nets are nonconvex so there are no guarantees' without identifying the engineering structures that make them trainable in practice.",
       },
     ],
     misconceptions: [
@@ -974,11 +1127,12 @@ const AUTHORED_HOSTED_LESSONS: Record<string, HostedLessonContent> = {
       },
     ],
     misconceptions: [
-      "Gradient descent is not just 'move in the negative gradient direction' — the learning rate determines whether you trust the local gradient approximation and how far.",
-      "Ridge regularization does not just prevent overfitting — it solves a constrained optimization problem where the constraint is explicitly on the weight norm.",
+      "Gradient descent is not just 'move in the negative gradient direction' — the learning rate determines whether you trust the local gradient approximation and how far. Too large and the local approximation is wrong; too small and progress is negligible.",
+      "Ridge regularization does not just prevent overfitting — it solves a constrained optimization problem where the constraint is explicitly on the weight norm. Thinking of λ as a Lagrange multiplier, not a hyperparameter, changes how you reason about what it does.",
     ],
     reflectionPrompts: [
       "What would you change about your current model's regularization if you thought about λ as a Lagrange multiplier rather than a tuning knob?",
+      "You run gradient descent on a quadratic and it converges cleanly. Then you apply the same implementation to a neural net loss and it diverges. Without looking at the code, list three geometric differences between the two surfaces that could explain the divergence.",
     ],
     masteryChecklist: [
       "Implement gradient descent and observe convergence on a convex quadratic.",
@@ -4032,6 +4186,14 @@ const AUTHORED_HOSTED_LESSONS: Record<string, HostedLessonContent> = {
       "Explain the reasoning behind He initialization for ReLU networks in terms of activation variance.",
       "Describe when to use batch normalization versus layer normalization based on architecture and batch size.",
     ],
+    practiceNotebooks: [
+      {
+        filename: "06_gradient_descent_from_scratch.ipynb",
+        title: "Gradient Descent from Scratch",
+        description: "Build gradient descent in NumPy — 1D and 2D loss surfaces, the learning rate effect, mini-batch GD, momentum, and a 20-line Adam implementation. You'll see exactly what PyTorch's autograd and optimizers are doing under the hood.",
+        duration: "75–90 min",
+      },
+    ],
   },
   "dl-lesson-2": {
     hook: "Embeddings are the single most powerful and least understood tool in the modern ML toolkit. Every recommendation system, search engine, and language model is built on learned dense representations — and understanding how they are trained determines whether your system works or just looks like it works.",
@@ -4776,6 +4938,26 @@ const AUTHORED_HOSTED_LESSONS: Record<string, HostedLessonContent> = {
       "Explain the retrieve-then-rerank pattern and justify the cost tradeoff.",
       "Define grounding and describe how to measure it in a production RAG system.",
     ],
+    practiceNotebooks: [
+      {
+        filename: "02_how_llms_see_text.ipynb",
+        title: "How LLMs See Text",
+        description: "Tokenization, context windows, your first Gemini API call, temperature, and token budgeting. Do this before the RAG notebook if you haven't made an API call before.",
+        duration: "45–60 min",
+      },
+      {
+        filename: "04_langchain_under_the_hood.ipynb",
+        title: "LangChain: What It's Hiding",
+        description: "Open the hood on document loaders, text splitters, HuggingFace embeddings, and ChromaDB. See exactly what each abstraction is doing — and where it hides the distance-vs-similarity distinction that trips everyone up.",
+        duration: "60–75 min",
+      },
+      {
+        filename: "05_rag_from_scratch.ipynb",
+        title: "RAG from Scratch",
+        description: "Build a full retrieval-augmented generation system in ~150 lines of Python and NumPy — no frameworks. Covers chunking, embedding, cosine similarity search, and grounded QA. This is the capstone for this lesson.",
+        duration: "90–120 min",
+      },
+    ],
   },
   "llm-lesson-2": {
     hook: "LLM evaluation is the field's most underdeveloped discipline. Most teams ship LLM products without understanding what they are measuring, why their metrics are wrong, and what signal they are actually getting. The teams that build reliable LLM systems are the ones that invest in evaluation first.",
@@ -4955,6 +5137,14 @@ const AUTHORED_HOSTED_LESSONS: Record<string, HostedLessonContent> = {
       "Think about a complex task you do repeatedly at work. Decompose it into LLM steps and deterministic steps. Where are the verification steps most important?",
       "What would the observability requirements for a production agentic system that handles financial transactions look like? How would those requirements differ from a system that handles customer support queries?",
       "What is the right level of human oversight for an agent that books calendar appointments on your behalf? What verification steps or override mechanisms would you require?",
+    ],
+    practiceNotebooks: [
+      {
+        filename: "03_prompting_as_engineering.ipynb",
+        title: "Prompting as Engineering",
+        description: "Zero-shot vs few-shot, system prompt design, chain-of-thought, JSON structured output, the RAG prompt pattern, and prompt injection. Hands-on with the Gemini API — requires GEMINI_API_KEY.",
+        duration: "60–90 min",
+      },
     ],
     masteryChecklist: [
       "Explain the tool use execution loop and describe what happens at each step from LLM output to tool result.",

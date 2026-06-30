@@ -123,6 +123,22 @@ export function QuizComponent({ content }: QuizComponentProps) {
           const streakCount =
             typeof data?.streakCount === "number" ? data.streakCount : 0;
           const hasCompletedQuiz = completedModules.includes(quizToken);
+          const lastQuizDate =
+            typeof data?.lastQuizDate === "string" ? data.lastQuizDate : null;
+
+          // Compute yesterday's date string (UTC) to determine streak continuity.
+          const prev = new Date(content.date + "T00:00:00Z");
+          prev.setUTCDate(prev.getUTCDate() - 1);
+          const yesterdayStr = prev.toISOString().slice(0, 10);
+
+          let newStreakCount: number;
+          if (hasCompletedQuiz) {
+            newStreakCount = streakCount; // idempotent
+          } else if (lastQuizDate === yesterdayStr) {
+            newStreakCount = streakCount + 1; // consecutive day
+          } else {
+            newStreakCount = 1; // first quiz or gap
+          }
 
           transaction.set(
             userRef,
@@ -130,7 +146,8 @@ export function QuizComponent({ content }: QuizComponentProps) {
               uid: user.uid,
               email: user.email ?? "",
               lastLogin: serverTimestamp(),
-              streakCount: hasCompletedQuiz ? streakCount : streakCount + 1,
+              streakCount: newStreakCount,
+              lastQuizDate: hasCompletedQuiz ? lastQuizDate : content.date,
               completedModules: hasCompletedQuiz
                 ? completedModules
                 : [...completedModules, quizToken],

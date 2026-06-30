@@ -1,8 +1,10 @@
 import Link from "next/link";
-import { Brain, BookOpen, ArrowRight, Newspaper, Layers, CalendarDays, ExternalLink } from "lucide-react";
+import { Brain, ArrowRight, Newspaper, Layers, CalendarDays, ExternalLink, BookOpen } from "lucide-react";
 import { Panel } from "@/components/ui/panel";
 import { StreakCard } from "@/components/dashboard/streak-card";
+import { LearningProgressPanel, type ProgressCourse } from "@/components/dashboard/learning-progress-panel";
 import { getAuthoredAcademyCourses } from "@/lib/authored-academy";
+import { getMlEngineerTrack } from "@/lib/learning-paths";
 import {
   getDailyContent,
   getDailyQuiz,
@@ -15,10 +17,19 @@ export default async function DashboardPage() {
     getDailyContent(),
     getDailyQuiz(),
   ]);
-  const authoredAcademyCourses = getAuthoredAcademyCourses();
-  const coreAuthoredCourses = authoredAcademyCourses.filter((c) => !c.canTakeAnytime);
-  const firstCourse = coreAuthoredCourses[0];
-  const firstLesson = firstCourse?.lessons[0];
+
+  // Build Phase 0 course list for the progress panel (serializable — no functions)
+  const track = getMlEngineerTrack();
+  const phase0 = track.phases.find(p => p.id === "foundations");
+  const phase0Courses: ProgressCourse[] = (phase0?.courses ?? []).map(c => ({
+    slug: c.slug,
+    title: c.title,
+    shortTitle: c.shortTitle,
+    badgeEmblem: c.badgeEmblem,
+    lessonIds: c.lessonIds,
+    firstLessonId: c.firstLessonId,
+    phaseTitle: phase0?.title ?? "Phase 0 — Foundations",
+  }));
 
   const isLive = dailyContent.status === "generated";
   const dateLabel = new Date(dailyContent.date).toLocaleDateString("en-US", {
@@ -58,6 +69,13 @@ export default async function DashboardPage() {
                 >
                   <Brain className="h-4 w-4" />
                   Run today&apos;s quiz
+                </Link>
+                <Link
+                  href="/curriculum"
+                  className="inline-flex items-center gap-2 rounded-xl border border-indigo-400/30 bg-indigo-500/10 px-5 py-2.5 text-sm font-semibold text-indigo-100 transition-colors hover:border-indigo-400/50 hover:bg-indigo-500/20"
+                >
+                  <BookOpen className="h-4 w-4 text-indigo-300" />
+                  Open curriculum
                 </Link>
                 <Link
                   href="/news"
@@ -190,18 +208,7 @@ export default async function DashboardPage() {
                   Take quiz <ArrowRight className="h-3 w-3" />
                 </Link>
               </div>
-              <div className="rounded-xl border border-white/8 bg-slate-900/50 p-4">
-                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-emerald-300">Step 3 · Learn</p>
-                <p className="mt-2 text-sm leading-6 text-slate-300">
-                  Pick up the authored path. <span className="font-semibold text-slate-100">{firstCourse?.shortTitle}</span> is the right place to start.
-                </p>
-                <Link
-                  href={firstLesson ? `/curriculum/authored/${firstCourse?.slug}/lessons/${firstLesson.id}` : "/curriculum"}
-                  className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-400 hover:text-emerald-300"
-                >
-                  Start lesson <ArrowRight className="h-3 w-3" />
-                </Link>
-              </div>
+              <LearningProgressPanel courses={phase0Courses} />
             </div>
           </Panel>
         </div>

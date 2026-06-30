@@ -31,6 +31,15 @@ export type PracticeProblem = {
   formatLabel?: string;
 };
 
+export type PracticeNotebook = {
+  /** Filename served from /notebooks/, e.g. "01_python_numpy_for_ml.ipynb" */
+  filename: string;
+  title: string;
+  description: string;
+  /** Approximate time to complete */
+  duration?: string;
+};
+
 export type HostedLessonContent = {
   hook: string;
   teachingPromise: string;
@@ -43,6 +52,8 @@ export type HostedLessonContent = {
   practiceProblems?: PracticeProblem[];
   codingProblems?: CodingProblem[];
   videoUrl?: string;
+  /** Jupyter notebooks that accompany this lesson, served from /notebooks/ */
+  practiceNotebooks?: PracticeNotebook[];
   /** Optional manager briefing for courses targeting experienced practitioners */
   managerBriefing?: {
     businessContext: string;

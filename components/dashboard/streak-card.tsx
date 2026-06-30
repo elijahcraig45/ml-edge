@@ -17,8 +17,18 @@ export function StreakCard() {
     }
 
     getDoc(doc(firestore, "users", user.uid)).then((snap) => {
-      const count = snap.data()?.streakCount;
-      setStreak(typeof count === "number" ? count : 0);
+      const data = snap.data();
+      const count = typeof data?.streakCount === "number" ? data.streakCount : 0;
+      const lastQuizDate = typeof data?.lastQuizDate === "string" ? data.lastQuizDate : null;
+
+      // Streak is live only if the user completed the quiz today or yesterday.
+      const today = new Date().toISOString().slice(0, 10);
+      const prev = new Date(today + "T00:00:00Z");
+      prev.setUTCDate(prev.getUTCDate() - 1);
+      const yesterday = prev.toISOString().slice(0, 10);
+
+      const isLive = lastQuizDate === today || lastQuizDate === yesterday;
+      setStreak(isLive ? count : 0);
     });
   }, [user]);
 
