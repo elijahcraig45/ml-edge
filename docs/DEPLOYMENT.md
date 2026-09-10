@@ -32,9 +32,10 @@ rules whenever they change:
 npx firebase-tools deploy --only firestore:rules --project <project-id>
 ```
 
-The rules deny by default. A learner can read and write only their own subtree;
-published content is world-readable and client-unwritable (the server uses the
-Admin SDK, which bypasses rules).
+The rules deny by default, and `users` is the only collection they allow at all
+— a learner can read and write only their own subtree. The v1 curriculum,
+question-bank and daily-content collections were deleted along with the pipeline
+that wrote them.
 
 **Progress sync is optional.** If Firestore is unreachable or the rules deny,
 `syncProgress` fails silently and the site keeps working from localStorage —
@@ -63,18 +64,15 @@ The design keeps marginal cost near zero on purpose:
   Without it, `docs/` alone put ~700MB over the wire on every single deploy.
   Keep both ignore files in step when adding large directories.
 
-The legacy daily pipeline (Gemini calls, TTS, ffmpeg video generation, GCS
-storage) has been removed from the codebase, but **its Cloud Scheduler job is
-still live in GCP and will now be calling a route that no longer exists.**
-Pause or delete it to stop the spend and the error noise:
+The legacy daily pipeline (NewsAPI, Gemini, TTS, ffmpeg video) is gone, along
+with everything it produced: the `mledge-daily-update` scheduler job, the
+`curriculum` and `curriculum_data` BigQuery datasets, and its Firestore
+collections. There is no recurring spend left beyond Cloud Run itself, which
+scales to zero.
 
-```bash
-gcloud scheduler jobs list --location us-central1
-gcloud scheduler jobs pause <job-name> --location us-central1
-```
-
-The GCS bucket and BigQuery dataset it wrote to are likewise still there and can
-be deleted once you are sure you want the history gone.
+Two buckets in the project are **live infrastructure — do not delete them**:
+`mledge-20260420_cloudbuild` and `run-sources-mledge-20260420-us-central1` are
+what `gcloud run deploy --source .` uses.
 
 ## Environment
 
