@@ -7,6 +7,11 @@
  *
  * Run this when you need the site to work offline, or in an environment with no
  * outbound network, then set NEXT_PUBLIC_RUNTIME_ORIGIN=self.
+ *
+ * Note the two halves behave differently: DuckDB is copied out of node_modules
+ * and always works, while Pyodide is downloaded and will fail behind a TLS
+ * intercepting proxy with SELF_SIGNED_CERT_IN_CHAIN. On such a machine, fetch
+ * the Pyodide files by hand or run this somewhere without the proxy.
  */
 import { promises as fs } from "node:fs";
 import { createRequire } from "node:module";

@@ -48,3 +48,7 @@ next-env.d.ts
 /test-results
 public/assets/search-index.json
 .curriculum/
+
+# Vendored wasm runtimes (npm run runtimes:vendor) — tens of megabytes,
+# and the CDN is the default source.
+/public/runtime
