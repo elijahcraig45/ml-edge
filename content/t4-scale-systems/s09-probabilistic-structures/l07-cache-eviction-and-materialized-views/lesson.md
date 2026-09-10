@@ -308,7 +308,7 @@ already fast is pure overhead.
 :::
 ::::
 
-:::exercise{ref=lru-cache}
+:::exercise{ref=lru-cache-eviction}
 :::
 
 :::exercise{ref=clock-eviction}

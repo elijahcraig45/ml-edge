@@ -260,7 +260,7 @@ seconds.
 :::exercise{ref=subarray-sum-k}
 :::
 
-:::exercise{ref=lru-cache}
+:::exercise{ref=lru-cache-map-and-list}
 :::
 
 :::quiz{id=quiz-l05 passing=3}

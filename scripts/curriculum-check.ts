@@ -96,6 +96,13 @@ async function main() {
     fail(failure.id, failure.message);
   }
 
+  // Exercise ids must be globally unique, not just unique within a lesson.
+  // /problems/[id] is keyed on the id, and so is bank progress — a collision
+  // makes one exercise unreachable and marks the other solved alongside it.
+  const exerciseOwners = new Map<string, string[]>();
+  const claimId = (id: string, owner: string) =>
+    exerciseOwners.set(id, [...(exerciseOwners.get(id) ?? []), owner]);
+
   let lessonCount = 0;
   let exerciseCount = 0;
   const python = await resolvePython();
@@ -109,6 +116,7 @@ async function main() {
 
         for (const exercise of Object.values(lesson.exercises)) {
           exerciseCount += 1;
+          claimId(exercise.id, lesson.id);
           const where = `${lesson.id} › ${exercise.id}`;
           if (exercise.kind === "python") {
             if (!python) {
@@ -128,6 +136,7 @@ async function main() {
   // Standalone bank problems get exactly the same treatment as lesson exercises.
   for (const problem of curriculum.problems) {
     exerciseCount += 1;
+    claimId(problem.id, "content/problems");
     const where = `content/problems/${problem.id}`;
     if (problem.kind === "python") {
       if (!python) {
@@ -138,6 +147,17 @@ async function main() {
     } else {
       checkSqlExerciseShape(where, problem);
       await checkSqlExercise(curriculum, where, problem);
+    }
+  }
+
+  for (const [id, owners] of exerciseOwners) {
+    if (owners.length > 1) {
+      fail(
+        `exercise id "${id}"`,
+        `used by ${owners.join(" and ")}. Exercise ids are global: /problems/${id} ` +
+          "can only resolve to one of them, and bank progress is keyed on the id, " +
+          "so solving one would mark the other solved. Rename one.",
+      );
     }
   }
 

@@ -1,4 +1,4 @@
-id: lru-cache
+id: lru-cache-map-and-list
 kind: python
 title: An LRU cache from a map and a list
 difficulty: 4
