@@ -1,0 +1,47 @@
+rules_version = '2';
+
+/**
+ * The site is guest-first: every lesson, problem and grader works signed out,
+ * with progress in localStorage. Firestore holds only the optional cloud copy
+ * of a signed-in learner's progress, plus content the server publishes.
+ *
+ * The default is deny. Anything not matched below is unreachable from a client.
+ */
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // A learner's own profile. Clients may create and update their own record
+    // but never read anyone else's, and never delete.
+    match /users/{uid} {
+      allow read, create, update: if isOwner(uid);
+      allow delete: if false;
+
+      // Curriculum progress written by lib/progress/cloud-sync.ts.
+      // Strictly private: this is the only place learner activity is stored.
+      match /progress/{document=**} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    // Published content. Written only by the server (Admin SDK bypasses rules),
+    // world-readable because the curriculum is public.
+    match /curriculum_courses/{doc}   { allow read: if true; allow write: if false; }
+    match /curriculum_tracks/{doc}    { allow read: if true; allow write: if false; }
+    match /curriculum_resources/{doc} { allow read: if true; allow write: if false; }
+    match /curriculum_meta/{doc}      { allow read: if true; allow write: if false; }
+    match /curriculum_versions/{doc}  { allow read: if true; allow write: if false; }
+    match /curriculum_edges/{doc}     { allow read: if true; allow write: if false; }
+    match /daily_content/{doc}        { allow read: if true; allow write: if false; }
+    match /daily_mini_lessons/{doc}   { allow read: if true; allow write: if false; }
+    match /question_bank_meta/{doc}   { allow read: if true; allow write: if false; }
+
+    // Deny by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,84 @@
+- id: rotate-right-shape
+  label: rotate_right promotes the left child and keeps inorder
+  code: |
+    def walk(n):
+        return [] if n is None else walk(n[1]) + [n[0]] + walk(n[2])
+
+    tree = make(3, make(2, make(1, None, None), None), None)
+    rotated = rotate_right(tree)
+    assert rotated[0] == 2
+    assert walk(rotated) == [1, 2, 3]
+    assert rotated[3] == 2, "the promoted node's height was not recomputed"
+- id: rotate-left-shape
+  label: rotate_left promotes the right child and keeps inorder
+  code: |
+    def walk(n):
+        return [] if n is None else walk(n[1]) + [n[0]] + walk(n[2])
+
+    tree = make(1, None, make(2, None, make(3, None, None)))
+    rotated = rotate_left(tree)
+    assert rotated[0] == 2
+    assert walk(rotated) == [1, 2, 3]
+    assert rotated[3] == 2
+- id: four-cases
+  label: All four insertion orders converge on the same balanced tree
+  code: |
+    def walk(n):
+        return [] if n is None else walk(n[1]) + [n[0]] + walk(n[2])
+
+    for sequence in ([1, 2, 3], [3, 2, 1], [1, 3, 2], [3, 1, 2]):
+        tree = None
+        for value in sequence:
+            tree = avl_insert(tree, value)
+        assert tree[0] == 2, f"{sequence} left {tree[0]} at the root"
+        assert tree[3] == 2, f"{sequence} produced height {tree[3]}"
+        assert walk(tree) == [1, 2, 3]
+- id: duplicates
+  label: Reinserting a value changes nothing
+  code: |
+    tree = None
+    for value in [5, 3, 8, 5, 3]:
+        tree = avl_insert(tree, value)
+
+    def size(n):
+        return 0 if n is None else 1 + size(n[1]) + size(n[2])
+
+    assert size(tree) == 3
+- id: sorted-insert-stays-short
+  label: 1,000 ascending inserts stay balanced
+  hidden: true
+  code: |
+    def check(n):
+        if n is None:
+            return 0
+        hl, hr = check(n[1]), check(n[2])
+        assert abs(hl - hr) <= 1, f"balance factor {hl - hr} at node {n[0]}"
+        assert n[3] == 1 + max(hl, hr), f"stored height wrong at node {n[0]}"
+        return n[3]
+
+    tree = None
+    for value in range(1, 1001):
+        tree = avl_insert(tree, value)
+    assert check(tree) <= 12, "an AVL tree of 1000 nodes cannot be taller than 14"
+    assert tree[3] <= 12
+- id: mixed-order-invariants
+  label: A scrambled insertion order keeps every invariant
+  hidden: true
+  code: |
+    def walk(n):
+        return [] if n is None else walk(n[1]) + [n[0]] + walk(n[2])
+
+    def check(n):
+        if n is None:
+            return 0
+        hl, hr = check(n[1]), check(n[2])
+        assert abs(hl - hr) <= 1, f"balance factor {hl - hr} at node {n[0]}"
+        assert n[3] == 1 + max(hl, hr), f"stored height wrong at node {n[0]}"
+        return n[3]
+
+    values = [(i * 37) % 401 for i in range(401)]
+    tree = None
+    for value in values:
+        tree = avl_insert(tree, value)
+    assert walk(tree) == sorted(set(values))
+    check(tree)

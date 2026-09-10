@@ -1,0 +1,87 @@
+id: greedy-graph-search
+kind: python
+title: HNSW's layer search, and the recall it buys
+difficulty: 5
+pattern: approximate-nearest-neighbour
+topics: [hnsw, graphs, beam-search]
+timeLimitMs: 40000
+prompt: |
+  Implement the beam search at the heart of HNSW. This is `SEARCH-LAYER` from
+  the paper, and it is the only search HNSW does — the layered descent just runs
+  it once per layer with `ef = 1`, then once at layer 0 with the real `ef`.
+
+  Two heaps:
+
+  - `candidates` — a **min**-heap of `(distance, node)`, nodes still to expand.
+  - `results` — a **max**-heap of `(-distance, node)`, never larger than `ef`.
+
+  Both start holding the entry point. Then, while `candidates` is non-empty:
+
+  1. Pop the closest candidate. If its distance exceeds the **worst** result and
+     `results` is already full, stop — nothing reachable from here can improve
+     the beam.
+  2. For each unvisited neighbour, mark it visited and measure it. If `results`
+     is not yet full, or the neighbour beats the worst result, push it onto both
+     heaps and evict the worst result if the beam overflowed.
+
+  Return the ids in `results` sorted by distance, ties broken by id.
+
+  ```
+  greedy_search(graph, points, entry="E", query=(0.0, 0.0), ef=1)  # ["A"]
+  greedy_search(graph, points, entry="E", query=(0.0, 0.0), ef=2)  # ["N", "A"]
+  ```
+
+  Those two lines are the exercise. With a beam of one the search stops at a
+  node that is closer than all of its neighbours and is **not** the nearest
+  point; with a beam of two it escapes. A hidden test builds a 200-point
+  proximity graph and checks that recall@5 climbs from under 0.35 at `ef=1` to
+  above 0.9 at `ef=50`.
+
+  The visited set is not an optimisation. Without it, a cyclic graph never
+  terminates.
+hints:
+  - "`heapq` is a min-heap only. To get a max-heap of results, push `(-distance, node)` — then `results[0][0]` is the negated worst distance, and `-results[0][0]` is the worst distance itself."
+  - "Mark a neighbour visited at the moment you first see it, not when you expand it. Otherwise the same node is pushed several times by different parents."
+  - "The stopping rule is `if d_c > -results[0][0] and len(results) >= ef: break`. Both halves matter: while the beam is not yet full you must keep going even when candidates look bad."
+solutionWalkthrough: |
+  ```python
+  d_entry = distance(points[entry], query)
+  visited, candidates, results = {entry}, [(d_entry, entry)], [(-d_entry, entry)]
+
+  while candidates:
+      d_c, current = heapq.heappop(candidates)
+      if d_c > -results[0][0] and len(results) >= ef:
+          break
+      for neighbour in graph.get(current, ()):
+          if neighbour in visited:
+              continue
+          visited.add(neighbour)
+          d_n = distance(points[neighbour], query)
+          if len(results) < ef or d_n < -results[0][0]:
+              heapq.heappush(candidates, (d_n, neighbour))
+              heapq.heappush(results, (-d_n, neighbour))
+              if len(results) > ef:
+                  heapq.heappop(results)
+
+  return [node for _, node in sorted((-neg, node) for neg, node in results)]
+  ```
+
+  `ef` is the whole algorithm. Set it to 1 and this is plain greedy hill
+  climbing: it walks downhill until every neighbour is worse and stops, wherever
+  that happens to be. Every value above 1 is a hedge against that stop being
+  premature — the beam keeps slightly-worse nodes alive so their neighbours get
+  a look.
+
+  The stopping condition is where correctness and speed meet. `d_c >
+  -results[0][0]` says the nearest thing left to explore is already farther than
+  the worst thing you are keeping. On a graph where distance decreased
+  monotonically along every path that would prove nothing better exists; on a
+  real proximity graph it does not, which is exactly the gap between recall and
+  1.0. Removing the condition turns the search into a full traversal — perfect
+  recall, no speedup, no reason to have built an index.
+
+  The recall test is the part worth carrying to work. Recall is not a property
+  of the algorithm, it is a number you measure on **your** vectors, and you
+  measure it by building an exact ground truth once and sweeping `ef` against
+  it. Reporting "recall@10 is 0.95 at p99 = 8ms, and 0.995 at p99 = 35ms" lets
+  someone make a decision. Reporting "we use HNSW" does not.

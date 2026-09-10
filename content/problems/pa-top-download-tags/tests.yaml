@@ -1,0 +1,33 @@
+- id: basic
+  label: Ranks by frequency
+  code: |
+    assert top_tags(["cli", "web", "cli", "db", "web", "cli"], 2) == ["cli", "web"]
+- id: ties-alphabetical
+  label: Equal counts are ordered by name
+  code: |
+    assert top_tags(["b", "a"], 1) == ["a"]
+    assert top_tags(["z", "y", "x"], 3) == ["x", "y", "z"]
+- id: k-too-large
+  label: Asking for more than exists returns everything
+  code: |
+    assert top_tags(["cli", "cli", "web"], 9) == ["cli", "web"]
+- id: empty
+  label: An empty tag list returns nothing
+  code: |
+    assert top_tags([], 3) == []
+- id: degenerate-k
+  label: Zero and negative k return an empty list
+  hidden: true
+  code: |
+    assert top_tags(["cli", "web"], 0) == []
+    assert top_tags(["cli", "web"], -2) == []
+- id: mixed-ties
+  label: A tie inside the ranking, not just at the top
+  hidden: true
+  code: |
+    tags = ["a", "a", "a", "c", "c", "b", "b", "d"]
+    assert top_tags(tags, 3) == ["a", "b", "c"]
+    assert top_tags(tags, 4) == ["a", "b", "c", "d"]
+    original = ["a", "b", "a"]
+    top_tags(original, 1)
+    assert original == ["a", "b", "a"], "the input must not be modified"

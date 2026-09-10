@@ -1,0 +1,31 @@
+- id: basic
+  label: Reverses the order
+  code: |
+    assert oldest_first(["v3", "v2", "v1"]) == ["v1", "v2", "v3"]
+- id: empty
+  label: An empty log gives an empty list
+  code: |
+    assert oldest_first([]) == []
+- id: single
+  label: One record comes back unchanged
+  code: |
+    assert oldest_first(["v1"]) == ["v1"]
+- id: duplicates
+  label: Duplicate records are all kept
+  code: |
+    assert oldest_first(["a", "a", "b"]) == ["b", "a", "a"]
+- id: no-mutation
+  label: The input list is left alone
+  hidden: true
+  code: |
+    # `records.reverse()` returns None and edits the caller's list. Reversing a
+    # copy is the fix, and it costs nothing extra.
+    original = ["v3", "v2", "v1"]
+    oldest_first(original)
+    assert original == ["v3", "v2", "v1"], "oldest_first must not modify its argument"
+- id: any-iterable
+  label: Works on a generator, not only a list
+  hidden: true
+  code: |
+    assert oldest_first(iter(["v3", "v2", "v1"])) == ["v1", "v2", "v3"]
+    assert oldest_first(x for x in [3, 2, 1]) == [1, 2, 3]

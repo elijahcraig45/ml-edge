@@ -1,0 +1,127 @@
+id: adversary-maximum
+kind: python
+title: An adversary that forces n - 1 comparisons
+difficulty: 5
+pattern: lower-bound
+topics: [lower-bounds, adversary, comparison-model]
+timeLimitMs: 20000
+prompt: |
+  Build the adversary, and the tests will run algorithms against it.
+
+  **`make_adversary(n)`** returns an object with:
+
+  - **`.compare(i, j)`** — returns `True` iff $a_i > a_j$, for distinct
+    `i, j` in `range(n)`. It decides the answer *now*, and must stay consistent
+    with everything it has already said.
+  - **`.comparisons`** — how many times `compare` has been called.
+  - **`.log`** — the list of `(i, j, answer)` triples, in order.
+  - **`.witness()`** — a concrete list of `n` values, a permutation of
+    `1 .. n`, consistent with every logged answer.
+
+  **The rule, pinned so grading is deterministic.** Call an index *defeated*
+  once it has lost a comparison. Keep `defeated` as a list in the order they
+  lost. On `compare(i, j)`:
+
+  | State | Answer | Side effect |
+  | --- | --- | --- |
+  | neither defeated | `True` | append `j` to `defeated` |
+  | `i` defeated, `j` not | `False` | none |
+  | `j` defeated, `i` not | `True` | none |
+  | both defeated | `defeated.index(i) > defeated.index(j)` | none |
+
+  **`witness()`**: the $t$-th defeated index (0-based) gets value $t + 1$. The
+  undefeated indices take the remaining top values, assigned so that the
+  **largest index** gets the largest value.
+
+  Why that last rule matters: two undefeated indices were never compared with
+  each other, so any order between them is consistent — and choosing the largest
+  index to be the maximum is what punishes an algorithm that skipped the end of
+  the array.
+
+  ```
+  adv = make_adversary(3)
+  adv.compare(0, 1)   # True  -- neither defeated, so 1 loses
+  adv.compare(2, 0)   # True  -- 0 is undefeated, 2 is undefeated, so 0 loses
+  adv.witness()       # [2, 1, 3]
+  ```
+
+  Each comparison defeats **at most one** element, and $n - 1$ elements must be
+  defeated before a maximum is determined. That is the lower bound, and this
+  object is its proof made executable.
+hints:
+  - "The four cases are exactly the table. Do not try to be cleverer: any rule that defeats two elements in one comparison hands the algorithm free information and breaks the bound."
+  - "For witness(), build a list of zeros, fill the defeated positions with 1, 2, 3, ... in defeat order, then walk the undefeated indices from largest to smallest handing out n, n-1, and so on."
+  - "Check consistency yourself before submitting: for every (i, j, answer) in log, assert (witness()[i] > witness()[j]) == answer. If that ever fails, the four cases have been implemented in the wrong order."
+solutionWalkthrough: |
+  ```python
+  class _Adversary:
+      def __init__(self, n):
+          self.n = n
+          self.defeated = []
+          self.comparisons = 0
+          self.log = []
+
+      def compare(self, i, j):
+          self.comparisons += 1
+          di, dj = i in self.defeated, j in self.defeated
+          if not di and not dj:
+              self.defeated.append(j)
+              answer = True
+          elif di and not dj:
+              answer = False
+          elif dj and not di:
+              answer = True
+          else:
+              answer = self.defeated.index(i) > self.defeated.index(j)
+          self.log.append((i, j, answer))
+          return answer
+
+      def witness(self):
+          values = [0] * self.n
+          for rank, idx in enumerate(self.defeated):
+              values[idx] = rank + 1
+          undefeated = [i for i in range(self.n) if i not in self.defeated]
+          top = self.n
+          for idx in sorted(undefeated, reverse=True):
+              values[idx] = top
+              top -= 1
+          return values
+
+  def make_adversary(n):
+      return _Adversary(n)
+  ```
+
+  **Why the answers are always consistent.** Check the four cases against the
+  witness rule. Case 1 defeats $j$ now, so $j$'s value is fixed below every
+  value assigned later; $i$ is undefeated at that moment and will get either a
+  later defeat rank or an undefeated top value, both larger. Cases 2 and 3 say
+  the undefeated one is larger, which the witness guarantees because undefeated
+  values are all above defeated ones. Case 4 reads the order directly off the
+  defeat sequence, which is exactly the order `witness()` encodes. Nothing can
+  contradict anything.
+
+  **Why two undefeated elements can be ordered freely.** If $i$ and $j$ are both
+  undefeated, they were never compared with each other — a comparison between
+  two undefeated elements is case 1, which defeats one of them. So no answer
+  constrains their relative order, and the adversary is free to put whichever it
+  likes on top. Putting the *largest index* on top is not required by the proof;
+  it is the choice that makes the failure of a lazy algorithm visible in a test.
+
+  **What the object proves.** Suppose an algorithm halts with two undefeated
+  indices $u \ne v$ and returns $u$. Its answers are consistent with a witness
+  that makes $v$ the maximum, so it is wrong on a real input. A correct algorithm
+  therefore leaves at most one undefeated index, so $n - 1$ elements got
+  defeated, so at least $n - 1$ comparisons happened.
+
+  **What this technique is for.** Decision-tree counting gives $\log_2 n$ here —
+  useless. The adversary gives $n - 1$, which is tight. The same style of
+  argument gives $\lceil 3n/2 \rceil - 2$ for finding the maximum and minimum
+  together, and $n + \lceil \log_2 n \rceil - 2$ for the second largest. None of
+  those follow from counting outputs; all of them follow from "how much
+  ambiguity can I keep alive".
+
+  **The one real limitation.** This adversary is defined against *deterministic*
+  algorithms. A randomised algorithm's queries depend on coins the adversary
+  cannot see, so an oblivious adversary must commit to a distribution up front
+  and the argument runs through Yao's minimax principle instead. For finding the
+  maximum the answer is the same, $n - 1$, but the proof is different.

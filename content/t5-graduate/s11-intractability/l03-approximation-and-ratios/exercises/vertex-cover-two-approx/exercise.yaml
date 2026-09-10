@@ -1,0 +1,86 @@
+id: vertex-cover-two-approx
+kind: python
+title: A 2-approximation, checked against the optimum
+difficulty: 4
+pattern: approximation
+topics: [graphs, approximation, ratio]
+timeLimitMs: 20000
+prompt: |
+  Implement the maximal-matching vertex cover and the lower bound that proves
+  its ratio. The tests compute the true optimum by brute force on small graphs
+  and check that your output is never more than twice it — the ratio, verified
+  instead of asserted.
+
+  **`approx_cover(n, edges)`** returns a set of vertices covering every edge.
+  Scan `edges` in the order given; when an edge has **neither** endpoint in the
+  cover so far, add **both**.
+
+  **`matching_used(n, edges)`** returns the list of edges that triggered an
+  insertion, in scan order. This is the maximal matching the proof leans on, and
+  its size is a lower bound on the optimum.
+
+  ```
+  approx_cover(4, [(0,1),(1,2),(2,3),(3,0)])    # {0, 1, 2, 3}
+  matching_used(4, [(0,1),(1,2),(2,3),(3,0)])   # [(0, 1), (2, 3)]
+  ```
+
+  The two functions must agree: `len(approx_cover(...)) == 2 * len(matching_used(...))`.
+
+  Order matters and that is intended. The algorithm's output depends on the edge
+  order, and the ratio bound holds for every order — which is what makes it a
+  guarantee rather than a hope.
+
+  Do not sort the edges, do not pick the highest-degree vertex, and do not
+  search. Highest-degree greedy is the algorithm that looks smarter, and its
+  ratio is $\Theta(\log n)$ — unbounded — so it would fail the ratio test on
+  a large enough instance.
+hints:
+  - "One pass over `edges`, one `set`, no inner loop. If you are counting degrees, you are writing a different algorithm with a worse guarantee."
+  - "Both functions are the same loop. `matching_used` records the edge where `approx_cover` adds two vertices."
+  - "An edge whose endpoints are already covered is skipped entirely — it neither joins the matching nor changes the cover."
+solutionWalkthrough: |
+  ```python
+  def approx_cover(n, edges):
+      cover = set()
+      for u, v in edges:
+          if u not in cover and v not in cover:
+              cover.add(u)
+              cover.add(v)
+      return cover
+
+  def matching_used(n, edges):
+      cover = set()
+      matching = []
+      for u, v in edges:
+          if u not in cover and v not in cover:
+              matching.append((u, v))
+              cover.add(u)
+              cover.add(v)
+      return matching
+  ```
+
+  **Why taking both endpoints is not wasteful.** Adding only one endpoint would
+  be the obvious economy and it destroys the proof. The whole argument runs
+  through "the matched edges are pairwise disjoint, so any cover needs $|M|$
+  distinct vertices". Take one endpoint and you no longer know which one the
+  optimum would have taken, and there is no bound left. The algorithm is
+  deliberately over-committing in order to keep a certificate.
+
+  **Reading the output as a bracket.** After a run you know
+  $|M| \le \mathrm{OPT} \le |C| = 2|M|$. On a real instance those two numbers
+  are often much closer than a factor of two, and logging both turns a heuristic
+  into a measurement. This is the habit worth taking away: an approximation
+  algorithm that also emits its lower bound tells you the gap on the input you
+  actually have, not just the input the theorem worried about.
+
+  **Where it loses.** On $K_{n,n}$ the algorithm returns all $2n$ vertices while
+  $n$ suffice, so the ratio is exactly 2 and cannot be improved by better
+  analysis. On a star it returns 2 where 1 suffices — also ratio 2, on the
+  easiest possible graph. Both are cases where a matching is a weak lower bound:
+  one matched edge "explains" a great many edges of the graph.
+
+  **What order-dependence costs.** Different edge orders give different covers,
+  sometimes of different sizes, all within the factor of 2. Running the
+  algorithm on several shuffles and keeping the smallest result is free and
+  routinely helps — and it is the same repetition-amplification move that
+  Lesson 4 makes formal for randomised algorithms.

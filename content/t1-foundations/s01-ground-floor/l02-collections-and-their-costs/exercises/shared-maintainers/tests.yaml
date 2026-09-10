@@ -1,0 +1,22 @@
+- id: basic
+  label: Returns the overlap in handles_a order
+  code: |
+    assert shared_maintainers(["ada", "grace", "linus"], ["linus", "ada"]) == ["ada", "linus"]
+- id: no-overlap
+  label: No overlap returns an empty list
+  code: |
+    assert shared_maintainers(["ada"], ["grace"]) == []
+- id: empty
+  label: Empty inputs are handled
+  code: |
+    assert shared_maintainers([], ["ada"]) == []
+    assert shared_maintainers(["ada"], []) == []
+- id: dedupes
+  label: A repeated handle appears only once
+  code: |
+    assert shared_maintainers(["ada", "ada", "grace"], ["ada", "grace"]) == ["ada", "grace"]
+- id: order-follows-a
+  label: Order follows handles_a, not handles_b
+  hidden: true
+  code: |
+    assert shared_maintainers(["c", "b", "a"], ["a", "b", "c"]) == ["c", "b", "a"]

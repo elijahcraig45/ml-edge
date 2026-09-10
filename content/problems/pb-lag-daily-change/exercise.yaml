@@ -1,0 +1,97 @@
+id: pb-lag-daily-change
+kind: sql
+title: Day-over-day, without leaking across packages
+difficulty: 3
+pattern: window-functions
+stage: s04-sorting-and-windows
+topics: [lag, lead]
+datasetId: package-registry
+timeLimitMs: 20000
+prompt: |
+  Turn the raw download counts into a day-over-day series.
+
+  Six columns, one row for every row in `downloads` — 200 of them:
+
+  - `package_id`, `day`, `count`
+  - `prev_count` — the same package's count on the previous day, NULL on the
+    first day
+  - `delta` — `count - prev_count`, NULL on the first day
+  - `next_count` — the same package's count on the following day, NULL on the
+    last day
+
+  Order does not matter.
+
+  Leave the `PARTITION BY` off and the query still returns 200 rows and still
+  looks right. What it actually does is read the previous row in whatever order
+  the rows happen to arrive, so most packages get their "previous day" from a
+  different package entirely, and only one row in the whole table ends up with a
+  NULL `prev_count` instead of twenty.
+hints:
+  - "Count how many rows should have a NULL `prev_count`. There are twenty packages and each one has a first day."
+  - "`lag` and `lead` walk the rows of a window partition. Without `PARTITION BY` the whole table is one partition, so the walk crosses package boundaries."
+  - "`lag(count) OVER (PARTITION BY package_id ORDER BY day)` and `lead(count) OVER (PARTITION BY package_id ORDER BY day)`. The `ORDER BY` inside `OVER` is what makes \"previous\" mean anything; it is unrelated to the query's own `ORDER BY`."
+solutionWalkthrough: |
+  ```sql
+  SELECT
+    package_id,
+    day,
+    count,
+    lag(count)  OVER w AS prev_count,
+    count - lag(count) OVER w AS delta,
+    lead(count) OVER w AS next_count
+  FROM downloads
+  WINDOW w AS (PARTITION BY package_id ORDER BY day);
+  ```
+
+  Twenty rows have a NULL `prev_count` — one per package, on 2024-03-01 — and
+  twenty have a NULL `next_count` on 2024-03-10. The subtraction inherits the
+  NULL, which is the correct answer: there is no previous day to compare
+  against, and reporting a delta of zero there would invent a fact.
+
+  The named `WINDOW` clause is worth the habit. Three window expressions that
+  must share one frame is three chances to typo one of them, and a query where
+  `lag` and `lead` disagree about their partitioning is a bug no test will find
+  because both halves look reasonable in isolation. Naming it once makes the
+  agreement structural.
+
+  `PARTITION BY` is the window equivalent of `GROUP BY`, with one crucial
+  difference: it does not collapse rows. `GROUP BY package_id` gives you twenty
+  rows; `PARTITION BY package_id` gives you two hundred rows that each know about
+  their nineteen neighbours. Every window function question comes down to
+  choosing the partition (what set of rows can I see?) and the order (what does
+  "before me" mean?).
+
+  If you wanted `delta` to read 0 on the first day rather than NULL, `lag(count,
+  1, count)` supplies a default for the missing row. Do that deliberately, never
+  by reflex — a zero delta and an unknown delta are different claims, and only
+  one of them is true here.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 200
+      message: Expected every row of `downloads` — 20 packages over 10 days.
+    - type: predicate
+      sql: "SELECT count(*) = 20 FROM __learner WHERE prev_count IS NULL"
+      message: >-
+        Exactly 20 rows have no previous day, one per package. One such row means
+        the window was not partitioned and `lag` walked across package
+        boundaries.
+    - type: predicate
+      sql: "SELECT count(*) = 0 FROM __learner WHERE prev_count IS NULL AND day <> DATE '2024-03-01'"
+      message: >-
+        A NULL `prev_count` may only appear on 2024-03-01. Anywhere else means
+        the ordering inside the window is wrong.
+    - type: predicate
+      sql: "SELECT count(*) = 0 FROM __learner l WHERE NOT EXISTS (SELECT 1 FROM downloads d WHERE d.package_id = l.package_id AND d.day = l.day - INTERVAL 1 DAY AND d.count = l.prev_count) AND l.prev_count IS NOT NULL"
+      message: >-
+        Some `prev_count` values do not match the same package's count on the
+        previous calendar day.
+    - type: plan
+      contains: ["WINDOW"]
+      notContains: ["CROSS_PRODUCT"]
+      message: >-
+        Solve this with `lag`/`lead` rather than a self-join; the plan should
+        show a WINDOW operator and no cross product.

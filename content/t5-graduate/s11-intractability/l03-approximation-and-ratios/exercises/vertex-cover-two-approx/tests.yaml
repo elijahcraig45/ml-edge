@@ -1,0 +1,110 @@
+- id: is-a-cover
+  label: The result covers every edge
+  code: |
+    GRAPHS = [
+        (4, [(0,1),(1,2),(2,3),(3,0)]),
+        (5, [(0,1),(0,2),(0,3),(0,4)]),
+        (7, [(0,1),(0,2),(1,2),(1,3),(3,4),(4,5),(5,6),(6,3)]),
+        (8, [(i, j) for i in range(4) for j in range(4, 8)]),
+    ]
+    for n, edges in GRAPHS:
+        cover = set(approx_cover(n, edges))
+        assert all(u in cover or v in cover for u, v in edges), (n, edges, cover)
+
+- id: pinned-output
+  label: The scan order determines the answer
+  code: |
+    assert set(approx_cover(4, [(0,1),(1,2),(2,3),(3,0)])) == {0, 1, 2, 3}
+    assert list(matching_used(4, [(0,1),(1,2),(2,3),(3,0)])) == [(0, 1), (2, 3)]
+    assert set(approx_cover(5, [(0,1),(0,2),(0,3),(0,4)])) == {0, 1}
+    assert list(matching_used(5, [(0,1),(0,2),(0,3),(0,4)])) == [(0, 1)]
+
+- id: ratio-holds
+  label: Never worse than twice the brute-force optimum
+  code: |
+    from itertools import combinations
+    def opt_size(n, edges):
+        for size in range(n + 1):
+            for sub in combinations(range(n), size):
+                s = set(sub)
+                if all(u in s or v in s for u, v in edges):
+                    return size
+        return n
+    GRAPHS = [
+        (2, [(0,1)]),
+        (4, [(0,1),(1,2),(2,3),(3,0)]),
+        (5, [(0,1),(0,2),(0,3),(0,4)]),
+        (6, [(0,1),(2,3),(4,5)]),
+        (6, [(0,1),(1,2),(2,0),(3,4),(4,5),(5,3),(0,3)]),
+        (7, [(0,1),(0,2),(1,2),(1,3),(3,4),(4,5),(5,6),(6,3)]),
+        (8, [(i, j) for i in range(4) for j in range(4, 8)]),
+        (9, [(0,1),(1,2),(2,3),(3,4),(4,5),(5,6),(6,7),(7,8),(8,0)]),
+    ]
+    for n, edges in GRAPHS:
+        alg = len(set(approx_cover(n, edges)))
+        opt = opt_size(n, edges)
+        assert alg <= 2 * opt, ("ratio exceeded", n, edges, alg, opt)
+
+- id: matching-is-a-lower-bound
+  label: The matching is a matching and never exceeds the optimum
+  code: |
+    from itertools import combinations
+    def opt_size(n, edges):
+        for size in range(n + 1):
+            for sub in combinations(range(n), size):
+                s = set(sub)
+                if all(u in s or v in s for u, v in edges):
+                    return size
+        return n
+    GRAPHS = [
+        (4, [(0,1),(1,2),(2,3),(3,0)]),
+        (6, [(0,1),(1,2),(2,0),(3,4),(4,5),(5,3),(0,3)]),
+        (7, [(0,1),(0,2),(1,2),(1,3),(3,4),(4,5),(5,6),(6,3)]),
+        (8, [(i, j) for i in range(4) for j in range(4, 8)]),
+    ]
+    for n, edges in GRAPHS:
+        m = list(matching_used(n, edges))
+        touched = [v for e in m for v in e]
+        assert len(touched) == len(set(touched)), ("edges share a vertex", n, m)
+        assert len(m) <= opt_size(n, edges), ("lower bound violated", n, m)
+
+- id: cover-is-twice-the-matching
+  label: The cover has exactly two vertices per matching edge
+  hidden: true
+  code: |
+    GRAPHS = [
+        (4, [(0,1),(1,2),(2,3),(3,0)]),
+        (5, [(0,1),(0,2),(0,3),(0,4)]),
+        (8, [(i, j) for i in range(4) for j in range(4, 8)]),
+        (9, [(0,1),(1,2),(2,3),(3,4),(4,5),(5,6),(6,7),(7,8),(8,0)]),
+    ]
+    for n, edges in GRAPHS:
+        assert len(set(approx_cover(n, edges))) == 2 * len(list(matching_used(n, edges)))
+
+- id: empty-graph
+  label: A graph with no edges gets an empty cover
+  hidden: true
+  code: |
+    assert set(approx_cover(5, [])) == set()
+    assert list(matching_used(5, [])) == []
+
+- id: order-changes-the-answer
+  label: Reordering the edges can change the cover, and the bound still holds
+  hidden: true
+  code: |
+    edges_a = [(0,1),(1,2),(2,3),(3,4)]
+    edges_b = [(1,2),(3,4),(0,1),(2,3)]
+    a = set(approx_cover(5, edges_a))
+    b = set(approx_cover(5, edges_b))
+    assert a == {0, 1, 2, 3}, a
+    assert b == {1, 2, 3, 4}, b
+    # optimum for the 4-edge path is 2; both answers are within the factor of 2.
+    assert len(a) <= 4 and len(b) <= 4
+
+- id: duplicate-edges
+  label: A repeated edge does not join the matching twice
+  hidden: true
+  code: |
+    m = list(matching_used(3, [(0,1),(0,1),(1,2)]))
+    assert m == [(0, 1)], m
+    assert set(approx_cover(3, [(0,1),(0,1),(1,2)])) == {0, 1}

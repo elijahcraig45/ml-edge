@@ -1,0 +1,102 @@
+id: approx-distinct
+kind: sql
+title: What the sketch costs you
+difficulty: 3
+datasetId: package-registry
+pattern: aggregation
+topics: [aggregation, sketches]
+timeLimitMs: 20000
+prompt: |
+  Compare exact and approximate distinct counting, per language, on the daily
+  download figures.
+
+  Return four columns, ordered by `language`:
+
+  - `language`
+  - `exact_values` — `count(DISTINCT d.count)`
+  - `approx_values` — the same thing via `approx_count_distinct`
+  - `error_pct` — the signed relative error of the approximation as a
+    percentage, `100 * (approx - exact) / exact`, rounded to two decimals
+
+  Join `downloads` to `packages` to get the language.
+
+  The point is the last column. `approx_count_distinct` is HyperLogLog: it keeps
+  a few kilobytes of registers per group instead of a set of every value it has
+  seen, and it merges across workers. On groups this small its error is
+  embarrassing — which is the honest lesson, because the error is set by the
+  register count and does not shrink just because the cardinality is small.
+hints:
+  - "You need both aggregates over the same column in the same SELECT: `count(DISTINCT d.count)` and `approx_count_distinct(d.count)`."
+  - "`error_pct` is a signed percentage, so the approximation being an underestimate must show as a negative number. Do not wrap it in `abs`."
+  - "Force a floating-point division by writing the numerator as `100.0 * (...)`. With integer operands some engines truncate, and every error would come out as 0."
+solutionWalkthrough: |
+  ```sql
+  SELECT
+    p.language,
+    count(DISTINCT d.count)        AS exact_values,
+    approx_count_distinct(d.count) AS approx_values,
+    round(
+      100.0 * (approx_count_distinct(d.count) - count(DISTINCT d.count))
+      / count(DISTINCT d.count), 2
+    )                              AS error_pct
+  FROM downloads d
+  JOIN packages p ON p.id = d.package_id
+  GROUP BY p.language
+  ORDER BY p.language;
+  ```
+
+  | language | exact | approx | error |
+  | --- | --- | --- | --- |
+  | js | 30 | 28 | -6.67% |
+  | python | 80 | 86 | +7.50% |
+  | rust | 50 | 48 | -4.00% |
+  | sql | 40 | 39 | -2.50% |
+
+  Errors of several percent on groups of a few dozen values, in both directions.
+  That is not a defect. HyperLogLog's relative error is about
+  $1.04/\sqrt{m}$ for $m$ registers and does not depend on the cardinality, so
+  at these sizes the absolute error is a couple of values and the *relative*
+  error is large. The rule that follows: below a few thousand distinct values,
+  count them exactly — the set fits. Above a few million per group, the exact
+  set does not fit and the sketch is the only thing that works.
+
+  **What you are buying.** `count(DISTINCT v)` grouped by `k` must hold a set of
+  seen values for every group at once, so its memory is groups times distinct
+  values within a group. Ten thousand groups with a million distinct users each
+  is ten billion values held simultaneously, and the planner will attempt it.
+  A HyperLogLog sketch is a fixed few kilobytes per group whatever the
+  cardinality, and — the property that actually matters in a cluster — two
+  sketches merge by taking the elementwise maximum of their registers. Each
+  worker sketches its own partition and the coordinator combines them, with no
+  shuffle of the values themselves. That is why `count(distinct)` is the query
+  that falls over at scale and `approx_count_distinct` is not.
+
+  **When the approximation is not acceptable**: anything that gets counted for
+  money or for compliance — billable active users, unique patients, distinct
+  securities held. "Approximately 1,000,004 users" is not a number you can put
+  in a filing. Everything else — dashboards, capacity planning, A/B test
+  denominators — tolerates 1% happily and should not be paying for exactness.
+
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 4
+      message: Four languages — python, rust, js and sql — so four rows.
+    - type: syntax
+      pattern: "approx_count_distinct"
+      message: >-
+        The third column has to come from approx_count_distinct, not from
+        another exact count.
+    - type: predicate
+      sql: "SELECT sum(exact_values) = 200 FROM __learner"
+      message: >-
+        The exact distinct counts should total 200: every one of the 200 daily
+        download figures is unique within its language. If your total is
+        different you are counting rows rather than DISTINCT values.
+    - type: predicate
+      sql: "SELECT count(*) FILTER (WHERE approx_values <> exact_values) >= 1 FROM __learner"
+      message: >-
+        At least one language must show the sketch disagreeing with the exact
+        count — that disagreement is the whole point of the exercise.

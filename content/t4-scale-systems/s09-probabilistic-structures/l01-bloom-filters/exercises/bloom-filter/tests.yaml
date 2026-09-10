@@ -1,0 +1,64 @@
+- id: positions-shape
+  label: positions() returns num_hashes indices inside the array
+  code: |
+    bf = BloomFilter(1000, 4)
+    pos = list(bf.positions("arrowkit"))
+    assert len(pos) == 4, f"expected 4 positions, got {len(pos)}"
+    assert all(0 <= p < 1000 for p in pos), f"position out of range: {pos}"
+    assert list(bf.positions("arrowkit")) == pos, "positions() must be deterministic"
+- id: inserted-items-found
+  label: Every inserted item reports present
+  code: |
+    bf = BloomFilter(4000, 5)
+    names = ["arrowkit", "bitmask", "chunker", "dagrun", "edgecase"]
+    for n in names:
+        bf.add(n)
+    for n in names:
+        assert n in bf, f"{n} was inserted but reports absent"
+- id: absent-item-rejected
+  label: A generously sized filter rejects an item that was never added
+  code: |
+    bf = BloomFilter(20000, 6)
+    for i in range(100):
+        bf.add(f"pkg-{i}")
+    assert "definitely-not-inserted" not in bf
+- id: empty-filter
+  label: An empty filter contains nothing
+  code: |
+    bf = BloomFilter(256, 3)
+    assert "arrowkit" not in bf
+    assert sum(bf.bits) == 0, "constructing a filter must not set any bits"
+- id: no-false-negatives-under-overload
+  label: No false negatives even when the array is saturated
+  hidden: true
+  code: |
+    # 40 items into 64 bits is absurd overload. The false-positive rate goes to
+    # ~1, but a false negative must still be impossible, because bits only ever
+    # turn on. If this fails, something in add() or __contains__ is clearing or
+    # skipping bits.
+    bf = BloomFilter(64, 3)
+    members = [f"pkg-{i}" for i in range(40)]
+    for m in members:
+        bf.add(m)
+    for m in members:
+        assert m in bf, f"false negative for {m} — impossible for a correct Bloom filter"
+- id: false-positives-do-occur
+  label: A saturated filter does produce false positives
+  hidden: true
+  code: |
+    # The mirror image of the test above, and the reason this cannot be passed
+    # by storing the items in a real set: an exact set would report zero.
+    bf = BloomFilter(64, 3)
+    for i in range(40):
+        bf.add(f"pkg-{i}")
+    fp = sum(1 for j in range(400) if f"absent-{j}" in bf)
+    assert fp > 0, "a 64-bit filter holding 40 items must produce false positives"
+- id: bits-are-the-only-storage
+  label: At most num_hashes bits are set per insertion
+  hidden: true
+  code: |
+    bf = BloomFilter(50000, 4)
+    for i in range(300):
+        bf.add(f"pkg-{i}")
+    assert sum(bf.bits) <= 300 * 4, "more bits set than k per item — positions() is wrong"
+    assert sum(bf.bits) > 900, "far too few bits set — add() is probably not writing all k"

@@ -1,0 +1,60 @@
+id: count-min-sketch
+kind: python
+title: Build a Count-Min Sketch
+difficulty: 3
+pattern: frequency-sketch
+topics: [count-min-sketch, streaming, hashing]
+timeLimitMs: 30000
+prompt: |
+  Two methods, three lines between them.
+
+  - `add(item, amount=1)` — for every row `r`, add `amount` to
+    `table[r][row_hash(item, r) % width]`. Every row gets updated, every time.
+  - `estimate(item)` — return the **minimum** of those same `depth` cells.
+
+  ```
+  cms = CountMinSketch(2048, 3)
+  cms.add("arrowkit", 5)
+  cms.add("arrowkit", 7)
+  cms.estimate("arrowkit")    # 12, or a little more in a crowded table
+  ```
+
+  Two hidden tests hold the guarantee in place from both sides. One checks that
+  a badly undersized table still never reports *below* the truth. The other
+  checks that it does report *above* it — so a plain dictionary of counts, which
+  would be exactly right everywhere, fails.
+
+  A third checks the epsilon bound: with $w = \lceil e/\varepsilon \rceil$ and
+  $d = \lceil \ln(1/\delta) \rceil$, no key over-counts by more than
+  $\varepsilon N$, where $N$ is the total mass added.
+hints:
+  - "Both methods visit the same `depth` cells. Write the cell address once — `self.table[row][row_hash(item, row) % self.width]` — and you have written most of the exercise."
+  - "`add` loops over `range(self.depth)` and does `+= amount`. There is no early exit: skipping a row breaks the guarantee for every key that lands there."
+  - "`estimate` is `min(...)` over a generator of those cells, not `sum` and not the first row."
+solutionWalkthrough: |
+  ```python
+  def add(self, item, amount=1):
+      for row in range(self.depth):
+          self.table[row][row_hash(item, row) % self.width] += amount
+
+  def estimate(self, item):
+      return min(self.table[row][row_hash(item, row) % self.width]
+                 for row in range(self.depth))
+  ```
+
+  `min` is doing real work, and it is worth being able to defend it. Each row's
+  cell holds the key's true count plus whatever else collided there. Collision
+  mass is a sum of counts, so it is never negative — every row is an upper
+  bound, and the smallest of $d$ upper bounds is the best one you have. An
+  average would mix in the unlucky rows and stop being a bound at all.
+
+  The structure this most resembles is a Bloom filter with counters in place of
+  bits, and the resemblance is exact: same table, same hash-per-row layout, same
+  one-sided error. Membership becomes frequency because a counter remembers how
+  many times it was touched and a bit does not.
+
+  Where this stops winning: when the stream has decrements. A negative update
+  makes collision mass negative, `min` can then fall below the truth, and the
+  guarantee is gone. That is what the **Count Sketch** is for — signed updates
+  and a median across rows, which trades the one-sided bound for one that
+  survives deletions.

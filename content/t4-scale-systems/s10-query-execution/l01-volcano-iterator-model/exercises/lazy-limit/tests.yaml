@@ -1,0 +1,49 @@
+- id: basic
+  label: Returns the first n rows
+  code: |
+    rows = iter([{"id": 1}, {"id": 2}, {"id": 3}])
+    assert list(limit(rows, 2)) == [{"id": 1}, {"id": 2}]
+- id: zero
+  label: LIMIT 0 returns nothing
+  code: |
+    assert list(limit(iter([{"id": 1}]), 0)) == []
+- id: over
+  label: Asking for more rows than exist returns what there is
+  code: |
+    assert list(limit(iter([{"id": 1}]), 5)) == [{"id": 1}]
+- id: pulls-exactly-n
+  label: Pulls exactly n rows from the child, not n + 1
+  hidden: true
+  code: |
+    pulled = [0]
+    def counting():
+        for i in range(1000):
+            pulled[0] += 1
+            yield {"id": i}
+    out = list(limit(counting(), 3))
+    assert len(out) == 3, "expected 3 rows, got %d" % len(out)
+    assert pulled[0] == 3, "pulled %d rows from the child, should be 3" % pulled[0]
+- id: pulls-nothing-until-asked
+  label: Pulls nothing before the first row is requested
+  hidden: true
+  code: |
+    pulled = [0]
+    def counting():
+        for i in range(1000):
+            pulled[0] += 1
+            yield {"id": i}
+    it = limit(counting(), 5)
+    assert pulled[0] == 0, "read %d rows before anyone asked for one" % pulled[0]
+    next(iter(it))
+    assert pulled[0] == 1, "reading one row pulled %d" % pulled[0]
+- id: zero-pulls-nothing
+  label: LIMIT 0 does not touch the child at all
+  hidden: true
+  code: |
+    pulled = [0]
+    def counting():
+        for i in range(10):
+            pulled[0] += 1
+            yield {"id": i}
+    assert list(limit(counting(), 0)) == []
+    assert pulled[0] == 0, "LIMIT 0 still pulled %d row(s)" % pulled[0]

@@ -1,0 +1,57 @@
+- id: five-appends
+  label: Five appends give capacity 8 and 7 copies
+  code: |
+    a = GrowableArray()
+    for value in "abcde":
+        a.append(value)
+    assert (len(a), a.capacity, a.copies) == (5, 8, 7), (len(a), a.capacity, a.copies)
+    assert a[3] == "d"
+- id: starts-empty
+  label: A fresh array is empty with no capacity and no copies
+  code: |
+    a = GrowableArray()
+    assert len(a) == 0 and a.capacity == 0 and a.copies == 0
+- id: first-append
+  label: The first append allocates one slot and copies nothing
+  code: |
+    a = GrowableArray()
+    a.append("x")
+    assert (len(a), a.capacity, a.copies) == (1, 1, 0), (len(a), a.capacity, a.copies)
+- id: reads-back
+  label: Every appended value reads back at its index
+  code: |
+    a = GrowableArray()
+    for i in range(100):
+        a.append(i * i)
+    assert [a[i] for i in range(100)] == [i * i for i in range(100)]
+    assert len(a) == 100
+- id: thousand
+  label: 1000 appends copy 1023 elements
+  code: |
+    a = GrowableArray()
+    for i in range(1000):
+        a.append(i)
+    assert (a.capacity, a.copies) == (1024, 1023), (a.capacity, a.copies)
+- id: aggregate-bound
+  label: Total copies stay under 2n at 5000 appends
+  hidden: true
+  code: |
+    n = 5000
+    a = GrowableArray()
+    for i in range(n):
+        a.append(i)
+    assert a.copies == 8191, a.copies
+    assert a.copies < 2 * n, a.copies
+    assert a.capacity == 8192, a.capacity
+- id: out-of-range
+  label: Indexing past the last element is an IndexError, not a None
+  hidden: true
+  code: |
+    a = GrowableArray()
+    a.append("only")
+    for bad in (1, 5, -1):
+        try:
+            value = a[bad]
+        except IndexError:
+            continue
+        raise AssertionError("expected IndexError for index %r, got %r" % (bad, value))

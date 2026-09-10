@@ -1,0 +1,64 @@
+- id: hit-and-miss
+  label: Stored keys are returned, absent keys give None
+  code: |
+    c = LRUCache(3)
+    c.put("a", 1)
+    c.put("b", 2)
+    assert c.get("a") == 1
+    assert c.get("b") == 2
+    assert c.get("z") is None
+- id: evicts-least-recent
+  label: The least recently used key is the one evicted
+  code: |
+    c = LRUCache(2)
+    c.put("a", 1)
+    c.put("b", 2)
+    c.get("a")          # "a" is now the most recent, so "b" is next out
+    c.put("c", 3)
+    assert c.get("b") is None, "evicted the wrong key"
+    assert c.get("a") == 1
+    assert c.get("c") == 3
+- id: update-refreshes
+  label: Re-putting an existing key updates it and makes it most recent
+  code: |
+    c = LRUCache(2)
+    c.put("a", 1)
+    c.put("b", 2)
+    c.put("a", 99)
+    c.put("c", 3)
+    assert c.get("a") == 99, "re-putting a key must update the value and its recency"
+    assert c.get("b") is None
+- id: capacity-respected
+  label: The cache never exceeds its capacity
+  code: |
+    c = LRUCache(4)
+    for i in range(50):
+        c.put(i, i)
+    live = sum(1 for i in range(50) if c.get(i) is not None)
+    assert live == 4, f"expected 4 live entries, found {live}"
+    for i in range(46, 50):
+        assert c.get(i) == i, f"{i} should still be cached"
+- id: falsy-values
+  label: A cached value of 0 or None is still a hit
+  hidden: true
+  code: |
+    # `if self.store.get(key):` looks equivalent and silently treats a cached 0
+    # as a miss. Membership must be tested, not truthiness.
+    c = LRUCache(2)
+    c.put("zero", 0)
+    assert c.get("zero") == 0
+    c.put("x", 1)
+    c.put("y", 2)        # capacity is 2, so "zero" goes
+    assert c.get("zero") is None
+- id: get-counts-as-use
+  label: A read refreshes recency, not just a write
+  hidden: true
+  code: |
+    c = LRUCache(3)
+    for k in ("a", "b", "c"):
+        c.put(k, k)
+    for _ in range(5):
+        c.get("a")       # keep "a" hot by reading it only
+    c.put("d", "d")      # "b" is now the oldest
+    assert c.get("b") is None, "reads must count as uses"
+    assert c.get("a") == "a"

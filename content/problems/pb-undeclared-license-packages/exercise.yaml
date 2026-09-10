@@ -1,0 +1,73 @@
+id: pb-undeclared-license-packages
+kind: sql
+title: The packages with no license at all
+difficulty: 1
+pattern: null-semantics
+stage: s01-ground-floor
+topics: [filtering, booleans]
+datasetId: package-registry
+timeLimitMs: 15000
+prompt: |
+  Legal wants the list of packages that never declared a license.
+
+  Return three columns:
+
+  - `name`
+  - `language`
+  - `is_deprecated` — a boolean, true when the package has a
+    `deprecated_reason`, false when it does not
+
+  Order does not matter.
+
+  The obvious filter, `WHERE license = NULL`, returns nothing. It is not a typo
+  and it is not an empty table — it is the equality operator doing exactly what
+  the standard says it should.
+hints:
+  - "Run the filter you think is right, then run `SELECT count(*) FROM packages`. If one of those numbers is zero, the filter is not asking what you think it is asking."
+  - "`license = NULL` evaluates to UNKNOWN for every row, including the rows where the license really is missing. UNKNOWN is not TRUE, so `WHERE` discards the row."
+  - "`IS NULL` is a separate operator from `=`, and it is the only one that can return TRUE for a missing value. The same is true of `IS NOT NULL`, which is how you build the boolean column."
+solutionWalkthrough: |
+  ```sql
+  SELECT
+    name,
+    language,
+    deprecated_reason IS NOT NULL AS is_deprecated
+  FROM packages
+  WHERE license IS NULL;
+  ```
+
+  Four packages come back: `dagrun`, `hashring`, `nullsafe`, and `skiplist`.
+  Only `skiplist` is deprecated.
+
+  `=` compares values. NULL is not a value; it is the absence of one, so
+  `NULL = NULL` is UNKNOWN rather than TRUE and `WHERE` keeps only TRUE. `IS
+  NULL` is a different operator entirely — it asks about presence, not about
+  equality, and it is total: it returns TRUE or FALSE, never UNKNOWN.
+
+  Notice the second use of the same idea in the SELECT list. `deprecated_reason
+  IS NOT NULL` produces a real boolean for every row, which is why it is safe to
+  return directly. Had you written `deprecated_reason <> ''` you would have got
+  NULL back for the active packages, and a column that is sometimes NULL and
+  sometimes FALSE is a column nobody downstream can filter on.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 4
+      message: >-
+        Expected 4 rows. Zero rows means you compared with `=` instead of using
+        `IS NULL`; 20 rows means the filter did not run at all.
+    - type: syntax
+      pattern: "=\\s*null"
+      negate: true
+      message: >-
+        `= NULL` is never TRUE for any row. Missing values are tested with the
+        `IS NULL` operator, not with equality.
+    - type: predicate
+      sql: "SELECT count(*) = 1 FROM __learner WHERE is_deprecated"
+      message: >-
+        Exactly one of the four unlicensed packages is deprecated (`skiplist`).
+        Check that `is_deprecated` is TRUE when `deprecated_reason` is present,
+        not the other way round.

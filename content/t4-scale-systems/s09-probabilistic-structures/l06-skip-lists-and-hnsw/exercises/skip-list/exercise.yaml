@@ -1,0 +1,77 @@
+id: skip-list
+kind: python
+title: Build a skip list
+difficulty: 4
+pattern: randomised-balance
+topics: [skip-list, randomness, ordered-structures]
+timeLimitMs: 30000
+prompt: |
+  `random_height` and `to_list` are given. Write the other four.
+
+  **`predecessors(value)`** is the traversal everything else is built on. Start
+  at `self.head` on the top level. Advance while `node.forward[level]` exists
+  and its value is **strictly less** than the target. When it is not, record the
+  node you stopped at for this level and drop one level, continuing from where
+  you are. Return a list of `MAX_HEIGHT` nodes.
+
+  **`insert(value)`** — get the predecessors, check whether
+  `update[0].forward[0]` already holds the value (return `False` if so), draw a
+  height, and splice the new node in at every level below that height.
+
+  **`__contains__(value)`** — the level-0 successor of the level-0 predecessor
+  is the only node that could equal the target.
+
+  **`delete(value)`** — find the node, then unsplice it at **every** level it
+  appears on. A level whose predecessor does not point at the target is a level
+  the node was never on.
+
+  ```
+  sl = SkipList()
+  sl.insert(5)     # True
+  sl.insert(5)     # False — already there
+  5 in sl          # True
+  sl.delete(5)     # True
+  ```
+
+  One hidden test is **statistical**: it inserts 800 values and checks that
+  about half the nodes reach height 2, a quarter reach height 3, and an eighth
+  reach height 4. It seeds the RNG first, so it is reproducible. A structure
+  that puts every node at height 1 is a linked list and fails it.
+hints:
+  - "`predecessors` is one loop over levels containing one loop over nodes — and the crucial detail is that the outer loop does not reset `node`. You keep descending from wherever the previous level left you."
+  - "Splicing at level i is the ordinary linked-list insert: `node.forward[i] = update[i].forward[i]` and then `update[i].forward[i] = node`. Do it for every level up to the node's height."
+  - "For delete, loop over `range(len(target.forward))` and only rewire when `update[level].forward[level] is target` — comparing identity, not value."
+solutionWalkthrough: |
+  ```python
+  def predecessors(self, value):
+      update, node = [None] * self.MAX_HEIGHT, self.head
+      for level in range(self.MAX_HEIGHT - 1, -1, -1):
+          while node.forward[level] is not None and node.forward[level].value < value:
+              node = node.forward[level]
+          update[level] = node
+      return update
+  ```
+
+  The line that carries the whole data structure is the one that is not there:
+  `node` is **not** reset between levels. Having advanced as far as possible on
+  level 5, you drop to level 4 and continue from that same node — everything to
+  its left has already been ruled out. Reset `node` to `self.head` each level
+  and the code still returns correct answers, in $O(n)$ per level. It is a
+  one-word bug that removes the entire benefit and passes every correctness
+  test, which is why the express-lane picture matters more than the code.
+
+  `insert` and `__contains__` then cost one call to `predecessors` each, and the
+  splice is an ordinary linked-list insert repeated per level.
+
+  `delete` has the subtlety. A node of height 3 is present on levels 0, 1 and 2
+  and absent above; `update[5].forward[5]` points at something else entirely, and
+  rewriting it would corrupt the list. Checking `is target` — identity, not
+  equality — is what makes the loop safe, and it is also why `len(target.forward)`
+  is the right upper bound.
+
+  Against a balanced tree: same expected $O(\log n)$, about two pointers per node
+  instead of three plus a colour bit, no rotations, and simpler concurrent
+  updates because an insert touches only the predecessor at each of its levels.
+  What you give up is the worst-case guarantee — and the ability to answer
+  "what is the 500th smallest?" in log time, which a size-augmented tree can and
+  a plain skip list cannot.

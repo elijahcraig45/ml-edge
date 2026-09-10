@@ -1,0 +1,115 @@
+id: pb-fanout-size-vs-downloads
+kind: sql
+title: Bytes shipped against bytes pulled
+difficulty: 5
+pattern: fan-out
+stage: s03-linear-structures
+topics: [pre-aggregation, joins]
+datasetId: package-registry
+timeLimitMs: 20000
+prompt: |
+  Estimate how much traffic each package is responsible for.
+
+  One row per package — all 20 — with:
+
+  - `name`
+  - `releases` — how many `versions` rows it has
+  - `total_size_kb` — the sum of those releases' `size_kb`
+  - `total_downloads` — the sum of its `downloads.count`
+  - `download_days` — how many distinct days it recorded downloads on
+
+  Every package recorded downloads on all 10 days, so `download_days` must be 10
+  on every row. Across the whole result, `releases` sums to 26,
+  `total_size_kb` to 3,729, and `total_downloads` to 363,840. Order does not
+  matter.
+
+  Those three totals are the whole test. Join `versions` and `downloads` into the
+  same `FROM` clause and every one of them comes out inflated by a different
+  factor, because `versions` has between one and three rows per package while
+  `downloads` has exactly ten.
+hints:
+  - "Check `download_days` first. If it reads 1, 2 or 3 instead of 10, that number is your release count — which tells you what multiplied what."
+  - "`count(DISTINCT ...)` survives a fan-out, which is why `download_days` can be rescued with `count(DISTINCT d.day)` while `sum(d.count)` cannot be rescued at all."
+  - "Aggregate `versions` to one row per `package_id` in one CTE and `downloads` to one row per `package_id` in another, then LEFT JOIN both to `packages`. Both sides are now unique on the key, so the join is many-to-one and nothing multiplies."
+solutionWalkthrough: |
+  ```sql
+  WITH release_stats AS (
+    SELECT package_id,
+           count(*)      AS releases,
+           sum(size_kb)  AS total_size_kb
+    FROM versions
+    GROUP BY package_id
+  ),
+  download_stats AS (
+    SELECT package_id,
+           sum(count)          AS total_downloads,
+           count(DISTINCT day) AS download_days
+    FROM downloads
+    GROUP BY package_id
+  )
+  SELECT
+    p.name,
+    r.releases,
+    r.total_size_kb,
+    d.total_downloads,
+    d.download_days
+  FROM packages p
+  JOIN release_stats  r ON r.package_id = p.id
+  JOIN download_stats d ON d.package_id = p.id;
+  ```
+
+  `chunker` — 2 releases, 712 KB, 31,880 downloads over 10 days. The naive join
+  reports 20 releases and 63,760 downloads for the same package.
+
+  The arithmetic of the bug: `versions` contributes *v* rows per package,
+  `downloads` contributes *d*, and joining both to `packages` yields *v × d* rows
+  because the two children share no key. Every `versions` value is then summed
+  *d* times and every `downloads` value *v* times. `chunker` has v=2, d=10:
+  releases ×10, size ×10, downloads ×2. Different columns, different wrong
+  factors, all from one join.
+
+  Two other repairs exist and both are worse here. Dividing after the fact —
+  `sum(v.size_kb) / count(DISTINCT d.day)` — happens to work on this dataset and
+  breaks the day a package misses a day of downloads, because the factor is no
+  longer constant. Using `LATERAL` or scalar subqueries per metric is correct but
+  re-derives the grain once per column, so a five-metric report needs five
+  independently-correct subqueries.
+
+  Pre-aggregation is the one that scales. It states the grain explicitly — "one
+  row per package" — in a place a reviewer can check once, and then every join
+  downstream is provably many-to-one. That is the same reason a star schema keeps
+  its facts in separate tables rather than pre-joined: you fan in, never out.
+
+  `LEFT JOIN` rather than `JOIN` would be the more defensive spelling. Here every
+  package has both releases and downloads, so it changes nothing — but it is the
+  version that keeps returning 20 rows when a package with no releases is added
+  next week.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 20
+      message: Expected one row per package, all 20 of them.
+    - type: predicate
+      sql: "SELECT count(*) = 0 FROM __learner WHERE download_days <> 10"
+      message: >-
+        Every package has exactly 10 days of downloads. Any other value means the
+        download rows were multiplied by the release rows.
+    - type: predicate
+      sql: "SELECT sum(releases) = 26 AND sum(total_size_kb) = 3729 AND sum(total_downloads) = 363840 FROM __learner"
+      message: >-
+        The three totals must reconcile to the source tables: 26 versions rows,
+        3,729 KB, 363,840 downloads. Each column is inflated by a different
+        factor when the two child tables are joined together.
+    - type: predicate
+      sql: "SELECT releases = 2 AND total_size_kb = 712 AND total_downloads = 31880 FROM __learner WHERE name = 'chunker'"
+      message: >-
+        `chunker` has 2 releases (712 KB) and 31,880 downloads. 20 releases and
+        63,760 downloads is the two tables multiplying each other.
+    - type: plan
+      notContains: ["CROSS_PRODUCT"]
+      message: >-
+        Every join must carry an equality on `package_id`. A cross product across
+        these three tables would be 20 x 26 x 200 rows.

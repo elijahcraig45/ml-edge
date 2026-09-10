@@ -1,0 +1,31 @@
+- id: basic
+  label: Points at the nearest smaller earlier package
+  code: |
+    assert previous_lighter([4, 2, 5, 3, 6]) == [-1, -1, 1, 1, 3]
+- id: increasing
+  label: A rising series always points one step back
+  code: |
+    assert previous_lighter([1, 2, 3]) == [-1, 0, 1]
+- id: decreasing
+  label: A falling series has no smaller predecessor
+  code: |
+    assert previous_lighter([9, 5, 1]) == [-1, -1, -1]
+- id: empty
+  label: An empty list gives an empty answer
+  code: |
+    assert previous_lighter([]) == []
+- id: equal-sizes
+  label: Equal sizes do not count as smaller
+  hidden: true
+  code: |
+    assert previous_lighter([3, 3, 3]) == [-1, -1, -1]
+    assert previous_lighter([2, 3, 3, 1]) == [-1, 0, 0, -1]
+- id: single-and-negative
+  label: One package, negative values, and an untouched input
+  hidden: true
+  code: |
+    assert previous_lighter([8]) == [-1]
+    assert previous_lighter([-1, -4, -2, 0]) == [-1, -1, 1, 2]
+    original = [5, 1, 5]
+    previous_lighter(original)
+    assert original == [5, 1, 5], "the input must not be modified"

@@ -1,0 +1,55 @@
+- id: push-pop-order
+  label: Pushing then popping everything gives sorted order
+  code: |
+    values = [5, 3, 8, 1, 9, 2, 7]
+    heap = []
+    for value in values:
+        heap_push(heap, value)
+    assert [heap_pop(heap) for _ in range(len(values))] == sorted(values)
+    assert heap == []
+- id: heapify-min
+  label: heapify puts the smallest value at index 0
+  code: |
+    heap = heapify([9, 4, 7, 1, 6])
+    assert heap[0] == 1
+    assert sorted(heap) == [1, 4, 6, 7, 9]
+- id: single
+  label: A one-element heap pushes and pops cleanly
+  code: |
+    heap = []
+    heap_push(heap, 42)
+    assert heap == [42]
+    assert heap_pop(heap) == 42
+    assert heap == []
+- id: duplicates
+  label: Repeated values all come back
+  code: |
+    heap = heapify([2, 2, 1, 2, 1])
+    assert [heap_pop(heap) for _ in range(5)] == [1, 1, 2, 2, 2]
+- id: heap-property-holds
+  label: Every parent is <= both children after heapify
+  hidden: true
+  code: |
+    values = [(i * 37) % 101 for i in range(101)]
+    heap = heapify(values)
+    for i in range(len(heap)):
+        for child in (2 * i + 1, 2 * i + 2):
+            if child < len(heap):
+                assert heap[i] <= heap[child], f"index {i} > child {child}"
+    assert sorted(heap) == sorted(values), "heapify changed the multiset"
+- id: property-after-pops
+  label: The heap property survives interleaved pushes and pops
+  hidden: true
+  code: |
+    heap = []
+    out = []
+    for i, value in enumerate([13, 7, 21, 3, 9, 1, 18, 4, 6]):
+        heap_push(heap, value)
+        if i % 3 == 2:
+            out.append(heap_pop(heap))
+        for j in range(len(heap)):
+            for child in (2 * j + 1, 2 * j + 2):
+                if child < len(heap):
+                    assert heap[j] <= heap[child], f"broken at index {j}"
+    assert out == [7, 1, 3]
+    assert sorted(out + heap) == [1, 3, 4, 6, 7, 9, 13, 18, 21]

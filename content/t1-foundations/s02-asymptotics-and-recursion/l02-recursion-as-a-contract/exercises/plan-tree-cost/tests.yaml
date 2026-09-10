@@ -1,0 +1,56 @@
+- id: leaf
+  label: A single scan has depth 1
+  code: |
+    assert plan_summary({"op": "SEQ_SCAN", "rows": 5, "children": []}) == (1, 5)
+- id: real-plan
+  label: Summarises the three-table join plan from the lesson
+  code: |
+    plan = {
+        "op": "PROJECTION", "rows": 3, "children": [
+            {"op": "HASH_JOIN", "rows": 3, "children": [
+                {"op": "SEQ_SCAN", "rows": 26, "children": []},
+                {"op": "HASH_JOIN", "rows": 6, "children": [
+                    {"op": "SEQ_SCAN", "rows": 26, "children": []},
+                    {"op": "SEQ_SCAN", "rows": 5, "children": []},
+                ]},
+            ]},
+        ],
+    }
+    assert plan_summary(plan) == (4, 69), plan_summary(plan)
+- id: two-leaves
+  label: Sums across siblings
+  code: |
+    plan = {"op": "UNION", "rows": 10, "children": [
+        {"op": "SEQ_SCAN", "rows": 4, "children": []},
+        {"op": "SEQ_SCAN", "rows": 6, "children": []},
+    ]}
+    assert plan_summary(plan) == (2, 20)
+- id: zero-rows
+  label: A node estimated at zero rows still counts toward depth
+  code: |
+    plan = {"op": "FILTER", "rows": 0, "children": [
+        {"op": "SEQ_SCAN", "rows": 0, "children": []},
+    ]}
+    assert plan_summary(plan) == (2, 0)
+- id: deepest-child-is-last
+  label: Depth is the maximum over children, not the first child's
+  hidden: true
+  code: |
+    # The shallow child comes first. Taking children[0]'s depth reports 2.
+    plan = {"op": "HASH_JOIN", "rows": 1, "children": [
+        {"op": "SEQ_SCAN", "rows": 1, "children": []},
+        {"op": "FILTER", "rows": 1, "children": [
+            {"op": "PROJECTION", "rows": 1, "children": [
+                {"op": "SEQ_SCAN", "rows": 1, "children": []},
+            ]},
+        ]},
+    ]}
+    assert plan_summary(plan) == (4, 5), plan_summary(plan)
+- id: wide-node
+  label: Handles a node with many children
+  hidden: true
+  code: |
+    plan = {"op": "UNION", "rows": 0, "children": [
+        {"op": "SEQ_SCAN", "rows": i, "children": []} for i in range(1, 51)
+    ]}
+    assert plan_summary(plan) == (2, 1275), plan_summary(plan)

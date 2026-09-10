@@ -4,9 +4,53 @@ on:
   push:
     branches:
       - main
+  pull_request:
 
 jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run type-check
+
+      - name: Unit tests
+        run: npm run test
+
+      # Executes every authored exercise: a solution that fails its own tests,
+      # or a starter that already passes, fails the build.
+      - name: Curriculum content check
+        run: npm run curriculum:check
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
   deploy:
+    # Nothing reaches learners unless verify passed.
+    needs: verify
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -29,4 +73,5 @@ jobs:
             --source . \
             --region us-central1 \
             --project mledge-20260420 \
+            --min-instances 0 \
             --quiet

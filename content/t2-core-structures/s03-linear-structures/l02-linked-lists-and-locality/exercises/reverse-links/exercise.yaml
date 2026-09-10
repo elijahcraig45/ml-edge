@@ -1,0 +1,64 @@
+id: reverse-links
+kind: python
+title: Reverse a chain without rebuilding it
+difficulty: 3
+pattern: two-pointer
+topics: [linked-lists, pointers]
+timeLimitMs: 10000
+forbid:
+  - "reversed("
+  - "[::-1]"
+prompt: |
+  `reverse(head)` takes the head of a singly linked list and returns the head
+  of the reversed list. Reverse it **in place**: rewire the `next` pointers on
+  the nodes you were given. Do not allocate new nodes.
+
+  ```
+  walk(reverse(build([1, 2, 3, 4])))   # [4, 3, 2, 1]
+  reverse(build([])) is None           # True
+  ```
+
+  `Node`, `build` and `walk` are already written for you — leave them alone.
+  The only function to fill in is `reverse`.
+
+  A hidden test checks that the nodes coming out are the same objects that went
+  in, so "walk the chain into a list, then build a new chain backwards" will
+  not pass. That version is also O(n) extra memory, which is the point.
+hints:
+  - "Walk the chain once. At each node, the only thing that has to change is which node its `next` points at — and after you change it, the way forward is gone."
+  - "Keep three names alive: the node behind you, the node you are on, and the node ahead. Save the node ahead *before* you overwrite the link."
+  - "Start with `previous = None`. That is what turns the old head into a properly terminated tail. Return `previous` at the end, not `head` — `head` is now the last node."
+solutionWalkthrough: |
+  ```python
+  def reverse(head):
+      previous = None
+      current = head
+      while current is not None:
+          ahead = current.next       # save it before we overwrite the link
+          current.next = previous    # point backwards
+          previous = current         # advance both pointers
+          current = ahead
+      return previous
+  ```
+
+  The single line that makes this work is `ahead = current.next`, and it has to
+  come first. `current.next = previous` destroys the only reference to the rest
+  of the chain; if you have not saved it, the remaining nodes are unreachable
+  and Python will collect them while you are still standing on one.
+
+  `previous` starting at `None` is doing double duty. It is the sentinel that
+  terminates the reversed chain, and it is the value you return — because when
+  the loop ends, `current` is `None` and `previous` is the last node you
+  touched, which is the new head.
+
+  **What this costs, and what it buys.** O(n) time, O(1) extra space, and every
+  node stays where it is in memory. Compare that with the array version:
+  `list.reverse()` swaps elements in a contiguous block, also O(n) and O(1)
+  space, but it moves *data* rather than *links*. When the elements are large
+  records, moving links is much cheaper. When the elements are pointers anyway
+  — as they are in a Python list — moving data is cheaper, because the block
+  is contiguous and the CPU prefetcher can see what is coming.
+
+  That is the whole array-versus-list trade in one function: identical
+  asymptotics, opposite constants, and the constant depends on what you are
+  moving and where it lives.

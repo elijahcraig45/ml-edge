@@ -1,0 +1,52 @@
+- id: signature-shape
+  label: A signature has one value per hash function
+  code: |
+    sig = minhash_signature({"a", "b", "c"}, 32)
+    assert len(sig) == 32, f"expected 32 values, got {len(sig)}"
+    assert sig[0] == min(sig_hash(x, 0) for x in {"a", "b", "c"}), "position 0 is not the minimum under hash 0"
+- id: identical-sets
+  label: Identical sets estimate 1.0
+  code: |
+    a = minhash_signature(set(range(200)), 64)
+    b = minhash_signature(set(range(200)), 64)
+    assert estimate_jaccard(a, b) == 1.0
+- id: disjoint-sets
+  label: Disjoint sets estimate near 0
+  code: |
+    a = minhash_signature(set(range(100)), 256)
+    b = minhash_signature(set(range(500, 600)), 256)
+    assert estimate_jaccard(a, b) < 0.05, "disjoint sets should almost never share a minimum"
+- id: known-overlap
+  label: A pair with true Jaccard 1/3 estimates close to it
+  code: |
+    a_set, b_set = set(range(100)), set(range(50, 150))
+    true_j = len(a_set & b_set) / len(a_set | b_set)      # exactly 1/3
+    est = estimate_jaccard(minhash_signature(a_set, 256), minhash_signature(b_set, 256))
+    assert abs(est - true_j) < 0.12, f"estimate {est} is far from {true_j}"
+- id: it-is-a-sampled-estimate
+  label: The estimate is a multiple of 1 / num_hashes
+  hidden: true
+  code: |
+    # The estimate counts matching positions, so it can only take num_hashes + 1
+    # values. Computing the exact Jaccard would return 0.3333... and fail here.
+    m = 256
+    est = estimate_jaccard(minhash_signature(set(range(100)), m),
+                           minhash_signature(set(range(50, 150)), m))
+    assert abs(est * m - round(est * m)) < 1e-9, f"{est} is not a multiple of 1/{m}"
+- id: duplicates-do-not-matter
+  label: A list with repeats gives the same signature as the set
+  hidden: true
+  code: |
+    # min() over a multiset is min() over its support, so MinHash is set-valued
+    # even when handed a list.
+    as_list = ["a", "b", "a", "c", "b", "b"]
+    assert minhash_signature(as_list, 32) == minhash_signature({"a", "b", "c"}, 32)
+- id: subset-similarity
+  label: A set and its half estimate near 0.5
+  hidden: true
+  code: |
+    # A subset of exactly half the elements has Jaccard |B| / |A| = 0.5.
+    whole = set(range(400))
+    half = set(range(200))
+    est = estimate_jaccard(minhash_signature(whole, 512), minhash_signature(half, 512))
+    assert abs(est - 0.5) < 0.08, f"estimate {est} is far from 0.5"

@@ -42,3 +42,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Test output
+/playwright-report
+/test-results
+public/assets/search-index.json
+.curriculum/
+
+# Vendored wasm runtimes (npm run runtimes:vendor) — tens of megabytes,
+# and the CDN is the default source.
+/public/runtime

@@ -1,0 +1,72 @@
+id: bst-insert-and-search
+kind: python
+title: Build a BST and prove it is one
+difficulty: 2
+pattern: binary-search-tree
+topics: [trees, invariants]
+timeLimitMs: 10000
+prompt: |
+  Nodes are `(value, left, right)` tuples and the empty tree is `None`.
+
+  Write three functions:
+
+  - `bst_insert(node, value)` — return a **new** tree with `value` added.
+    Ignore a value that is already present; the tree comes back unchanged.
+  - `bst_contains(node, value)` — `True` or `False`, descending rather than
+    scanning.
+  - `bst_height(node)` — the number of nodes on the longest root-to-leaf path.
+    The empty tree has height `0`.
+
+  ```
+  t = None
+  for v in [50, 30, 70]:
+      t = bst_insert(t, v)
+  bst_contains(t, 30)     # True
+  bst_contains(t, 31)     # False
+  bst_height(t)           # 2
+  ```
+
+  `bst_contains` must not walk the whole tree. One of the hidden tests builds a
+  right-leaning chain of 4,000 nodes and asks for a value that is not in it —
+  a descent answers in 4,000 steps at worst, but it must be a descent.
+hints:
+  - "Insert is a search that ends by creating a leaf. Write the comparison chain once and reuse the shape for both functions."
+  - "Because nodes are tuples, you cannot attach a child in place. Rebuild the node you descended through: `return (v, bst_insert(left, value), right)`."
+  - "For height, the empty tree is 0 and a node is 1 + the taller of its two children. Watch the off-by-one: a single node has height 1, not 0."
+solutionWalkthrough: |
+  ```python
+  def bst_insert(node, value):
+      if node is None:
+          return (value, None, None)
+      v, left, right = node
+      if value < v:
+          return (v, bst_insert(left, value), right)
+      if value > v:
+          return (v, left, bst_insert(right, value))
+      return node
+
+  def bst_contains(node, value):
+      while node is not None:
+          v, left, right = node
+          if value == v:
+              return True
+          node = left if value < v else right
+      return False
+
+  def bst_height(node):
+      if node is None:
+          return 0
+      return 1 + max(bst_height(node[1]), bst_height(node[2]))
+  ```
+
+  Insert rebuilds only the nodes on the path it walked — $O(h)$ new tuples —
+  and shares every untouched subtree with the old tree. That makes this a
+  *persistent* structure: the old root is still a valid tree, which is how
+  functional languages get undo for free and how a database gets snapshot
+  isolation. Mutating the node in place would be a constant-factor win and
+  would throw that away.
+
+  `bst_contains` is written as a loop on purpose. It is naturally tail
+  recursive, Python does not eliminate tail calls, and the degenerate tree in
+  the hidden test is 4,000 deep — so the recursive version is the one that
+  crashes. Descent-shaped searches are the easiest place to spend a loop.

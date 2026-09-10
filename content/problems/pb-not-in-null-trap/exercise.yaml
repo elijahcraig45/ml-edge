@@ -1,0 +1,96 @@
+id: pb-not-in-null-trap
+kind: sql
+title: NOT IN against a subquery that contains NULL
+difficulty: 3
+pattern: null-semantics
+stage: s01-ground-floor
+topics: [subqueries, anti-join]
+datasetId: package-registry
+timeLimitMs: 15000
+prompt: |
+  Find the packages whose declared license is used by no rust package.
+
+  Return `name` and `license`. A package that never declared a license has no
+  declared license to compare, so it does not belong in the answer — every row
+  you return must have a non-NULL `license`.
+
+  Write it the obvious way first:
+
+  ```sql
+  SELECT name, license FROM packages
+  WHERE license NOT IN (SELECT license FROM packages WHERE language = 'rust');
+  ```
+
+  That returns zero rows. There are rust packages, there are licenses, and there
+  are packages using neither of the rust licenses. Work out why the answer is
+  empty, then fix it.
+hints:
+  - "Run the inner subquery on its own and look at every value it returns, including the ones that are not strings."
+  - "`x NOT IN (a, b, NULL)` expands to `x <> a AND x <> b AND x <> NULL`. That last conjunct is UNKNOWN, and `TRUE AND UNKNOWN` is UNKNOWN — so the whole predicate can never be TRUE."
+  - "One rust package (`hashring`) has no license. Exclude NULLs from the subquery, or switch to `NOT EXISTS`, which is unaffected because it tests for the existence of a row rather than comparing values."
+solutionWalkthrough: |
+  ```sql
+  SELECT name, license
+  FROM packages
+  WHERE license IS NOT NULL
+    AND license NOT IN (
+      SELECT license FROM packages
+      WHERE language = 'rust' AND license IS NOT NULL
+    );
+  ```
+
+  Three rows: `fanout`, `lazyseq` and `treewalk`, all BSD-3. The rust packages
+  between them use MIT and Apache-2.0 — and `hashring`, which declares nothing.
+
+  `NOT IN` is defined as a chain of `<>` joined by `AND`. Introduce one NULL into
+  the list and every comparison chain ends with an UNKNOWN conjunct, so the
+  predicate is UNKNOWN for *every* candidate row and `WHERE` keeps none of them.
+  `IN` does not have the symmetric problem in the same way: a match still returns
+  TRUE, because `OR` short-circuits UNKNOWN away when something else is TRUE.
+  That asymmetry is why `NOT IN` is the one that surprises people.
+
+  Two fixes, and they are not equivalent. Filtering NULLs out of the subquery
+  keeps the `NOT IN` shape but means every future reader must notice the guard.
+  `NOT EXISTS` is the more robust habit:
+
+  ```sql
+  SELECT p.name, p.license
+  FROM packages p
+  WHERE p.license IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM packages r
+      WHERE r.language = 'rust' AND r.license = p.license
+    );
+  ```
+
+  `NOT EXISTS` asks whether a row exists, which is a two-valued question, so
+  there is no third truth value to leak. It also compiles to the same anti-join
+  the planner would choose anyway. The one place `NOT IN` still wins is
+  readability against a literal list you wrote yourself — where you can see there
+  is no NULL in it.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 3
+      message: >-
+        Expected 3 rows. Zero rows means the NULL license inside the subquery is
+        still poisoning the `NOT IN`.
+    - type: predicate
+      sql: "SELECT count(*) = 0 FROM __learner WHERE license IS NULL"
+      message: >-
+        A package with no declared license has nothing to compare against the
+        rust licenses, so it should not appear in the result.
+    - type: predicate
+      sql: "SELECT count(DISTINCT license) = 1 FROM __learner"
+      message: >-
+        Every package that qualifies is BSD-3 licensed — the rust packages
+        between them cover MIT and Apache-2.0.
+    - type: plan
+      notContains: ["CROSS_PRODUCT"]
+      message: >-
+        Your query pairs every package with every rust package before filtering.
+        Express the exclusion as a subquery or a join condition so the planner
+        can build a hash table instead.

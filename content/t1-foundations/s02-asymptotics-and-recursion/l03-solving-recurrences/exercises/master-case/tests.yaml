@@ -1,0 +1,38 @@
+- id: mergesort
+  label: T(n) = 2T(n/2) + n is case 2
+  code: |
+    assert master_case(2, 2, 1) == 2
+- id: binary-search
+  label: T(n) = T(n/2) + 1 is case 2
+  code: |
+    assert master_case(1, 2, 0) == 2
+- id: karatsuba
+  label: T(n) = 3T(n/2) + n is case 1
+  code: |
+    assert master_case(3, 2, 1) == 1
+- id: root-dominates
+  label: T(n) = 2T(n/2) + n^2 is case 3
+  code: |
+    assert master_case(2, 2, 2) == 3
+- id: block-matmul
+  label: T(n) = 8T(n/2) + n^2 is case 1
+  code: |
+    assert master_case(8, 2, 2) == 1
+- id: exact-power-of-three
+  label: a = 3^5 with k = 5 is a tie, not case 3
+  hidden: true
+  code: |
+    # math.log(243, 3) == 4.999999999999999, which reports case 3.
+    assert master_case(243, 3, 5) == 2, master_case(243, 3, 5)
+- id: exact-power-of-five
+  label: a = 5^3 with k = 3 is a tie, not case 1
+  hidden: true
+  code: |
+    # math.log(125, 5) == 3.0000000000000004, which reports case 1.
+    assert master_case(125, 5, 3) == 2, master_case(125, 5, 3)
+- id: single-subproblem
+  label: T(n) = T(n/2) + n is case 3
+  hidden: true
+  code: |
+    assert master_case(1, 2, 1) == 3
+    assert master_case(1, 7, 0) == 2

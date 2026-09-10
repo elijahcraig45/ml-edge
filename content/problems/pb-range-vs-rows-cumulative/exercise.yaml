@@ -1,0 +1,102 @@
+id: pb-range-vs-rows-cumulative
+kind: sql
+title: RANGE and ROWS disagree when the key repeats
+difficulty: 4
+pattern: window-functions
+stage: s04-sorting-and-windows
+topics: [frames, running-total]
+datasetId: package-registry
+timeLimitMs: 20000
+prompt: |
+  Attach a registry-wide running total to every row of `downloads`.
+
+  Four columns, 200 rows: `package_id`, `day`, `count`, and `registry_to_date` —
+  the total downloads recorded across **all** packages on this row's day and
+  every earlier day. Order does not matter.
+
+  The window is ordered by `day`, and twenty rows share each day. That is the
+  whole problem. Two rows on 2024-03-01 are *peers*: neither is before the other,
+  so the running total must be identical for both. Your result should therefore
+  contain exactly ten distinct values of `registry_to_date`, ending at 363,840.
+
+  `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` gives 200 distinct values,
+  because `ROWS` counts physical rows and the physical order of tied rows is
+  whatever the engine felt like.
+hints:
+  - "Count the distinct values in your `registry_to_date` column. Ten is right. Two hundred means the frame is walking rows rather than days."
+  - "`ROWS` measures the frame in rows. `RANGE` measures it in values of the `ORDER BY` key, so every row sharing a key value sees the same frame — they are peers."
+  - "`RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` is what you want, and it is also the default when an `OVER` clause has an `ORDER BY` and no explicit frame. Writing `sum(count) OVER (ORDER BY day)` is enough."
+solutionWalkthrough: |
+  ```sql
+  SELECT
+    package_id,
+    day,
+    count,
+    sum(count) OVER (
+      ORDER BY day
+      RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS registry_to_date
+  FROM downloads;
+  ```
+
+  Ten distinct values: 36,620 on the first day, then 73,080, 109,380, and so on
+  to 363,840 on the tenth. Every one of the twenty rows on a given day carries
+  the same number, because they describe the same day.
+
+  "CURRENT ROW" does not mean the current row. Under `RANGE` it means *the end of
+  the current row's peer group* — every row whose `ORDER BY` key compares equal.
+  Under `ROWS` it means the current row literally, in whatever order the rows
+  arrived. When the sort key is unique the two are indistinguishable, which is
+  exactly why this bug survives testing: it appears the moment the key stops
+  being unique, and by then the query has been in production for a year.
+
+  The result under `ROWS` is not merely different, it is *non-deterministic*. The
+  running total after the fifth row of 2024-03-01 depends on which five rows the
+  engine emitted first, and nothing in the query constrains that. Change the
+  parallelism, add an index, upgrade the engine, and the numbers move. A wrong
+  answer that is at least stable can be reconciled; this one cannot.
+
+  When is `ROWS` the right choice? When you genuinely mean "the last *n*
+  observations" rather than "the last *n* units of time", and when the ordering
+  is total. A trailing average over a per-package series with one row per day is
+  the standard case: unique key, so the two agree, and `ROWS` states the
+  row-count intent directly. The moment the key can repeat, `ROWS` needs a
+  tiebreaker in the `ORDER BY` before it means anything at all.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 200
+      message: >-
+        Every row of `downloads` keeps its identity and gains a column; do not
+        aggregate the table down to ten rows.
+    - type: syntax
+      pattern: "rows\\s+(between|unbounded)"
+      negate: true
+      message: >-
+        A `ROWS` frame counts physical rows, so the twenty rows sharing a day get
+        twenty different running totals. This frame has to be measured in key
+        values.
+    - type: predicate
+      sql: "SELECT count(DISTINCT registry_to_date) = 10 FROM __learner"
+      message: >-
+        Exactly ten distinct running totals, one per day. 200 distinct values
+        means rows that are peers under the ordering were treated as ordered.
+    - type: predicate
+      sql: "SELECT max(registry_to_date) = 363840 AND min(registry_to_date) = 36620 FROM __learner"
+      message: >-
+        The series runs from 36,620 after the first day to 363,840 after the
+        tenth.
+    - type: predicate
+      sql: "SELECT count(*) = 0 FROM __learner l WHERE l.registry_to_date <> (SELECT sum(d.count) FROM downloads d WHERE d.day <= l.day)"
+      message: >-
+        Each row's total should equal the sum of every download recorded on or
+        before that row's day.
+    - type: plan
+      contains: ["WINDOW"]
+      notContains: ["CROSS_PRODUCT"]
+      message: >-
+        Use a window frame rather than a self-join on `d2.day <= d1.day`, which
+        the planner has to execute as a filtered cross product.

@@ -1,0 +1,35 @@
+- id: one-hog
+  label: One long job must not block three short ones
+  code: |
+    assert max_non_overlapping([(0, 10), (1, 2), (3, 4), (5, 6)]) == 3
+- id: short-blocker
+  label: A short job straddling the middle is worth skipping
+  code: |
+    assert max_non_overlapping([(0, 5), (4, 6), (5, 10)]) == 2
+- id: mixed
+  label: A larger mixed instance
+  code: |
+    jobs = [(1, 4), (3, 5), (0, 6), (5, 7), (3, 9), (5, 9), (6, 10), (8, 11)]
+    assert max_non_overlapping(jobs) == 3
+- id: degenerate
+  label: Empty and single-job inputs
+  code: |
+    assert max_non_overlapping([]) == 0
+    assert max_non_overlapping([(1, 2)]) == 1
+- id: touching
+  label: Touching endpoints do not conflict
+  code: |
+    assert max_non_overlapping([(1, 3), (3, 5)]) == 2
+- id: duplicates
+  label: Identical jobs can only be run once
+  hidden: true
+  code: |
+    assert max_non_overlapping([(1, 4), (1, 4), (1, 4)]) == 1
+- id: unsorted-and-immutable
+  label: Arbitrary input order, and the caller's list is not modified
+  hidden: true
+  code: |
+    jobs = [(7, 9), (0, 3), (2, 6), (8, 12), (1, 5), (4, 7), (11, 14), (9, 10), (13, 16), (3, 8)]
+    original = list(jobs)
+    assert max_non_overlapping(jobs) == 5
+    assert jobs == original

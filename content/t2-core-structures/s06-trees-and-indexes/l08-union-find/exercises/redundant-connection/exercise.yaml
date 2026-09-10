@@ -1,0 +1,74 @@
+id: redundant-connection
+kind: python
+title: The edge that closes a cycle
+difficulty: 3
+pattern: union-find
+topics: [union-find, graphs]
+timeLimitMs: 20000
+prompt: |
+  A package registry records "depends on" edges as they are declared. An edge is
+  **redundant** if, at the moment it arrives, its two endpoints are already
+  connected through earlier edges — it closes a cycle rather than joining two
+  separate groups.
+
+  `redundant_connection(edges)` takes a list of `(a, b)` pairs and returns the
+  **last** redundant edge, exactly as it appears in the list, or `None` if every
+  edge joined two separate groups.
+
+  ```
+  redundant_connection([("a", "b"), ("a", "c"), ("b", "c")])   # ("b", "c")
+  redundant_connection([("a", "b"), ("b", "c")])               # None
+  ```
+
+  Node labels are arbitrary hashable values — strings here, not indices into a
+  range — so a list of parents will not do. Nodes appear for the first time when
+  an edge mentions them.
+
+  Do not build a graph and search it. Process the edges in order and decide each
+  one as it arrives; that is the whole point of the structure.
+hints:
+  - "For each edge, ask one question before you merge anything: are these two endpoints already in the same group?"
+  - "Keep parents in a dict rather than a list, and add a node the first time you see it — `parent.setdefault(x, x)`."
+  - "If the two roots are equal the edge is redundant; record it and move on without merging. If they differ, merge them. Return the last one you recorded."
+solutionWalkthrough: |
+  ```python
+  def redundant_connection(edges):
+      parent = {}
+
+      def find(x):
+          parent.setdefault(x, x)
+          root = x
+          while parent[root] != root:
+              root = parent[root]
+          while parent[x] != root:
+              parent[x], x = root, parent[x]
+          return root
+
+      last = None
+      for a, b in edges:
+          root_a, root_b = find(a), find(b)
+          if root_a == root_b:
+              last = (a, b)
+          else:
+              parent[root_b] = root_a
+      return last
+  ```
+
+  One pass, one comparison per edge, and the answer is decided before the next
+  edge is read. The alternative — build the whole graph, then for each edge
+  remove it and test whether the graph is still connected — is $O(E)$ traversals
+  of an $O(V+E)$ graph, and it needs every edge in memory before it can start.
+
+  Returning `(a, b)` rather than `(root_a, root_b)` is the detail that separates
+  a passing answer from a nearly-passing one. The question asks which *edge* was
+  redundant, and the roots are an artefact of the merge order.
+
+  `parent.setdefault(x, x)` inside `find` is what makes arbitrary labels work.
+  There is no `n` here and no index space to preallocate; nodes exist the first
+  time something mentions them, which is also how you would want it if the edges
+  were arriving from a stream.
+
+  This is the shape of Kruskal's algorithm with one line removed. Sort the edges
+  by weight, and instead of recording the redundant ones, *keep* the ones that
+  merged two components — that set is a minimum spanning tree. The cycle test is
+  the entire algorithm; the rest is a sort.

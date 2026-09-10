@@ -1,0 +1,78 @@
+id: additive-total-by-language
+kind: sql
+title: Filter through a bridge without summing through it
+difficulty: 4
+datasetId: package-registry
+topics: [semantic-layer, joins, subqueries]
+timeLimitMs: 15000
+prompt: |
+  A metric request arrives: **total downloads by language, for packages that
+  have at least one maintainer based in the US.**
+
+  The dimension `maintainers.country` is only reachable through
+  `package_maintainers`, which is many-to-many — and `chunker` has three US
+  maintainers, so the obvious join triples its downloads.
+
+  Return two columns, `language` and `total_downloads`, ordered by `language`.
+  Only languages with at least one qualifying package appear.
+
+  The maintainer table is being used here as a **filter**, not as a source of
+  rows. Write the query so that fact is visible in its structure, and so no
+  download row can be counted twice.
+hints:
+  - "You need to know whether a qualifying maintainer exists, not how many there are. Those are different questions and only one of them multiplies rows."
+  - "A semi-join answers existence without duplicating the outer row. In SQL that is `EXISTS (...)` or `IN (...)` — either one keeps the maintainer tables out of the row set being summed."
+  - "`WHERE EXISTS (SELECT 1 FROM package_maintainers pm JOIN maintainers m ON m.id = pm.maintainer_id WHERE pm.package_id = p.id AND m.country = 'US')`. The bridge tables live entirely inside the subquery, so nothing they contain can reach the SUM."
+solutionWalkthrough: |
+  ```sql
+  SELECT p.language, sum(d.count) AS total_downloads
+  FROM packages p
+  JOIN downloads d ON d.package_id = p.id
+  WHERE EXISTS (
+    SELECT 1
+    FROM package_maintainers pm
+    JOIN maintainers m ON m.id = pm.maintainer_id
+    WHERE pm.package_id = p.id
+      AND m.country = 'US'
+  )
+  GROUP BY p.language
+  ORDER BY p.language;
+  ```
+
+  The join that would have multiplied rows never happens. `EXISTS` stops at the
+  first match — it is the semi-join from lesson 2, and a semi-join emits each
+  probe row at most once by construction. That is not a stylistic preference;
+  it is the mechanism that makes the query correct.
+
+  Written as a plain join instead, `chunker`'s three US maintainers produce
+  three copies of each of its ten download rows, and Python's total goes from
+  159,090 to 222,850 — 40% high, with no error and the same column names.
+
+  **The general rule, worth memorising.** A dimension used only in a `WHERE`
+  belongs in a semi-join. A dimension used in `SELECT` or `GROUP BY` has to be
+  joined, and then you must either be sure the join is many-to-one or
+  pre-aggregate the measure to its own grain first. This is the whole of what a
+  semantic layer's join-path metadata encodes.
+
+  **One NULL detail.** `m.country = 'US'` excludes the maintainers whose country
+  is NULL, which is right here — we want packages *known* to have a US
+  maintainer, and an undisclosed country is not evidence of one. If the
+  requirement had been "packages with no US maintainer", the same predicate
+  inside `NOT EXISTS` still behaves; the same thing written with `NOT IN` over a
+  nullable column would collapse to zero rows. That asymmetry is the reason to
+  reach for `EXISTS` first.
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 3
+      message: >-
+        Expected 3 rows — python, rust and sql. No JavaScript package has a
+        maintainer with a recorded US country.
+    - type: predicate
+      sql: "SELECT total_downloads = 159090 FROM __learner WHERE language = 'python'"
+      message: >-
+        Python's total should be 159,090. If you got 222,850, the join through
+        package_maintainers is duplicating chunker's download rows once per US
+        maintainer.

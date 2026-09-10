@@ -4,3 +4,13 @@ npm-debug.log
 Dockerfile*
 .git
 .gitignore
+
+# Source media and reference material — hundreds of megabytes, none of it
+# served. Uploading it to Cloud Build on every deploy costs time and money.
+docs
+notebooks
+playwright-report
+test-results
+tests
+*.png
+.curriculum

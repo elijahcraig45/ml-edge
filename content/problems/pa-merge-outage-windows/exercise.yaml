@@ -1,0 +1,64 @@
+id: pa-merge-outage-windows
+kind: python
+title: Collapse overlapping outage windows
+difficulty: 3
+pattern: sorting
+stage: s04-sorting-and-windows
+topics:
+  - intervals
+timeLimitMs: 15000
+prompt: |
+  A status page records outages as `(start, end)` minute pairs, in no particular
+  order. Windows that overlap or merely touch describe one continuous outage.
+  Return the merged windows, sorted by start.
+
+  ```
+  merge_outages([(5, 8), (1, 3), (2, 6)])   # [(1, 8)]
+  merge_outages([(1, 3), (3, 5)])           # [(1, 5)]
+  merge_outages([(1, 3), (4, 5)])           # [(1, 3), (4, 5)]
+  ```
+
+  A window's end is never before its start. Return a new list of tuples; do not
+  modify the input.
+hints:
+  - "In arbitrary order, deciding whether a window merges means comparing it against every window you have already produced. Put the windows in an order that makes only one comparison necessary."
+  - "Sort by start time. Then a window can only ever merge with the most recent window in your output — everything earlier ends no later than that one starts."
+  - "Walk the sorted windows keeping a current `(start, end)`. If the next start is `<= end`, extend to `max(end, next_end)`; otherwise emit the current window and start a new one. Do not forget to emit the last one after the loop."
+solutionWalkthrough: |
+  ```python
+  def merge_outages(windows):
+      if not windows:
+          return []
+      ordered = sorted(windows)
+      merged = []
+      start, end = ordered[0]
+      for next_start, next_end in ordered[1:]:
+          if next_start <= end:
+              if next_end > end:
+                  end = next_end
+          else:
+              merged.append((start, end))
+              start, end = next_start, next_end
+      merged.append((start, end))
+      return merged
+  ```
+
+  Sorting is what reduces the problem from "compare against everything" to
+  "compare against one thing". Once the starts are ordered, any window that
+  could touch the one you are holding must begin at or after its start — so if
+  it does not overlap the current window, it cannot overlap any earlier one
+  either, and the current window can be finalised for good.
+
+  `max(end, next_end)` matters because a window can be entirely swallowed:
+  `(1, 10)` followed by `(2, 3)` must stay `(1, 10)`. Assigning `end = next_end`
+  unconditionally shrinks the outage and is the most common bug here.
+
+  `<=` rather than `<` is what makes touching windows merge. Whether that is
+  right depends on whether the times are instants or half-open ranges — with
+  half-open `[start, end)` intervals, `(1, 3)` and `(3, 5)` are adjacent but
+  disjoint, and you would want `<`. This is worth asking about out loud rather
+  than assuming.
+
+  Cost is O(n log n), dominated entirely by the sort; the merge pass is linear.
+  If the windows arrive already ordered by start — as they do from a database
+  with an index on the column — the sort disappears and the whole thing is O(n).

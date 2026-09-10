@@ -1,0 +1,43 @@
+id: first-duplicate
+kind: python
+title: First repeated release tag
+difficulty: 2
+pattern: hash-set-lookup
+timeLimitMs: 10000
+prompt: |
+  A release log is a list of version tags. Return the **first tag that appears
+  for the second time**, scanning left to right. If every tag is unique, return
+  `None`.
+
+  ```
+  first_duplicate(["1.0.0", "1.1.0", "1.0.0", "1.1.0"])   # "1.0.0"
+  first_duplicate(["1.0.0", "1.1.0"])                     # None
+  ```
+
+  Note the wording: you want the tag whose *second occurrence* comes earliest —
+  not the earliest tag that happens to be duplicated somewhere. In the example
+  above, `1.0.0` repeats at index 2 and `1.1.0` repeats at index 3, so the
+  answer is `1.0.0`.
+hints:
+  - "You only need one pass. As you walk the list, what do you need to remember about everything you have already seen?"
+  - "Keep a set of tags seen so far. The first tag that is already in that set is the answer."
+  - "Return as soon as you find it — do not collect all duplicates and sort them afterwards, because that changes which one you report."
+solutionWalkthrough: |
+  ```python
+  def first_duplicate(tags):
+      seen = set()
+      for tag in tags:
+          if tag in seen:
+              return tag
+          seen.add(tag)
+      return None
+  ```
+
+  Returning immediately is what makes this correct, not just fast. If you
+  instead gathered every duplicated tag and picked one at the end, you would
+  have to be careful about *which* one — and the natural choices (first in the
+  list, alphabetically first) are both wrong. The early return encodes "the
+  second occurrence I reach first" directly.
+
+  This is the shape of a whole family of interview problems: walk once, keep a
+  set of what you have seen, and answer the moment the set tells you something.

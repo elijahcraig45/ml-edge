@@ -1,0 +1,43 @@
+- id: build-order
+  label: Orders a small build graph
+  code: |
+    deps = {
+        "config": ["parser", "server"],
+        "parser": ["compiler"],
+        "compiler": ["server", "cli"],
+        "server": ["cli"],
+        "cli": [],
+        "docs": ["cli"],
+    }
+    assert topological_order(deps) == ["config", "docs", "parser", "compiler", "server", "cli"]
+- id: cycle-returns-empty
+  label: A cycle returns the empty list
+  code: |
+    assert topological_order({"a": ["b"], "b": ["c"], "c": ["a"]}) == []
+- id: no-edges
+  label: With no edges, every node is ready and the order is sorted
+  code: |
+    assert topological_order({"c": [], "a": [], "b": []}) == ["a", "b", "c"]
+- id: lexicographic-tiebreak
+  label: Among ready nodes, the smallest is emitted first
+  code: |
+    # "b" and "a" are both ready at the start; "a" must come out first even
+    # though "b" is the first key in the dict.
+    assert topological_order({"b": ["z"], "a": ["z"], "z": []}) == ["a", "b", "z"]
+- id: empty-graph
+  label: An empty graph orders to an empty list
+  hidden: true
+  code: |
+    assert topological_order({}) == []
+- id: self-loop
+  label: A self-loop is a cycle
+  hidden: true
+  code: |
+    assert topological_order({"a": ["a"], "b": []}) == []
+- id: cycle-with-clean-prefix
+  label: A cycle downstream of a valid prefix still returns empty
+  hidden: true
+  code: |
+    # "s" orders fine; the b/c cycle never clears, so no full order exists
+    # and the function must not return the partial answer ["s"].
+    assert topological_order({"s": ["b"], "b": ["c"], "c": ["b"], "d": []}) == []

@@ -1,0 +1,67 @@
+id: pa-build-agents-needed
+kind: python
+title: How many build agents does CI need
+difficulty: 3
+pattern: sorting
+stage: s04-sorting-and-windows
+topics:
+  - intervals
+timeLimitMs: 15000
+prompt: |
+  CI jobs are given as `(start, end)` times. An agent runs one job at a time,
+  and a job that ends at minute 10 frees its agent for a job starting at minute
+  10. Return the smallest number of agents that could run every job.
+
+  ```
+  agents_needed([(0, 30), (5, 10), (15, 20)])   # 2
+  agents_needed([(7, 10), (2, 4)])              # 1
+  agents_needed([])                             # 0
+  ```
+
+  You are not asked which job goes where — only how many agents the schedule
+  requires at its busiest moment.
+hints:
+  - "The answer is the largest number of jobs running at the same instant. Nothing about which job runs on which agent matters, so stop trying to assign them."
+  - "Only two kinds of moment change the count: a job starting, which adds one, and a job ending, which removes one. Pull the starts and the ends into two separate sorted lists and sweep them together."
+  - "Walk both sorted lists with an index each. If the next start is strictly before the next end, a job begins — increment the running count and record a new maximum; otherwise an agent frees up, so decrement and advance the ends index."
+solutionWalkthrough: |
+  ```python
+  def agents_needed(jobs):
+      if not jobs:
+          return 0
+      starts = sorted(start for start, _end in jobs)
+      ends = sorted(end for _start, end in jobs)
+      running = 0
+      best = 0
+      s = 0
+      e = 0
+      while s < len(starts):
+          if starts[s] < ends[e]:
+              running += 1
+              if running > best:
+                  best = running
+              s += 1
+          else:
+              running -= 1
+              e += 1
+      return best
+  ```
+
+  Splitting the intervals into two independent sorted sequences is the move
+  worth remembering. Each job's start and end stop being connected to each
+  other, because the count of jobs in flight does not depend on which end
+  belongs to which start — only on how many of each have gone past. That is what
+  turns an assignment problem into a counting problem.
+
+  `starts[s] < ends[e]` and not `<=` is what encodes "an agent freed at minute
+  10 can take a job starting at minute 10". Flip it to `<=` and every handover
+  demands a second agent. Which one is right is a question about the domain, not
+  the algorithm, and it is worth asking before writing either.
+
+  The `while` only tracks `s`, because once every job has started the count can
+  only fall — the remaining ends cannot raise the maximum.
+
+  O(n log n) for the two sorts and O(n) for the sweep. A heap of end times, one
+  pass over the jobs sorted by start, has the same complexity and also tells you
+  which agent takes each job, which is what you want when the answer has to be a
+  schedule rather than a number.

@@ -1,0 +1,33 @@
+id: s04-sorting-and-windows
+tier: t2-core-structures
+order: 4
+title: "Sorting and Windows: Order as a Resource"
+status: published
+thesis: >-
+  Order is a resource. Establishing it costs; exploiting it pays.
+summary: >-
+  Seven lessons about the one property that makes almost every fast algorithm
+  possible. You will build merge sort, quicksort, counting sort and radix sort
+  by hand, prove that no comparison sort can beat n log n, and then spend the
+  second half cashing order in: two pointers, sliding windows, prefix sums, and
+  the SQL window functions that are the same algorithms with a different
+  syntax. The stage ends by showing that a monotonic deque and
+  `MAX(x) OVER (... ROWS BETWEEN 4 PRECEDING AND CURRENT ROW)` are one
+  algorithm written twice.
+outcomes:
+  - Implement insertion sort, merge sort, quicksort partitioning, counting sort and radix sort from scratch.
+  - Say what a stable sort guarantees, and use stability to sort by several keys without writing a comparator.
+  - Explain why every comparison sort needs at least n log n comparisons, and name the two ways to get under that bound.
+  - Choose quickselect over a full sort when the question is "the k-th" rather than "all of them".
+  - Recognise the two-pointer and sliding-window shapes from a problem statement, and argue their linear cost.
+  - Write ROW_NUMBER, RANK, DENSE_RANK, NTILE, LAG, LEAD and framed aggregates, and say exactly which rows a frame contains.
+  - Predict when ROWS, RANGE and GROUPS disagree, and pick the one the question actually asks for.
+  - Sessionise an event stream and solve gaps-and-islands with LAG plus a cumulative SUM.
+lessons:
+  - l01-two-sorts-and-stability
+  - l02-quicksort-and-pivots
+  - l03-the-comparison-barrier
+  - l04-selection-runs-and-external-sorts
+  - l05-two-pointers-and-sliding-windows
+  - l06-window-functions
+  - l07-sessions-gaps-and-islands

@@ -1,0 +1,57 @@
+- id: basic
+  label: Finds the cheapest routes on a six-node graph
+  code: |
+    g = {
+        "a": [("b", 4), ("c", 2)],
+        "b": [("d", 5)],
+        "c": [("b", 1), ("d", 8), ("e", 10)],
+        "d": [("e", 2), ("f", 6)],
+        "e": [("f", 3)],
+        "f": [],
+    }
+    assert dijkstra(g, "a") == {"a": 0, "b": 3, "c": 2, "d": 8, "e": 10, "f": 13}
+- id: cheap-detour-beats-direct
+  label: A two-hop route beats a more expensive one-hop route
+  code: |
+    g = {"a": [("b", 10), ("c", 1)], "b": [("d", 1)], "c": [("b", 1)], "d": []}
+    assert dijkstra(g, "a") == {"a": 0, "b": 2, "c": 1, "d": 3}
+- id: source-only
+  label: An isolated source has distance zero and nothing else
+  code: |
+    assert dijkstra({"a": [], "b": [("a", 1)]}, "a") == {"a": 0}
+- id: unreachable-excluded
+  label: Unreachable nodes are left out of the result
+  code: |
+    g = {"a": [("b", 1)], "b": [], "x": [("y", 1)], "y": []}
+    assert dijkstra(g, "a") == {"a": 0, "b": 1}
+- id: missing-source
+  label: A source that is not in the graph gives an empty dict
+  hidden: true
+  code: |
+    assert dijkstra({"a": []}, "zzz") == {}
+- id: cycles-and-zero-weights
+  label: Zero-weight edges and cycles do not cause a loop
+  hidden: true
+  code: |
+    g = {"a": [("b", 0), ("c", 5)], "b": [("a", 0), ("c", 1)], "c": [("a", 2)]}
+    assert dijkstra(g, "a") == {"a": 0, "b": 0, "c": 1}
+- id: many-improvements
+  label: A node improved several times ends at the best value
+  hidden: true
+  code: |
+    # d is offered 30, then 21, then 12, then 6. Each improvement pushes a new
+    # heap entry; the earlier ones must be skipped, not expanded again.
+    g = {
+        "s": [("a", 1), ("b", 2), ("c", 3), ("d", 30)],
+        "a": [("d", 5)],
+        "b": [("d", 10)],
+        "c": [("d", 18)],
+        "d": [],
+    }
+    assert dijkstra(g, "s") == {"s": 0, "a": 1, "b": 2, "c": 3, "d": 6}
+- id: self-loop
+  label: A self-loop is harmless
+  hidden: true
+  code: |
+    g = {"a": [("a", 3), ("b", 1)], "b": []}
+    assert dijkstra(g, "a") == {"a": 0, "b": 1}

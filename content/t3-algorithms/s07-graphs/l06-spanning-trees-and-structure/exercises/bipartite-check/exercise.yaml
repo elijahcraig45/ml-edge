@@ -1,0 +1,78 @@
+id: bipartite-check
+kind: python
+title: Two-colour a graph, or prove you cannot
+difficulty: 3
+pattern: bfs
+topics: [graphs, bfs]
+timeLimitMs: 10000
+prompt: |
+  `graph` maps each node to its neighbours, with symmetric edges. Return a dict
+  assigning every node the colour `0` or `1` such that **no edge joins two nodes
+  of the same colour**. If no such assignment exists, return `None`.
+
+  ```
+  two_colouring({"a": ["b"], "b": ["a"]})              # {"a": 0, "b": 1}
+  two_colouring({"a": ["b","c"], "b": ["a","c"],
+                 "c": ["a","b"]})                      # None (a triangle)
+  ```
+
+  To make the answer deterministic: process nodes in the order `graph` gives
+  them, and give the first node of each component colour `0`.
+
+  The graph may be disconnected, may contain isolated nodes, and may contain a
+  self-loop.
+hints:
+  - "This is BFS with one substitution. Where the shortest-path version writes `dist[v] = dist[u] + 1`, write the colour that is not `colour[u]`."
+  - "`1 - colour[u]` flips 0 and 1. The failure case is meeting a neighbour that already has a colour *and* it is the same as the current node's."
+  - "Wrap the BFS in `for start in graph:` and skip nodes already coloured — otherwise you only ever check the component containing the first node, and a triangle sitting in the second component goes unnoticed."
+solutionWalkthrough: |
+  ```python
+  from collections import deque
+
+  def two_colouring(graph):
+      colour = {}
+      for start in graph:
+          if start in colour:
+              continue
+          colour[start] = 0
+          queue = deque([start])
+          while queue:
+              u = queue.popleft()
+              for v in graph[u]:
+                  if v not in colour:
+                      colour[v] = 1 - colour[u]
+                      queue.append(v)
+                  elif colour[v] == colour[u]:
+                      return None
+      return colour
+  ```
+
+  Structurally this is the BFS from lesson 2 with `dist` renamed to `colour` and
+  `+ 1` replaced by `1 -`. `colour` is still doing double duty as the visited
+  set, which is why the "already coloured" branch is where the check lives.
+
+  **What the failure actually detects.** BFS assigns each node a colour equal to
+  its distance from the component's start, modulo 2. So finding an edge between
+  two same-coloured nodes means there is a path of even length between them plus
+  a direct edge — a closed walk of odd length, and any closed walk of odd length
+  contains an odd cycle. That is the theorem: **a graph is bipartite exactly
+  when it has no odd cycle**, and this code is a constructive proof in both
+  directions. Succeed and you have the colouring; fail and you have located an
+  odd cycle.
+
+  **The outer loop is not boilerplate.** The hidden test puts a clean component
+  first and a triangle second. A solution that colours from a single arbitrary
+  start returns a dict that looks right and is wrong about half the graph. This
+  is the same mistake as running a component scan without hoisting the visited
+  set — except here it changes the answer rather than the running time.
+
+  **DFS works too**, and for this problem it is equally good: the colour of a
+  node depends only on its parent's colour, not on distance, so any traversal
+  order produces a valid colouring when one exists. That is unusual — most BFS
+  problems in this stage break under DFS because they depend on level order.
+  Here they do not, and knowing *why* is worth more than knowing that they do.
+
+  **Where this shows up.** Bipartite matching (jobs to workers, students to
+  schools) needs the graph to be bipartite before Hopcroft-Karp will run. The
+  package/maintainer table is bipartite by construction; the moment you project
+  it onto packages, triangles appear and it stops being.

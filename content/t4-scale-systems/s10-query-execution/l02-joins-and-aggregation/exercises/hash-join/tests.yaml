@@ -1,0 +1,50 @@
+- id: basic
+  label: Joins matching rows and merges their columns
+  code: |
+    P = [{"id": 1, "name": "arrowkit"}, {"id": 2, "name": "bitmask"}]
+    V = [{"package_id": 2, "version": "1.0.0"}, {"package_id": 9, "version": "0.1"}]
+    assert list(hash_join(P, V, "id", "package_id")) == [
+        {"id": 2, "name": "bitmask", "package_id": 2, "version": "1.0.0"}
+    ]
+- id: no-matches
+  label: Disjoint keys produce no rows
+  code: |
+    P = [{"id": 1, "a": 1}]
+    V = [{"package_id": 2, "b": 2}]
+    assert list(hash_join(P, V, "id", "package_id")) == []
+- id: empty-inputs
+  label: Either side being empty produces no rows
+  code: |
+    assert list(hash_join([], [{"package_id": 1}], "id", "package_id")) == []
+    assert list(hash_join([{"id": 1}], [], "id", "package_id")) == []
+- id: probe-side-order
+  label: Rows come out in probe-side order
+  code: |
+    P = [{"id": 1, "n": "a"}, {"id": 2, "n": "b"}]
+    V = [{"package_id": 2, "v": "x"}, {"package_id": 1, "v": "y"}]
+    assert [r["v"] for r in hash_join(P, V, "id", "package_id")] == ["x", "y"]
+- id: duplicate-build-keys
+  label: A repeated key on the build side matches every one of its rows
+  hidden: true
+  code: |
+    # Three packages share a name; one version row must join all three.
+    P = [{"id": 1, "n": "dup"}, {"id": 2, "n": "dup"}, {"id": 3, "n": "dup"},
+         {"id": 4, "n": "other"}]
+    V = [{"pn": "dup", "v": "1.0"}]
+    out = list(hash_join(P, V, "n", "pn"))
+    assert len(out) == 3, (
+        "expected 3 rows, got %d — mapping a key to one row instead of a list "
+        "of rows silently drops matches" % len(out)
+    )
+    assert [r["id"] for r in out] == [1, 2, 3]
+- id: fan-out-both-sides
+  label: Duplicate keys on both sides produce the full cross product of the runs
+  hidden: true
+  code: |
+    P = [{"id": 7, "n": "a"}, {"id": 7, "n": "b"}]
+    V = [{"package_id": 7, "v": "x"}, {"package_id": 7, "v": "y"}]
+    out = list(hash_join(P, V, "id", "package_id"))
+    assert len(out) == 4, "expected 4 rows (2 x 2), got %d" % len(out)
+    assert sorted((r["n"], r["v"]) for r in out) == [
+        ("a", "x"), ("a", "y"), ("b", "x"), ("b", "y")
+    ]

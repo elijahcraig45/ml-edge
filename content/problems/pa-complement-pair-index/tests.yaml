@@ -1,0 +1,34 @@
+- id: basic
+  label: Finds a pair in an unsorted list
+  code: |
+    assert pair_within_budget([40, 10, 30, 60], 70) == (0, 2)
+- id: no-pair
+  label: Returns None when nothing fits
+  code: |
+    assert pair_within_budget([40, 10], 70) is None
+- id: earliest-completion
+  label: Reports the pair that completes first
+  code: |
+    # (1, 2) completes at index 2; (0, 3) would complete at index 3.
+    assert pair_within_budget([5, 1, 9, 5], 10) == (1, 2)
+- id: too-short
+  label: Zero or one package cannot form a pair
+  code: |
+    assert pair_within_budget([], 10) is None
+    assert pair_within_budget([5], 10) is None
+- id: no-self-pairing
+  label: A package is not allowed to pair with itself
+  hidden: true
+  code: |
+    assert pair_within_budget([5], 10) is None
+    assert pair_within_budget([5, 5], 10) == (0, 1)
+    assert pair_within_budget([3, 6, 1], 6) is None
+- id: negatives-and-zero
+  label: Negative sizes, a zero budget, and an untouched input
+  hidden: true
+  code: |
+    assert pair_within_budget([-4, 9, 4], 0) == (0, 2)
+    assert pair_within_budget([0, 0], 0) == (0, 1)
+    original = [1, 2, 3]
+    pair_within_budget(original, 5)
+    assert original == [1, 2, 3], "the input must not be modified"

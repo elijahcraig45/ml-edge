@@ -1,0 +1,55 @@
+id: pa-two-pointer-pair-sum
+kind: python
+title: Two releases that add up
+difficulty: 2
+pattern: two-pointers
+stage: s04-sorting-and-windows
+topics:
+  - arrays
+timeLimitMs: 10000
+prompt: |
+  `counts` is a list of download totals **already sorted ascending**. Return the
+  indices of two different entries that add up to `target`, as a tuple
+  `(i, j)` with `i < j`. If no such pair exists, return `None`. When several
+  pairs work, return the one with the smallest `i`.
+
+  ```
+  pair_summing_to([1, 3, 4, 9], 7)    # (1, 2)
+  pair_summing_to([1, 3, 4, 9], 100)  # None
+  ```
+
+  Use constant extra space. Building a lookup table of every value defeats the
+  point of the input being sorted, so `set(` and `dict(` are rejected.
+hints:
+  - "The list is sorted, and you are ignoring that. If you look at the smallest entry and the largest entry together, their sum tells you something definite about which of the two can never be part of the answer."
+  - "Put one index at each end. If the sum is too small, the only way to grow it is to move the left index right; if it is too big, move the right index left."
+  - "Loop while `left < right`. Return the moment the sum matches. Each step retires exactly one index, so the loop runs at most len(counts) times."
+solutionWalkthrough: |
+  ```python
+  def pair_summing_to(counts, target):
+      left, right = 0, len(counts) - 1
+      while left < right:
+          total = counts[left] + counts[right]
+          if total == target:
+              return (left, right)
+          if total < target:
+              left += 1
+          else:
+              right -= 1
+      return None
+  ```
+
+  Why moving a pointer is safe: when `counts[left] + counts[right] < target`,
+  `counts[right]` is the largest value still in play, so `left` cannot reach the
+  target with *any* remaining partner. Discarding it loses nothing. That
+  argument is also why the first match found has the smallest possible `i` — a
+  left index is only abandoned once it has been proven hopeless.
+
+  A hash set solves this in one pass too, and it wins when the input is
+  unsorted, because it does not need the O(n log n) sort. The two-pointer
+  version wins here on space: constant, versus a set that can hold every
+  element. It stops winning the moment the sortedness goes away — then you are
+  paying for a sort you did not need.
+forbid:
+  - "set("
+  - "dict("

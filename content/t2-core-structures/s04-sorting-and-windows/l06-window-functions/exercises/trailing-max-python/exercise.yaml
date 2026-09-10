@@ -1,0 +1,102 @@
+id: trailing-max-python
+kind: python
+title: Sliding-window maximum, the imperative half
+difficulty: 4
+pattern: monotonic-deque
+topics: [sliding-window, monotonic-structure, amortised-analysis]
+timeLimitMs: 30000
+prompt: |
+  Implement the Python half of this lesson's central pair.
+
+  Given `nums` and a window size `k`, return a list of the same length where
+  entry `i` is the maximum of `nums` over index `i` and the `k - 1` indices
+  before it. Near the start there are fewer than `k` values available, so the
+  window is shorter — exactly what a SQL frame does at the beginning of a
+  partition.
+
+  ```
+  trailing_max([770, 850, 490, 570, 650, 730, 810, 450, 530, 610], 5)
+  # [770, 850, 850, 850, 850, 850, 810, 810, 810, 810]
+  ```
+
+  This is the same result as
+
+  ```sql
+  MAX(count) OVER (ORDER BY day ROWS BETWEEN 4 PRECEDING AND CURRENT ROW)
+  ```
+
+  **This one has a complexity budget.** The hidden performance check uses
+  200,000 values with `k = 3000`. Recomputing `max` over each window is correct
+  and will fail the budget: that costs $\Theta(nk)$, and this problem has a
+  $\Theta(n)$ answer.
+hints:
+  - "Recomputing the maximum from scratch throws away everything you learned about the previous window. What does the new window share with the old one? Exactly one value has arrived and at most one has left."
+  - "Keep a deque of *indices* whose values are decreasing from front to back. The front is then always the maximum of everything still in the window. Store indices, not values — you need positions to know when something falls out."
+  - "When a new value arrives, pop from the back while the back's value is <= the new one: anything smaller and older can never be the maximum again. Then append the new index, and pop from the front if `dq[0] <= i - k`. The answer for step i is `nums[dq[0]]`."
+solutionWalkthrough: |
+  ```python
+  from collections import deque
+
+
+  def trailing_max(nums, k):
+      out = []
+      dq = deque()                       # indices; their values decrease front to back
+      for i, x in enumerate(nums):
+          while dq and nums[dq[-1]] <= x:
+              dq.pop()
+          dq.append(i)
+          if dq[0] <= i - k:
+              dq.popleft()
+          out.append(nums[dq[0]])
+      return out
+  ```
+
+  **Why discarding is safe.** If `nums[j] <= x` and `j < i`, index `j` is
+  finished. Any future window that contains `j` and extends to `i` also contains
+  `i`, whose value is at least as large and which survives longer. An element
+  that is both smaller and older has no future, so it can be thrown away the
+  moment `x` arrives — and once it is gone, it never has to be reconsidered.
+
+  **Why it is linear despite the inner `while`.** Each index is appended exactly
+  once and popped at most once, so the total number of pops across the entire run
+  is at most $n$. This is the same amortised argument as the sliding window in
+  lesson 5: a single iteration may pop a thousand indices, but the sum over all
+  iterations cannot exceed the number of pushes.
+
+  **`<=` rather than `<` in the pop condition.** With `<`, equal values stay in
+  the deque. The result is still correct — the front is still the maximum — but
+  the deque grows with the number of duplicates, and on an input of all-equal
+  values it holds every index. Popping on equality keeps it small at no cost,
+  because a newer equal value dominates an older one for exactly the same reason
+  a newer larger one does.
+
+  **`dq[0] <= i - k`, not `< i - k`.** The window for step `i` starts at
+  `i - k + 1`, so an index equal to `i - k` has fallen out. Off-by-one here
+  produces windows of size `k + 1`, which passes small hand-written tests and
+  fails the moment the maximum sits exactly at the boundary.
+
+  **And the point of the exercise.** The SQL half of this lesson is the same
+  algorithm. The engine sorts the partition, then makes one pass carrying exactly
+  this deque. `ROWS BETWEEN 4 PRECEDING AND CURRENT ROW` is `k = 5`; the frame
+  clipping at the start of the partition is why the first `k-1` entries here use
+  a shorter window rather than being dropped.
+
+# Enforces the linear claim: the naive per-window `max` is CORRECT, so nothing
+# but a budget can reject it.
+#
+# Measured on CPython 3.13, 200,000 values with k = 3000:
+#   monotonic deque:              26 ms
+#   max(nums[i-k+1 : i+1]) loop:  3763 ms
+# 600 ms is 23x above the deque and 6x below the naive scan, which keeps both
+# margins comfortable under Pyodide's slower interpreter.
+complexityBudget:
+  setup: |
+    nums = [(i * 7919) % 100003 for i in range(200000)]
+    k = 3000
+  call: |
+    trailing_max(nums, k)
+  maxMs: 600
+  message: >-
+    Correct, but too slow: this recomputed the maximum of each window from
+    scratch, so the work grows with n times k. Keep a deque of indices whose
+    values are decreasing, so each index is pushed once and popped at most once.

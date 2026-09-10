@@ -1,0 +1,49 @@
+id: recent-rust-packages
+kind: sql
+title: The three newest Rust packages
+difficulty: 1
+datasetId: package-registry
+timeLimitMs: 15000
+prompt: |
+  From `packages`, return the **three most recently created Rust packages**,
+  newest first.
+
+  Return exactly two columns, in this order and with these names:
+  `name` and `created_at`.
+
+  Because you are returning "the newest three", the order is part of the answer
+  — this exercise checks it.
+hints:
+  - "Three clauses: filter to Rust, sort by creation date, then cap the row count."
+  - "\"Newest first\" means descending: `ORDER BY created_at DESC`."
+  - "Put ORDER BY before LIMIT. Sorting after limiting would sort an arbitrary three rows, which is a different — and wrong — query."
+solutionWalkthrough: |
+  ```sql
+  SELECT name, created_at
+  FROM packages
+  WHERE language = 'rust'
+  ORDER BY created_at DESC
+  LIMIT 3;
+  ```
+
+  The clause order is doing real work. `WHERE` narrows to Rust, `ORDER BY`
+  arranges *those* rows newest-first, and only then does `LIMIT` take three.
+
+  Swap the last two in your head and you get the classic bug: taking three
+  arbitrary rows and then sorting them. It returns three Rust packages in
+  descending date order, so it looks right, and it is not the three newest.
+  This exercise is graded on order precisely so that version fails.
+
+grading:
+  # Order is part of the claim being made, so compare positionally.
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 3
+      message: Return exactly three rows — the three newest Rust packages.
+    - type: syntax
+      pattern: "\\border\\s+by\\b"
+      message: >-
+        This asks for the NEWEST three, so the result has to be ordered. Without
+        ORDER BY, LIMIT returns an arbitrary three rows.

@@ -1,0 +1,59 @@
+id: pa-dependency-tree-depth
+kind: python
+title: How deep does the dependency tree go
+difficulty: 2
+pattern: recursion
+stage: s01-ground-floor
+topics:
+  - trees
+timeLimitMs: 10000
+prompt: |
+  A resolved dependency tree is a dict:
+
+  ```python
+  {"name": "web", "deps": [
+      {"name": "http", "deps": []},
+      {"name": "db", "deps": [{"name": "driver", "deps": []}]},
+  ]}
+  ```
+
+  Return the depth of the tree, counting the root as level 1. A package with no
+  dependencies is depth 1. `None` stands for no tree at all and has depth 0.
+
+  ```
+  tree_depth({"name": "http", "deps": []})   # 1
+  tree_depth(None)                            # 0
+  ```
+
+  The tree can be any shape and any width; `deps` is always a list.
+hints:
+  - "Do not think about the whole tree. Ask what the depth of a package is in terms of the depths of the packages it directly depends on."
+  - "The depth of a package is 1 plus the deepest of its dependencies' depths — and 1 exactly when it has none, because the deepest of nothing is 0."
+  - "`return 1 + max((tree_depth(child) for child in node['deps']), default=0)`. The `default=0` is what handles a leaf; without it `max` raises on an empty `deps` list."
+solutionWalkthrough: |
+  ```python
+  def tree_depth(node):
+      if node is None:
+          return 0
+      best = 0
+      for child in node["deps"]:
+          child_depth = tree_depth(child)
+          if child_depth > best:
+              best = child_depth
+      return 1 + best
+  ```
+
+  The base case here is doing less work than people expect. It is tempting to
+  write a special branch for "no dependencies", but a leaf falls out on its own:
+  the loop does not run, `best` stays 0, and the function returns 1. The only
+  genuine base case is the missing tree.
+
+  Recursion suits this because the input is defined recursively — a package is a
+  name and a list of packages — and the code then has the same shape as the
+  data. That is the real recognition rule, not "trees mean recursion".
+
+  Cost is O(n) over the whole tree; every node is visited once. Memory is O(d),
+  the depth, because that is how deep the call stack goes. A pathological chain
+  of ten thousand nested packages will hit CPython's recursion limit, at which
+  point you rewrite it with an explicit stack — same algorithm, different place
+  to keep the pending work.

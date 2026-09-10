@@ -1,0 +1,55 @@
+- id: two-level
+  label: Finds keys in leaves and in the root
+  code: |
+    leaf = lambda ks: {"keys": ks, "children": []}
+    root = {"keys": [30, 60], "children": [leaf([10, 20]), leaf([40, 50]), leaf([70, 80])]}
+    assert btree_search(root, 30) == (True, 1)
+    assert btree_search(root, 40) == (True, 2)
+    assert btree_search(root, 80) == (True, 2)
+- id: absent
+  label: A missing key still reports the pages it read
+  code: |
+    leaf = lambda ks: {"keys": ks, "children": []}
+    root = {"keys": [30, 60], "children": [leaf([10, 20]), leaf([40, 50]), leaf([70, 80])]}
+    assert btree_search(root, 45) == (False, 2)
+    assert btree_search(root, 5) == (False, 2)
+    assert btree_search(root, 99) == (False, 2)
+- id: single-leaf
+  label: A tree that is one leaf
+  code: |
+    only = {"keys": [1, 2, 3], "children": []}
+    assert btree_search(only, 2) == (True, 1)
+    assert btree_search(only, 4) == (False, 1)
+- id: levels-basic
+  label: levels counts the boundary cases correctly
+  code: |
+    assert levels(512, 512) == 1
+    assert levels(513, 512) == 2
+    assert levels(1, 512) == 1
+    assert levels(100_000_000, 512) == 3
+    assert levels(100_000_000, 2) == 27
+- id: three-level-page-count
+  label: A three-level tree costs three pages, and an internal hit costs fewer
+  hidden: true
+  code: |
+    leaf = lambda ks: {"keys": ks, "children": []}
+    left = {"keys": [20], "children": [leaf([10]), leaf([30])]}
+    right = {"keys": [60], "children": [leaf([50]), leaf([70])]}
+    root = {"keys": [40], "children": [left, right]}
+    assert btree_search(root, 10) == (True, 3)
+    assert btree_search(root, 70) == (True, 3)
+    assert btree_search(root, 20) == (True, 2), "a key in an internal node stops the descent"
+    assert btree_search(root, 40) == (True, 1)
+    assert btree_search(root, 35) == (False, 3)
+- id: descends-the-right-child
+  label: Keys below the first separator and above the last both descend correctly
+  hidden: true
+  code: |
+    # Child i covers the gap between key i-1 and key i, so a key smaller than
+    # every separator must take child 0 and a key larger than all must take the last.
+    leaf = lambda ks: {"keys": ks, "children": []}
+    root = {"keys": [30, 60, 90], "children": [leaf([1]), leaf([31]), leaf([61]), leaf([91])]}
+    assert btree_search(root, 1) == (True, 2)
+    assert btree_search(root, 91) == (True, 2)
+    assert btree_search(root, 61) == (True, 2)
+    assert btree_search(root, 62) == (False, 2)

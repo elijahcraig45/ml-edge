@@ -1,0 +1,47 @@
+- id: min-median-max
+  label: Finds the smallest, the middle and the largest
+  code: |
+    data = [9, 3, 7, 1, 8, 2, 5]
+    assert kth_smallest(data, 0) == 1
+    assert kth_smallest(data, 3) == 5
+    assert kth_smallest(data, 6) == 9
+- id: single-element
+  label: A one-element list
+  code: |
+    assert kth_smallest([42], 0) == 42
+- id: already-sorted
+  label: Sorted input gives the right answer at every k
+  code: |
+    data = list(range(50))
+    for k in (0, 1, 17, 48, 49):
+        assert kth_smallest(data, k) == k
+- id: negatives
+  label: Handles negative values
+  code: |
+    assert kth_smallest([-5, 0, -20, 3], 0) == -20
+    assert kth_smallest([-5, 0, -20, 3], 2) == 0
+- id: duplicates
+  label: Duplicates are counted individually
+  hidden: true
+  code: |
+    data = [4, 4, 4, 1, 4, 4]
+    assert kth_smallest(data, 0) == 1
+    assert kth_smallest(data, 1) == 4
+    assert kth_smallest(data, 5) == 4
+    assert kth_smallest([7] * 9, 4) == 7
+- id: leaves-input-alone
+  label: The caller's list keeps its original order
+  hidden: true
+  code: |
+    data = [9, 3, 7, 1, 8, 2, 5]
+    kth_smallest(data, 3)
+    assert data == [9, 3, 7, 1, 8, 2, 5], "rearrange a copy, not the argument"
+- id: larger-input
+  label: Agrees with a brute-force answer on a larger list
+  hidden: true
+  code: |
+    data = [(i * 7919) % 1009 for i in range(4000)]
+    reference = list(data)
+    reference.sort()
+    for k in (0, 1, 999, 2000, 3999):
+        assert kth_smallest(data, k) == reference[k], k

@@ -1,0 +1,52 @@
+- id: two-keys
+  label: Groups by language, names descending inside each group
+  code: |
+    rows = [
+        {"language": "rust", "name": "bitmask", "version": "1.0.0"},
+        {"language": "python", "name": "arrowkit", "version": "1.4.2"},
+        {"language": "python", "name": "chunker", "version": "3.0.0"},
+        {"language": "rust", "name": "probe", "version": "0.8.0"},
+    ]
+    got = [(r["language"], r["name"]) for r in release_board(rows)]
+    assert got == [
+        ("python", "chunker"),
+        ("python", "arrowkit"),
+        ("rust", "probe"),
+        ("rust", "bitmask"),
+    ]
+- id: single-language
+  label: One language means a pure descending name order
+  code: |
+    rows = [
+        {"language": "sql", "name": "fanout", "version": "0.6.0"},
+        {"language": "sql", "name": "orderby", "version": "1.1.1"},
+        {"language": "sql", "name": "joinplan", "version": "0.1.0"},
+    ]
+    assert [r["name"] for r in release_board(rows)] == ["orderby", "joinplan", "fanout"]
+- id: empty
+  label: An empty board is fine
+  code: |
+    assert release_board([]) == []
+- id: does-not-mutate
+  label: The caller's list keeps its original order
+  code: |
+    rows = [
+        {"language": "rust", "name": "bitmask", "version": "1.0.0"},
+        {"language": "python", "name": "arrowkit", "version": "1.4.2"},
+    ]
+    release_board(rows)
+    assert [r["name"] for r in rows] == ["bitmask", "arrowkit"]
+- id: full-ties-keep-input-order
+  label: Rows identical on both keys stay in input order
+  hidden: true
+  code: |
+    # Same language, same name, different versions. Nothing in the ordering
+    # distinguishes them, so a stable solution must leave them as given.
+    # `list(reversed(sorted(...)))` instead of `reverse=True` fails here.
+    rows = [
+        {"language": "python", "name": "arrowkit", "version": "1.0.0"},
+        {"language": "python", "name": "arrowkit", "version": "1.4.2"},
+        {"language": "python", "name": "chunker", "version": "3.0.0"},
+    ]
+    got = [(r["name"], r["version"]) for r in release_board(rows)]
+    assert got == [("chunker", "3.0.0"), ("arrowkit", "1.0.0"), ("arrowkit", "1.4.2")]

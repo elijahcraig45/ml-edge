@@ -1,0 +1,40 @@
+- id: triangle
+  label: The third edge of a triangle is redundant
+  code: |
+    assert redundant_connection([("a", "b"), ("a", "c"), ("b", "c")]) == ("b", "c")
+- id: tree
+  label: A tree has no redundant edge
+  code: |
+    assert redundant_connection([("a", "b"), ("b", "c"), ("c", "d")]) is None
+    assert redundant_connection([]) is None
+- id: last-of-several
+  label: With several cycles, the last one wins
+  code: |
+    edges = [("a", "b"), ("b", "c"), ("a", "c"), ("c", "d"), ("a", "d")]
+    assert redundant_connection(edges) == ("a", "d")
+- id: disjoint-components
+  label: Separate components are not connected to each other
+  code: |
+    edges = [("a", "b"), ("c", "d"), ("a", "c")]
+    assert redundant_connection(edges) is None
+- id: self-loop
+  label: An edge from a node to itself is redundant
+  hidden: true
+  code: |
+    assert redundant_connection([("a", "b"), ("b", "b")]) == ("b", "b")
+- id: returns-the-edge-not-the-roots
+  label: The returned pair is the edge as written
+  hidden: true
+  code: |
+    # The root of this component is whatever the merge order produced; the
+    # answer must be the edge itself.
+    edges = [("x", "y"), ("y", "z"), ("z", "x")]
+    assert redundant_connection(edges) == ("z", "x")
+- id: long-chain
+  label: A 3,000-edge chain plus one closing edge
+  hidden: true
+  code: |
+    chain = [(f"n{i}", f"n{i + 1}") for i in range(3000)]
+    closing = ("n0", "n3000")
+    assert redundant_connection(chain) is None
+    assert redundant_connection(chain + [closing]) == closing

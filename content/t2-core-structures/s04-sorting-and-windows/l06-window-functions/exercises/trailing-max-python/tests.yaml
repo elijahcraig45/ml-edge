@@ -1,0 +1,43 @@
+- id: matches-sql
+  label: Reproduces the SQL frame's answer for package 20
+  code: |
+    counts = [770, 850, 490, 570, 650, 730, 810, 450, 530, 610]
+    assert trailing_max(counts, 5) == [770, 850, 850, 850, 850, 850, 810, 810, 810, 810]
+- id: window-of-one
+  label: k = 1 returns the input unchanged
+  code: |
+    assert trailing_max([3, 1, 4, 1, 5], 1) == [3, 1, 4, 1, 5]
+- id: window-larger-than-input
+  label: A window wider than the list is a running maximum
+  code: |
+    assert trailing_max([3, 1, 4, 1, 5], 100) == [3, 3, 4, 4, 5]
+- id: empty
+  label: An empty list returns an empty list
+  code: |
+    assert trailing_max([], 3) == []
+- id: descending
+  label: Strictly decreasing input drops the maximum as it falls out
+  code: |
+    assert trailing_max([9, 8, 7, 6, 5], 3) == [9, 9, 9, 8, 7]
+- id: boundary-expiry
+  label: The maximum leaving the window on exactly the boundary step
+  hidden: true
+  code: |
+    # With k = 3, the 9 at index 0 is in the windows ending at 0, 1 and 2, and
+    # gone from the one ending at 3. Off-by-one here gives 9 at index 3.
+    assert trailing_max([9, 1, 1, 1, 1], 3) == [9, 9, 9, 1, 1]
+    assert trailing_max([1, 9, 1, 1, 1], 3) == [1, 9, 9, 9, 1]
+- id: duplicates-and-plateaus
+  label: Repeated maxima are handled
+  hidden: true
+  code: |
+    assert trailing_max([5, 5, 5, 5], 2) == [5, 5, 5, 5]
+    assert trailing_max([2, 7, 7, 2, 2, 2], 3) == [2, 7, 7, 7, 7, 2]
+- id: leaves-input-alone
+  label: Does not modify the list it was given
+  hidden: true
+  code: |
+    nums = [4, 2, 12, 3, 8]
+    original = list(nums)
+    trailing_max(nums, 3)
+    assert nums == original

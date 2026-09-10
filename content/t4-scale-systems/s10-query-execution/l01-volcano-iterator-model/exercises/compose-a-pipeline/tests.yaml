@@ -1,0 +1,50 @@
+- id: basic
+  label: Returns the first n matching rows, projected
+  code: |
+    out = list(plan(iter(PACKAGES), "python", 2))
+    assert out == [
+        {"name": "arrowkit", "created_at": "2019-03-11"},
+        {"name": "chunker", "created_at": "2018-01-24"},
+    ], out
+- id: projects-only-named-columns
+  label: Drops the columns that were not selected
+  code: |
+    row = next(iter(plan(iter(PACKAGES), "rust", 1)))
+    assert list(row.keys()) == ["name", "created_at"], list(row.keys())
+- id: no-matches
+  label: A language with no rows returns nothing
+  code: |
+    assert list(plan(iter(PACKAGES), "cobol", 3)) == []
+- id: fewer-than-n
+  label: Returns fewer than n when fewer match
+  code: |
+    assert len(list(plan(iter(PACKAGES), "js", 5))) == 1
+- id: is-an-iterator
+  label: Returns an iterator, not a materialised list
+  hidden: true
+  code: |
+    result = plan(iter(PACKAGES), "python", 2)
+    assert iter(result) is result, (
+        "plan returned a %s; an operator must return an iterator so that the "
+        "operator above it can stop pulling" % type(result).__name__
+    )
+- id: reads-only-what-it-needs
+  label: Reads a bounded prefix of a long stream
+  hidden: true
+  code: |
+    pulled = [0]
+    def long_stream():
+        for i in range(100000):
+            pulled[0] += 1
+            yield {
+                "id": i,
+                "name": "pkg-%d" % i,
+                "language": "python" if i % 5 == 0 else "rust",
+                "created_at": "2020-01-01",
+            }
+    out = list(plan(long_stream(), "python", 2))
+    assert len(out) == 2, out
+    assert pulled[0] <= 20, (
+        "read %d rows to return 2; the cost should depend on n, not on the "
+        "length of the stream" % pulled[0]
+    )

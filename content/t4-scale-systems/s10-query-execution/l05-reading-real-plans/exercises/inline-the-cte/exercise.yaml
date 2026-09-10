@@ -1,0 +1,80 @@
+id: inline-the-cte
+kind: sql
+title: Take the fence down
+difficulty: 3
+datasetId: package-registry
+topics: [optimizer, plans, ctes]
+timeLimitMs: 15000
+prompt: |
+  The query in the editor returns the right six rows. Its plan contains a
+  `CTE` node, a `CTE_SCAN`, and a `FILTER` sitting above that scan — the
+  materialization boundary that `AS MATERIALIZED` asked for.
+
+  Rewrite it so that it returns exactly the same rows and its plan contains **no
+  `CTE_SCAN` at all**: a `HASH_JOIN` over two `SEQ_SCAN`s, with the size
+  predicate folded into the `versions` scan as a `Filters:` entry.
+
+  Return three columns named `package`, `version` and `size_kb`, for every
+  release larger than 200 KB, ordered by `size_kb` descending.
+
+  **This exercise is graded on the plan, not only on the rows.** Both versions
+  produce identical output, so nothing but the plan can tell them apart — press
+  **Explain** under the editor to see what you have built before you submit.
+hints:
+  - "The rows are already correct. The only thing being asked of you is to stop forcing a materialization boundary."
+  - "`WITH x AS MATERIALIZED (...)` tells DuckDB to compute the CTE once into a temporary result. An ordinary `WITH x AS (...)` is inlined into the outer query and optimised as one plan."
+  - "Delete the word MATERIALIZED — or drop the CTE entirely and write the join inline. Both give a plan with no CTE_SCAN; keeping the CTE is usually the more readable of the two."
+solutionWalkthrough: |
+  ```sql
+  WITH release_sizes AS (
+    SELECT p.name AS package, v.version, v.size_kb
+    FROM packages p
+    JOIN versions v ON v.package_id = p.id
+  )
+  SELECT package, version, size_kb
+  FROM release_sizes
+  WHERE size_kb > 200
+  ORDER BY size_kb DESC;
+  ```
+
+  One word. The rows do not change and the plan does:
+
+  | | with MATERIALIZED | without |
+  | --- | --- | --- |
+  | operators | `CTE`, `CTE_SCAN`, `FILTER`, `HASH_JOIN`, 2 × `SEQ_SCAN`, `ORDER_BY` | `HASH_JOIN`, 2 × `SEQ_SCAN`, `ORDER_BY` |
+  | where the predicate runs | above `CTE_SCAN`, on the materialized result | inside the `versions` scan |
+
+  **Naming the plan is not the same as reading the SQL.** Two queries with the
+  same text-level structure compiled to different operator trees, and the only
+  way to know which one you wrote was to look. That is the habit this exercise
+  exists to build, and it is why the grader checks the plan: on this
+  twenty-row dataset both versions are instant, so a timing comparison would
+  teach you nothing.
+
+  **When you would want the fence back.** `MATERIALIZED` earns its place when
+  the CTE is referenced several times and is expensive to compute — inlining it
+  means computing it once per reference. It also gives the optimizer a real row
+  count for everything above the boundary instead of an estimate, which is
+  exactly the "materialize an intermediate result" tactic from the interview
+  track. It is a tool, not a mistake; the mistake is using it without knowing
+  that it changes the plan.
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 6
+      message: >-
+        Expected 6 rows — the releases over 200 KB. If you got a different
+        number, check the strictness of the comparison, not the CTE.
+    - type: plan
+      notContains: [CTE_SCAN]
+      message: >-
+        The plan still reads from a materialized CTE (CTE_SCAN). The rows are
+        right, but the query is still paying for a materialization boundary the
+        optimizer would rather not have.
+    - type: plan
+      contains: [HASH_JOIN, SEQ_SCAN]
+      message: >-
+        The plan should join the two base tables directly — a HASH_JOIN over
+        two SEQ_SCANs.

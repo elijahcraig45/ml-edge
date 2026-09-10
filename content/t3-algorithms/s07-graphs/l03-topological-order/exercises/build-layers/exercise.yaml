@@ -1,0 +1,100 @@
+id: build-layers
+kind: sql
+title: Topological layers of a DAG in SQL
+difficulty: 4
+datasetId: package-registry
+pattern: topological-sort
+topics: [graphs, recursive-cte]
+timeLimitMs: 15000
+prompt: |
+  Orient the shared-maintainer graph by age: draw an edge from the **older**
+  package to the **newer** one whenever a maintainer works on both. Because
+  every edge points forward in time, that graph is a DAG.
+
+  Return each package's **build layer**: the number of edges on the *longest*
+  path from any source (a package with no incoming edge) to it. Sources are
+  layer 0.
+
+  Two columns, `name` and `build_layer`, ordered by `build_layer` then `name`.
+  All 20 packages appear.
+
+  A package is only ready once its slowest predecessor is done, so this is a
+  longest path, not a shortest one. Getting that backwards produces a plausible
+  result with too many packages on layer 1 — which is what the starter does.
+hints:
+  - "The anchor member is Kahn's initial ready set: the packages that nothing older points at. `NOT EXISTS (SELECT 1 FROM dag WHERE dst = p.id)` says that."
+  - "The recursive member emits `depth + 1` for each successor. That fills the fixpoint with one row per (node, distance-from-some-source) pair — so a node with several ancestors appears several times, at different depths."
+  - "The final aggregate is the whole question. `min(depth)` is the shortest route in; `max(depth)` is the layer. Group by package and take the max."
+solutionWalkthrough: |
+  ```sql
+  WITH RECURSIVE dag AS (
+    SELECT DISTINCT a.package_id AS src, b.package_id AS dst
+    FROM package_maintainers a
+    JOIN package_maintainers b ON a.maintainer_id = b.maintainer_id
+    JOIN packages p ON p.id = a.package_id
+    JOIN packages q ON q.id = b.package_id
+    WHERE p.created_at < q.created_at
+  ),
+  layer(node, depth) AS (
+    SELECT p.id, 0
+    FROM packages p
+    WHERE NOT EXISTS (SELECT 1 FROM dag d WHERE d.dst = p.id)
+    UNION
+    SELECT d.dst, l.depth + 1
+    FROM layer l JOIN dag d ON d.src = l.node
+    WHERE l.depth < 20
+  )
+  SELECT p.name AS name, max(l.depth) AS build_layer
+  FROM layer l JOIN packages p ON p.id = l.node
+  GROUP BY p.name
+  ORDER BY build_layer, name;
+  ```
+
+  `WHERE p.created_at < q.created_at` is what makes the graph a DAG, and it is
+  worth being precise about why: an edge always goes from an earlier date to a
+  later one, so any walk has strictly increasing dates and therefore cannot
+  return to where it started. That is a proof, not an observation, and it is the
+  reason this query is safe to run.
+
+  `max` versus `min` is the whole exercise. Take `arrowkit`: it is reachable
+  from `skiplist` in one hop, from `chunker` in two, and from `indexer` in
+  three. The minimum, 1, answers "how quickly could something reach it". The
+  maximum, 3, answers "how many rounds of building must finish first", which is
+  the layer. Substituting one for the other moves twelve of the twenty packages
+  and still looks like a reasonable schedule.
+
+  Two things this query is *not*:
+
+  It is not Kahn's algorithm. Kahn's peeling needs to ask "are all of this
+  node's predecessors already emitted?", and a recursive member can only see the
+  rows the previous round produced — it has no handle on the accumulated result.
+  What this computes is reachability from the sources, with the layer recovered
+  afterwards by `max`. On a DAG the two agree.
+
+  And it is not safe without the depth guard. The `depth` column only increases,
+  so `UNION` can never dedupe a node away and the fixpoint arrives only because
+  the graph really is acyclic. The guard is insurance against being wrong about
+  that — and if a row ever comes back at depth 20 on a 20-node graph, you have
+  proof that you were.
+
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 20
+      message: Every package belongs to exactly one layer, so expect 20 rows.
+    - type: syntax
+      pattern: "\\brecursive\\b"
+      message: Build the layers with a recursive CTE rather than a fixed chain of self-joins.
+    - type: predicate
+      sql: "SELECT max(build_layer) = 5 FROM __learner"
+      message: >-
+        The deepest layer is 5 (dagrun). If your maximum is 3, you took the
+        minimum depth rather than the maximum — that is the shortest route from
+        a source, not the layer the package builds in.
+    - type: predicate
+      sql: "SELECT count(*) = 6 FROM __learner WHERE build_layer = 0"
+      message: >-
+        Six packages have no older shared-maintainer neighbour, so layer 0 should
+        hold exactly six rows.

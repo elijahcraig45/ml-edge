@@ -1,0 +1,100 @@
+id: cheapest-build-chain
+kind: sql
+title: Iterative relaxation in a recursive CTE
+difficulty: 5
+datasetId: package-registry
+pattern: bellman-ford
+topics: [graphs, recursive-cte, shortest-path]
+timeLimitMs: 15000
+prompt: |
+  Take the age-oriented DAG from lesson 3 — an edge from the older package to
+  the newer one when a maintainer works on both — and give every edge a weight:
+  the cost of pulling in the *target* package, defined as the largest
+  `size_kb` among its releases.
+
+  Starting from `indexer` at total cost 0, return the **cheapest total** for
+  each package reachable from it.
+
+  Two columns, `name` and `cheapest_kb`, ordered by `cheapest_kb` then `name`.
+  Seven packages are reachable, including `indexer` itself at 0.
+
+  This is Bellman-Ford's shape rather than Dijkstra's: expand every frontier
+  row, carry the running total, and take the minimum at the very end. The
+  recursive member cannot take a minimum over the best distances found so far,
+  because it cannot see them.
+hints:
+  - "Three CTEs. First the per-package weight (`max(size_kb)` grouped by package). Then the weighted DAG. Then the recursive part, which carries a running total rather than a hop count."
+  - "The anchor row is `(indexer, 0)`. The recursive member emits `(d.dst, r.total + d.cost)` — the running total, not the edge cost. Add a hop guard so the query is safe even if you got the DAG orientation wrong."
+  - "The fixpoint contains one row per distinct route, so a package reachable three ways appears three times with three totals. `GROUP BY name` with `min(total)` picks the cheapest. That final `min` is the whole reason this works without a priority queue."
+solutionWalkthrough: |
+  ```sql
+  WITH RECURSIVE weight AS (
+    SELECT package_id, max(size_kb) AS kb FROM versions GROUP BY package_id
+  ),
+  dag AS (
+    SELECT DISTINCT a.package_id AS src, b.package_id AS dst, w.kb AS cost
+    FROM package_maintainers a
+    JOIN package_maintainers b ON a.maintainer_id = b.maintainer_id
+    JOIN packages p ON p.id = a.package_id
+    JOIN packages q ON q.id = b.package_id
+    JOIN weight w ON w.package_id = b.package_id
+    WHERE p.created_at < q.created_at
+  ),
+  relax(node, total, hops) AS (
+    SELECT id, 0, 0 FROM packages WHERE name = 'indexer'
+    UNION
+    SELECT d.dst, r.total + d.cost, r.hops + 1
+    FROM relax r JOIN dag d ON d.src = r.node
+    WHERE r.hops < 20
+  )
+  SELECT p.name AS name, min(r.total) AS cheapest_kb
+  FROM relax r JOIN packages p ON p.id = r.node
+  GROUP BY p.name
+  ORDER BY cheapest_kb, name;
+  ```
+
+  Follow `arrowkit`. It is reachable from `indexer` two ways: through `chunker`
+  (402 + 190 = 592) and through `chunker` then `lazyseq` (402 + 205 + 190 =
+  797). Both rows land in the fixpoint. Neither is discarded during the
+  recursion, because the recursive member has no way to know the other exists —
+  it sees only the rows the previous round produced, never the accumulated
+  result. The `min` at the end is where the choice finally gets made.
+
+  That is the difference between this and Dijkstra in one paragraph. Dijkstra
+  never generates the 797 route at all: it settles `arrowkit` at 592 the moment
+  it pops it, and prunes everything worse. This query generates every route and
+  filters afterwards. On seven nodes that is invisible. On a graph where the
+  number of distinct routes grows exponentially with depth, it is the difference
+  between a query and an incident — and the `hops < 20` guard is the only thing
+  bounding how far the enumeration goes.
+
+  **The guard is not optional even though the graph is a DAG.** `total` and
+  `hops` both change every round, so `UNION` can never dedupe a row away. The
+  query terminates because the graph really is acyclic; the guard is what
+  happens when you are wrong about that. Twenty exceeds the DAG's longest path of
+  five with room to spare, so it does not affect the answer.
+
+  **Why `max(size_kb)` and not `sum`.** Each package contributes its largest
+  artifact once, no matter how many versions it has — that is the cost of
+  installing it. Summing every release would charge you for versions you never
+  download. Deciding what a weight *means* is usually more of the work than the
+  query, and it is the part a reviewer will actually check.
+
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 7
+      message: >-
+        Seven packages are reachable from indexer (including indexer at 0). Two
+        rows means the query is only looking one edge ahead instead of recursing.
+    - type: syntax
+      pattern: "\\brecursive\\b"
+      message: The point of this exercise is the recursive relaxation; write it as a recursive CTE.
+    - type: predicate
+      sql: "SELECT max(cheapest_kb) = 955 AND min(cheapest_kb) = 0 FROM __learner"
+      message: >-
+        indexer should cost 0 and dagrun — the deepest package — should cost
+        955. If dagrun is more expensive, you are reporting some route rather
+        than the cheapest one; take min() over the whole fixpoint at the end.

@@ -1,0 +1,162 @@
+id: package-registry
+title: Open-source package registry
+license: Synthetic data generated for this curriculum. No real registry data.
+description: >-
+  A miniature package registry: packages, their releases, the people who
+  maintain them, and daily download counts. Every SQL exercise in the
+  curriculum uses this one schema, so you learn it once and it keeps paying
+  off — the dependency graph becomes recursive CTEs in the graphs stage, the
+  download time series becomes window functions, and the skewed event counts
+  become the hashing stage's straggler problem.
+
+
+  Nullable columns are deliberate. `license`, `deprecated_reason` and
+  `country` are missing for some rows because that is what real registry data
+  looks like, and because reasoning about missing values is a skill, not an
+  edge case.
+
+tables:
+  - name: packages
+    description: One row per published package.
+    columns:
+      - { name: id, type: INTEGER, description: Primary key. }
+      - { name: name, type: VARCHAR, description: Package name, unique. }
+      - { name: language, type: VARCHAR, description: "Implementation language: python, sql, rust, js." }
+      - { name: license, type: VARCHAR, description: "SPDX identifier. NULL when the package never declared one." }
+      - { name: created_at, type: DATE, description: First publication date. }
+      - { name: deprecated_reason, type: VARCHAR, description: "Why it was deprecated. NULL means it is still active." }
+    seedSql: |
+      CREATE OR REPLACE TABLE packages (
+        id INTEGER, name VARCHAR, language VARCHAR, license VARCHAR,
+        created_at DATE, deprecated_reason VARCHAR
+      );
+      INSERT INTO packages VALUES
+        (1,  'arrowkit',    'python', 'Apache-2.0', DATE '2019-03-11', NULL),
+        (2,  'bitmask',     'rust',   'MIT',        DATE '2020-07-02', NULL),
+        (3,  'chunker',     'python', 'MIT',        DATE '2018-01-24', NULL),
+        (4,  'dagrun',      'python', NULL,         DATE '2021-11-05', NULL),
+        (5,  'edgecase',    'js',     'MIT',        DATE '2017-06-30', 'Renamed to boundary'),
+        (6,  'fanout',      'sql',    'BSD-3',      DATE '2022-02-14', NULL),
+        (7,  'graphwalk',   'python', 'Apache-2.0', DATE '2020-09-09', NULL),
+        (8,  'hashring',    'rust',   NULL,         DATE '2019-12-01', NULL),
+        (9,  'indexer',     'python', 'MIT',        DATE '2016-04-18', 'Unmaintained since 2021'),
+        (10, 'joinplan',    'sql',    'Apache-2.0', DATE '2023-01-30', NULL),
+        (11, 'keyspace',    'rust',   'MIT',        DATE '2021-05-22', NULL),
+        (12, 'lazyseq',     'python', 'BSD-3',      DATE '2018-08-08', NULL),
+        (13, 'memoize',     'js',     'MIT',        DATE '2015-10-12', NULL),
+        (14, 'nullsafe',    'sql',    NULL,         DATE '2022-09-19', NULL),
+        (15, 'orderby',     'sql',    'MIT',        DATE '2021-03-03', NULL),
+        (16, 'probe',       'rust',   'Apache-2.0', DATE '2020-01-27', NULL),
+        (17, 'quickselect', 'python', 'MIT',        DATE '2019-07-15', NULL),
+        (18, 'radixsort',   'rust',   'MIT',        DATE '2022-06-01', NULL),
+        (19, 'skiplist',    'python', NULL,         DATE '2017-02-20', 'Merged into lazyseq'),
+        (20, 'treewalk',    'js',     'BSD-3',      DATE '2023-04-11', NULL);
+
+  - name: versions
+    description: Releases of each package, newest last.
+    columns:
+      - { name: id, type: INTEGER, description: Primary key. }
+      - { name: package_id, type: INTEGER, description: References packages.id. }
+      - { name: version, type: VARCHAR, description: Semantic version string. }
+      - { name: published_at, type: DATE, description: Release date. }
+      - { name: is_prerelease, type: BOOLEAN, description: True for alpha/beta/rc builds. }
+      - { name: size_kb, type: INTEGER, description: Packed artifact size in kilobytes. }
+    seedSql: |
+      CREATE OR REPLACE TABLE versions (
+        id INTEGER, package_id INTEGER, version VARCHAR,
+        published_at DATE, is_prerelease BOOLEAN, size_kb INTEGER
+      );
+      INSERT INTO versions VALUES
+        (1,  1, '0.9.0', DATE '2019-03-11', true,  120),
+        (2,  1, '1.0.0', DATE '2019-06-02', false, 138),
+        (3,  1, '1.4.2', DATE '2021-02-17', false, 190),
+        (4,  2, '0.1.0', DATE '2020-07-02', true,  44),
+        (5,  2, '1.0.0', DATE '2021-01-19', false, 61),
+        (6,  3, '2.3.1', DATE '2020-05-04', false, 310),
+        (7,  3, '3.0.0', DATE '2022-08-23', false, 402),
+        (8,  4, '0.2.0', DATE '2021-11-05', true,  75),
+        (9,  5, '1.1.0', DATE '2017-06-30', false, 22),
+        (10, 6, '0.5.0', DATE '2022-02-14', false, 95),
+        (11, 6, '0.6.0', DATE '2022-11-30', false, 101),
+        (12, 7, '1.0.0', DATE '2020-09-09', false, 260),
+        (13, 7, '2.0.0', DATE '2023-03-15', false, 288),
+        (14, 8, '0.4.0', DATE '2019-12-01', true,  38),
+        (15, 9, '1.2.0', DATE '2016-04-18', false, 512),
+        (16, 10,'0.1.0', DATE '2023-01-30', true,  67),
+        (17, 11,'1.0.0', DATE '2021-05-22', false, 143),
+        (18, 12,'4.1.0', DATE '2019-09-27', false, 205),
+        (19, 13,'2.0.1', DATE '2015-10-12', false, 18),
+        (20, 14,'0.3.0', DATE '2022-09-19', true,  52),
+        (21, 15,'1.1.1', DATE '2021-03-03', false, 88),
+        (22, 16,'0.8.0', DATE '2020-01-27', false, 130),
+        (23, 17,'1.0.0', DATE '2019-07-15', false, 71),
+        (24, 18,'0.2.0', DATE '2022-06-01', true,  49),
+        (25, 19,'0.9.9', DATE '2017-02-20', false, 96),
+        (26, 20,'1.0.0', DATE '2023-04-11', false, 154);
+
+  - name: maintainers
+    description: People who maintain packages.
+    columns:
+      - { name: id, type: INTEGER, description: Primary key. }
+      - { name: handle, type: VARCHAR, description: Registry username. }
+      - { name: country, type: VARCHAR, description: "ISO country code. NULL when undisclosed." }
+      - { name: joined_at, type: DATE, description: Account creation date. }
+    seedSql: |
+      CREATE OR REPLACE TABLE maintainers (
+        id INTEGER, handle VARCHAR, country VARCHAR, joined_at DATE
+      );
+      INSERT INTO maintainers VALUES
+        (1, 'ada',     'GB',  DATE '2015-01-04'),
+        (2, 'grace',   'US',  DATE '2015-03-19'),
+        (3, 'linus',   'FI',  DATE '2016-08-27'),
+        (4, 'margaret','US',  DATE '2017-05-11'),
+        (5, 'edsger',  'NL',  DATE '2016-02-02'),
+        (6, 'barbara', NULL,  DATE '2018-10-30'),
+        (7, 'donald',  'US',  DATE '2015-11-15'),
+        (8, 'katherine',NULL, DATE '2019-04-08'),
+        (9, 'alan',    'GB',  DATE '2017-09-21'),
+        (10,'radia',   'US',  DATE '2020-06-14');
+
+  - name: package_maintainers
+    description: >-
+      Many-to-many link between packages and maintainers. Joining through this
+      table is where fan-out bugs are born.
+    columns:
+      - { name: package_id, type: INTEGER, description: References packages.id. }
+      - { name: maintainer_id, type: INTEGER, description: References maintainers.id. }
+      - { name: role, type: VARCHAR, description: "owner or contributor." }
+    seedSql: |
+      CREATE OR REPLACE TABLE package_maintainers (
+        package_id INTEGER, maintainer_id INTEGER, role VARCHAR
+      );
+      INSERT INTO package_maintainers VALUES
+        (1,1,'owner'),(1,2,'contributor'),(2,3,'owner'),(3,2,'owner'),
+        (3,4,'contributor'),(3,7,'contributor'),(4,5,'owner'),(5,9,'owner'),
+        (6,6,'owner'),(7,5,'owner'),(7,1,'contributor'),(8,3,'owner'),
+        (9,7,'owner'),(10,6,'owner'),(11,3,'contributor'),(11,10,'owner'),
+        (12,2,'owner'),(13,9,'owner'),(14,6,'contributor'),(15,10,'owner'),
+        (16,3,'owner'),(17,7,'owner'),(17,8,'contributor'),(18,3,'owner'),
+        (19,2,'owner'),(20,9,'owner');
+
+  - name: downloads
+    description: >-
+      Daily download counts for the first ten days of March 2024. A short
+      window on purpose — you should be able to hold the whole table in your
+      head while you are still learning what a query does.
+    columns:
+      - { name: package_id, type: INTEGER, description: References packages.id. }
+      - { name: day, type: DATE, description: Calendar day. }
+      - { name: count, type: INTEGER, description: Downloads recorded that day. }
+    seedSql: |
+      CREATE OR REPLACE TABLE downloads (
+        package_id INTEGER, day DATE, count INTEGER
+      );
+      INSERT INTO downloads
+      SELECT
+        p.id,
+        DATE '2024-03-01' + INTERVAL (d) DAY,
+        -- Deterministic, Zipf-ish: a few packages dominate, which is what
+        -- makes the later skew lessons use real skew rather than a story.
+        CAST(round(9000 / p.id + 40 * ((p.id * 7 + d * 13) % 11)) AS INTEGER)
+      FROM packages p
+      CROSS JOIN range(0, 10) t(d);

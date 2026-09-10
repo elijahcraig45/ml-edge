@@ -1,0 +1,56 @@
+- id: three-components
+  label: Orders by major, then minor, then patch
+  code: |
+    got = sort_releases([
+        (1, 4, 2, "arrowkit"),
+        (1, 0, 0, "bitmask"),
+        (0, 9, 9, "skiplist"),
+        (1, 0, 3, "probe"),
+    ])
+    assert got == [
+        (0, 9, 9, "skiplist"),
+        (1, 0, 0, "bitmask"),
+        (1, 0, 3, "probe"),
+        (1, 4, 2, "arrowkit"),
+    ], got
+- id: patch-decides
+  label: Rows differing only in patch come out in patch order
+  code: |
+    got = sort_releases([(2, 3, 9, "c"), (2, 3, 1, "a"), (2, 3, 4, "b")])
+    assert [r[3] for r in got] == ["a", "b", "c"]
+- id: minor-beats-patch
+  label: A larger minor outranks a larger patch
+  code: |
+    got = sort_releases([(1, 2, 0, "later"), (1, 1, 99, "earlier")])
+    assert [r[3] for r in got] == ["earlier", "later"]
+- id: empty-and-single
+  label: Empty and single-row inputs
+  code: |
+    assert sort_releases([]) == []
+    assert sort_releases([(0, 0, 1, "only")]) == [(0, 0, 1, "only")]
+- id: two-digit-components
+  label: Components up to 99 sort numerically, not as text
+  code: |
+    got = sort_releases([(9, 0, 0, "nine"), (10, 0, 0, "ten"), (2, 0, 0, "two")])
+    assert [r[3] for r in got] == ["two", "nine", "ten"]
+- id: identical-versions-keep-order
+  label: Identical versions keep their input order
+  hidden: true
+  code: |
+    rows = [
+        (1, 0, 0, "third"),
+        (0, 1, 0, "first"),
+        (1, 0, 0, "fourth"),
+        (0, 1, 0, "second"),
+    ]
+    got = sort_releases(rows)
+    assert [r[3] for r in got] == ["first", "second", "third", "fourth"], got
+- id: does-not-mutate
+  label: Returns a new list and leaves the input alone
+  hidden: true
+  code: |
+    rows = [(3, 0, 0, "c"), (1, 0, 0, "a"), (2, 0, 0, "b")]
+    original = list(rows)
+    out = sort_releases(rows)
+    assert rows == original
+    assert [r[3] for r in out] == ["a", "b", "c"]

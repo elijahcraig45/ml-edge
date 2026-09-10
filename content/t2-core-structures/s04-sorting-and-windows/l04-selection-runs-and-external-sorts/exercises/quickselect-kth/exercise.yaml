@@ -1,0 +1,86 @@
+id: quickselect-kth
+kind: python
+title: The k-th smallest, without sorting
+difficulty: 4
+pattern: quickselect
+topics: [selection, partitioning]
+timeLimitMs: 15000
+forbid:
+  - "sorted("
+  - ".sort("
+  - "heapq"
+  - "statistics"
+  - "numpy"
+prompt: |
+  Return the `k`-th smallest value in `values`, counting from zero, without
+  sorting the list.
+
+  ```
+  kth_smallest([9, 3, 7, 1, 8, 2, 5], 0)   # 1  (the minimum)
+  kth_smallest([9, 3, 7, 1, 8, 2, 5], 3)   # 5  (the median)
+  kth_smallest([9, 3, 7, 1, 8, 2, 5], 6)   # 9  (the maximum)
+  ```
+
+  Constraints:
+
+  - `sorted`, `.sort`, `heapq`, `statistics` and `numpy` are unavailable.
+  - `0 <= k < len(values)` is guaranteed. Duplicates are not.
+  - The caller's list must come back in its original order. If you rearrange,
+    rearrange a copy.
+
+  Partition around a pivot, look at where the pivot landed, and continue into
+  the side that can still contain the answer.
+hints:
+  - "You already have the machinery: partition the range around a pivot and it tells you the pivot's final index p. Compare p with k."
+  - "If p == k the pivot is the answer. If p < k the answer lies strictly right of p, so move `lo` to p + 1. If p > k it lies strictly left, so move `hi` to p - 1. The other side is gone — do not recurse into it."
+  - "Because you only ever continue into one side, the recursion is a tail call and you can write it as a `while lo < hi` loop. Pick the pivot at random so that sorted input cannot force quadratic behaviour."
+solutionWalkthrough: |
+  ```python
+  import random
+
+
+  def kth_smallest(values, k):
+      data = list(values)                 # do not disturb the caller's list
+      lo, hi = 0, len(data) - 1
+      while lo < hi:
+          pivot_index = random.randint(lo, hi)
+          data[pivot_index], data[hi] = data[hi], data[pivot_index]
+          pivot = data[hi]
+          boundary = lo
+          for i in range(lo, hi):
+              if data[i] <= pivot:
+                  data[boundary], data[i] = data[i], data[boundary]
+                  boundary += 1
+          data[boundary], data[hi] = data[hi], data[boundary]
+
+          if boundary == k:
+              return data[k]
+          if boundary < k:
+              lo = boundary + 1
+          else:
+              hi = boundary - 1
+      return data[k]
+  ```
+
+  This is quicksort with one recursive call deleted, and the deletion is the
+  entire algorithm. Quicksort must process both sides, so every level costs
+  $\Theta(n)$ and there are $\log n$ of them. Quickselect discards one side, so
+  the expected sizes fall geometrically and the total telescopes:
+  $n + n/2 + n/4 + \cdots = 2n$.
+
+  **`lo = boundary + 1`, not `boundary`.** The pivot is already in its final
+  position, so leaving it in the range is not merely wasteful — if it is picked as
+  the pivot again the range stops shrinking and the loop never terminates.
+
+  **The random pivot.** With a fixed pivot rule, sorted input peels one element
+  per round and the cost becomes $\Theta(n^2)$. Randomising moves the bad case
+  from the data, which an attacker or a previous `ORDER BY` controls, to the coin
+  flips, which nobody does.
+
+  **When not to use it.** Quickselect rearranges the data and answers one
+  question. If you want the top $k$ *and* they must be in order, you still need
+  to sort those $k$ — but only those $k$, which is $n + k\log k$ rather than
+  $n \log n$. And if $k$ is tiny and fixed, a bounded heap of size $k$ beats
+  both: one pass, $k$ words of memory, and it works on a stream you cannot
+  rewind. That last property is why databases answer `ORDER BY x LIMIT 10` with
+  a heap and not with a sort.

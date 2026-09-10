@@ -1,0 +1,103 @@
+id: reachable-in-hops
+kind: sql
+title: BFS levels with a recursive CTE
+difficulty: 4
+datasetId: package-registry
+pattern: bfs
+topics: [graphs, recursive-cte]
+timeLimitMs: 15000
+prompt: |
+  Two packages are adjacent when someone maintains both. Starting from
+  `graphwalk`, return every package reachable through that relation, together
+  with the **fewest hops** it takes to get there.
+
+  Two columns, `name` and `hops`, ordered by `hops` then `name`. `graphwalk`
+  itself is 0 hops away and belongs in the result.
+
+  The graph is undirected and full of cycles, so:
+
+  - the recursive member needs a depth guard, because you are carrying a depth
+    column and `UNION` cannot dedupe a node that arrives with a new depth;
+  - a node reached at several depths must be reported at its smallest one.
+
+  Use a recursive CTE. The whole point is that this is BFS.
+hints:
+  - "Build the package-to-package edge set in a plain CTE first, then write the recursive part against it. Two CTEs, the second one recursive, is easier to debug than one clever query."
+  - "Anchor member: the row for `graphwalk` at depth 0. Recursive member: join the previous round against the edges and emit `depth + 1`. That pair is the whole of BFS."
+  - "The fixpoint contains a node once per depth at which it was reached, so the final SELECT is `GROUP BY name` with `min(depth)`. Add `WHERE depth < 20` to the recursive member — without it the query does not terminate."
+solutionWalkthrough: |
+  ```sql
+  WITH RECURSIVE edges AS (
+    SELECT DISTINCT a.package_id AS src, b.package_id AS dst
+    FROM package_maintainers a
+    JOIN package_maintainers b ON a.maintainer_id = b.maintainer_id
+    WHERE a.package_id <> b.package_id
+  ),
+  walk(node, depth) AS (
+    SELECT id, 0 FROM packages WHERE name = 'graphwalk'
+    UNION
+    SELECT e.dst, w.depth + 1
+    FROM walk w
+    JOIN edges e ON e.src = w.node
+    WHERE w.depth < 20
+  )
+  SELECT p.name AS name, min(w.depth) AS hops
+  FROM walk w
+  JOIN packages p ON p.id = w.node
+  GROUP BY p.name
+  ORDER BY hops, name;
+  ```
+
+  Line for line against the Python:
+
+  | SQL | Python |
+  | --- | --- |
+  | anchor member | `queue = deque([start])` |
+  | `JOIN edges e ON e.src = w.node` | `for nxt in graph[node]` |
+  | `w.depth + 1` | `dist[nxt] = dist[node] + 1` |
+  | `UNION` | `if nxt not in seen` |
+  | round produces no rows | `while queue:` falls through |
+
+  Two details decide whether this works.
+
+  **`min(depth)` at the end, not in the recursion.** The fixpoint holds
+  `(graphwalk, 0)`, `(arrowkit, 1)`, `(arrowkit, 3)`, `(arrowkit, 5)` and so on
+  — every depth at which a node is reachable, because the graph is undirected
+  and you can always walk back and forth. Only the smallest is the distance. You
+  cannot take that minimum inside the recursive member; a recursive CTE sees
+  only the rows the *previous* round produced, never the accumulated result, so
+  there is nothing to take a minimum over. Lesson 5 is about what that
+  restriction costs.
+
+  **The depth guard is load-bearing.** `UNION` deduplicates whole rows, and
+  `(arrowkit, 3)` is not `(arrowkit, 1)`. The depth column only ever increases,
+  so no round is ever empty and the fixpoint is never reached. Twenty is
+  comfortably more than the graph's diameter of three; any bound above the
+  diameter gives the same answer, and any recursive CTE with a monotonically
+  increasing column and no bound is a hung query.
+
+  Dropping the depth column instead would let `UNION` terminate the query on its
+  own — but then you get reachability without distances, which is a different
+  question. Carrying depth is the price of BFS levels, and the guard is the
+  price of carrying depth.
+
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 8
+      message: >-
+        Expected 8 rows — graphwalk's connected component. If you got 2, the
+        query is only looking one hop out and is not recursing. If you got more
+        than 8, a node is appearing once per depth instead of once at its
+        minimum depth.
+    - type: syntax
+      pattern: "\\brecursive\\b"
+      message: This exercise is about `WITH RECURSIVE`; a hand-unrolled chain of joins is not the point.
+    - type: predicate
+      sql: "SELECT max(hops) = 3 AND min(hops) = 0 FROM __learner"
+      message: >-
+        Hops should run from 0 (graphwalk itself) to 3 (indexer and
+        quickselect). A maximum above 3 means you are reporting some depth at
+        which a node was reached rather than the smallest one.

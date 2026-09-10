@@ -1,0 +1,34 @@
+- id: basic
+  label: Finds the balancing day
+  code: |
+    assert balance_day([1, 7, 3, 6, 5, 6]) == 3
+- id: none
+  label: Returns -1 when nothing balances
+  code: |
+    assert balance_day([1, 2, 3]) == -1
+- id: single-day
+  label: One day balances two empty sides
+  code: |
+    assert balance_day([9]) == 0
+- id: first-day
+  label: The first day balances when the rest sums to zero
+  code: |
+    assert balance_day([4, -3, 3]) == 0
+- id: empty-and-earliest
+  label: An empty series, and the earliest of several answers
+  hidden: true
+  code: |
+    assert balance_day([]) == -1
+    # Indices 2 and 3 both balance; the answer is the earlier one.
+    assert balance_day([1, -1, 0, 0]) == 2
+    assert balance_day([0, 0, 0]) == 0
+- id: negatives-and-last-day
+  label: Negative counts and a balance on the final day
+  hidden: true
+  code: |
+    assert balance_day([1, -1, 5]) == 2
+    assert balance_day([2, 3, -1, 8, 3, 1]) == 3
+    assert balance_day([-1, -1, -2]) == -1
+    original = [1, 2, 1]
+    balance_day(original)
+    assert original == [1, 2, 1], "the input must not be modified"

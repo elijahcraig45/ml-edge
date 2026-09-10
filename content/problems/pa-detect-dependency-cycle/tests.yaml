@@ -1,0 +1,50 @@
+- id: no-cycle
+  label: A chain that ends has no cycle
+  code: |
+    a = Node("web")
+    b = Node("db")
+    a.next = b
+    assert has_cycle(a) is False
+- id: two-node-cycle
+  label: Two packages depending on each other is a cycle
+  code: |
+    a = Node("web")
+    b = Node("db")
+    a.next = b
+    b.next = a
+    assert has_cycle(a) is True
+- id: empty-and-single
+  label: No chain, and a single package
+  code: |
+    assert has_cycle(None) is False
+    assert has_cycle(Node("solo")) is False
+- id: self-loop
+  label: A package depending on itself is a cycle
+  code: |
+    a = Node("web")
+    a.next = a
+    assert has_cycle(a) is True
+- id: tail-cycle
+  label: A loop reached after a straight run is still found
+  hidden: true
+  code: |
+    nodes = [Node(i) for i in range(6)]
+    for i in range(5):
+        nodes[i].next = nodes[i + 1]
+    nodes[5].next = nodes[3]
+    assert has_cycle(nodes[0]) is True
+    nodes[5].next = None
+    assert has_cycle(nodes[0]) is False
+- id: equal-values-are-not-a-cycle
+  label: Repeated values are not repeated nodes
+  hidden: true
+  code: |
+    a = Node("web")
+    b = Node("web")
+    c = Node("web")
+    a.next = b
+    b.next = c
+    assert has_cycle(a) is False
+    # An odd-length chain exercises the fast pointer running off the end.
+    d = Node(1, Node(2, Node(3, Node(4, Node(5)))))
+    assert has_cycle(d) is False

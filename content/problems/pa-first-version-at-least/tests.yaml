@@ -1,0 +1,34 @@
+- id: exact-hit
+  label: Lands on the first of a run of equal values
+  code: |
+    assert first_at_least([2, 4, 4, 9], 4) == 1
+- id: between-values
+  label: Finds the insertion point between two entries
+  code: |
+    assert first_at_least([2, 4, 4, 9], 5) == 3
+- id: past-the-end
+  label: Returns the length when nothing qualifies
+  code: |
+    assert first_at_least([2, 4, 4, 9], 99) == 4
+- id: at-the-start
+  label: A threshold below everything answers 0
+  code: |
+    assert first_at_least([2, 4, 4, 9], 0) == 0
+- id: empty-and-single
+  label: An empty list and a one-entry list
+  hidden: true
+  code: |
+    assert first_at_least([], 5) == 0
+    assert first_at_least([5], 5) == 0
+    assert first_at_least([5], 6) == 1
+    assert first_at_least([5], 4) == 0
+- id: all-equal-and-negative
+  label: Every value identical, and negative thresholds
+  hidden: true
+  code: |
+    assert first_at_least([7, 7, 7, 7], 7) == 0
+    assert first_at_least([7, 7, 7, 7], 8) == 4
+    assert first_at_least([-9, -4, -4, 0], -4) == 1
+    original = [1, 2, 3]
+    first_at_least(original, 2)
+    assert original == [1, 2, 3], "the input must not be modified"

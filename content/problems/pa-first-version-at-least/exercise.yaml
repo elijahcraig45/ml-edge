@@ -1,0 +1,58 @@
+id: pa-first-version-at-least
+kind: python
+title: First release that clears the bar
+difficulty: 2
+pattern: binary-search
+stage: s04-sorting-and-windows
+topics:
+  - arrays
+timeLimitMs: 10000
+prompt: |
+  `counts` holds download totals **sorted ascending**, with repeats allowed.
+  Return the index of the first entry that is greater than or equal to
+  `threshold`. If every entry is below the threshold, return `len(counts)`.
+
+  ```
+  first_at_least([2, 4, 4, 9], 4)    # 1
+  first_at_least([2, 4, 4, 9], 5)    # 3
+  first_at_least([2, 4, 4, 9], 99)   # 4
+  ```
+
+  Returning the length when nothing qualifies is deliberate: the answer is
+  always the position where `threshold` would be inserted to keep the list
+  sorted. Write the search yourself — `bisect` and `.index(` are rejected.
+hints:
+  - "Do not search for a value; search for a boundary. Every entry is either below the threshold or not, and the list is sorted, so the answer is where that changes."
+  - "Keep `lo` and `hi` as the range of positions the answer could still be, with `hi` starting at `len(counts)` — the answer can legally be one past the end."
+  - "Halve with `mid = (lo + hi) // 2`. If `counts[mid] < threshold`, the answer is after `mid`, so `lo = mid + 1`; otherwise `mid` itself may be the answer, so `hi = mid`. Loop while `lo < hi` and return `lo`."
+solutionWalkthrough: |
+  ```python
+  def first_at_least(counts, threshold):
+      lo, hi = 0, len(counts)
+      while lo < hi:
+          mid = (lo + hi) // 2
+          if counts[mid] < threshold:
+              lo = mid + 1
+          else:
+              hi = mid
+      return lo
+  ```
+
+  This is the boundary form of binary search, and it is worth memorising over
+  the find-the-value form. The classic version returns as soon as
+  `counts[mid] == threshold`, which lands on an arbitrary member of a run of
+  equal values — useless when the question is "where does the run start". Here
+  the loop never returns early, so `hi = mid` keeps narrowing until only the
+  first qualifying position is left.
+
+  Two details make it terminate and stay correct. `hi` starts at `len(counts)`,
+  not `len(counts) - 1`, because "past the end" is a legal answer. And the two
+  branches are asymmetric — `mid + 1` versus `mid` — because `mid` is ruled out
+  in one case and still a candidate in the other. Writing `hi = mid - 1` here
+  skips the answer; writing `lo = mid` hangs forever when `hi == lo + 1`.
+
+  O(log n), and worth exactly nothing if the list is not already sorted: sorting
+  it first costs more than the linear scan you were trying to avoid.
+forbid:
+  - "bisect"
+  - ".index("

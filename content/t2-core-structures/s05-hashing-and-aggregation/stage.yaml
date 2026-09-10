@@ -1,0 +1,29 @@
+id: s05-hashing-and-aggregation
+tier: t2-core-structures
+order: 5
+title: "Hashing and Aggregation: The Price of O(1)"
+status: published
+thesis: >-
+  Give up order, buy expected O(1) — and know exactly what you paid.
+summary: >-
+  A hash table is the only structure that answers "where is this?" without
+  looking. Six lessons on how that trick is built and where it breaks: what a
+  hash function has to do, what happens when two keys land in the same slot,
+  why deleting from an open-addressed table is genuinely hard, what CPython's
+  dict does differently, the interview problems that are hash tables wearing a
+  hat, and the query engine's version — hash aggregation, hash joins, and the
+  one hot key that turns a fast query into a forty-minute one.
+outcomes:
+  - Say what a hash function must guarantee, and why "no collisions" is not on the list.
+  - Choose between separate chaining and open addressing, and defend the choice with load factor numbers.
+  - Delete correctly from an open-addressed table, and explain why blanking a slot loses data.
+  - Predict how a dict's cost changes as it fills, and state the `__hash__`/`__eq__` contract from memory.
+  - Recognise two-sum, group-anagrams, subarray-sum-equals-k and LRU as one structure in four costumes.
+  - Read HASH_GROUP_BY and HASH_JOIN in a query plan, diagnose a skewed grouping key, and fix it with two-phase salted aggregation.
+lessons:
+  - l01-hash-functions-and-dispersion
+  - l02-collision-resolution
+  - l03-deletion-and-tombstones
+  - l04-load-factor-and-real-dicts
+  - l05-patterns-in-costume
+  - l06-hash-aggregation-and-skew

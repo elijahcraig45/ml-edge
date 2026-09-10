@@ -1,0 +1,141 @@
+id: pb-quiet-day-sessions
+kind: sql
+title: Sessionizing quiet days with LAG
+difficulty: 4
+pattern: gaps-and-islands
+stage: s04-sorting-and-windows
+topics: [lag, sessionization]
+datasetId: package-registry
+timeLimitMs: 20000
+prompt: |
+  A day is **quiet** for a package when its download count is strictly below that
+  package's own ten-day mean. 100 of the 200 rows are quiet.
+
+  Group each package's quiet days into sessions of consecutive calendar days, and
+  number the sessions within each package starting at 1:
+
+  - `package_id`
+  - `session_no` — 1, 2, 3, … in date order within the package
+  - `first_day`, `last_day`
+  - `quiet_days`
+
+  43 rows. Order does not matter.
+
+  Solve it with the **flag-and-accumulate** technique: use `lag` to mark the rows
+  that start a new session, then take a running `sum` of those marks to get the
+  session number. Do not use `row_number` — the `day - row_number()` trick is the
+  subject of `pb-download-streak-islands`, and this problem exists to teach the
+  other half of the pattern, the half that still works when "consecutive" is
+  defined by a threshold rather than by exact adjacency.
+hints:
+  - "The threshold is per package, and it is a property of all ten of that package's rows. That is a window aggregate — `avg(count) OVER (PARTITION BY package_id)` — computed before any filtering happens."
+  - "For each quiet day ask: was the previous quiet day for this package literally yesterday? `lag(day) OVER (PARTITION BY package_id ORDER BY day)` answers it. The first quiet day of a package has no previous row, so the comparison is NULL — and NULL is not TRUE, which correctly starts session 1."
+  - "Turn that answer into 0 or 1 with a CASE, then `sum(flag) OVER (PARTITION BY package_id ORDER BY day)` accumulates it into a session number. Group by `(package_id, session_no)` at the end."
+solutionWalkthrough: |
+  ```sql
+  WITH quiet AS (
+    SELECT package_id, day
+    FROM (
+      SELECT package_id, day, count,
+             avg(count) OVER (PARTITION BY package_id) AS pkg_avg
+      FROM downloads
+    )
+    WHERE count < pkg_avg
+  ),
+  marked AS (
+    SELECT
+      package_id,
+      day,
+      CASE
+        WHEN lag(day) OVER (PARTITION BY package_id ORDER BY day) = day - INTERVAL 1 DAY
+        THEN 0 ELSE 1
+      END AS starts_session
+    FROM quiet
+  ),
+  numbered AS (
+    SELECT
+      package_id,
+      day,
+      sum(starts_session) OVER (PARTITION BY package_id ORDER BY day) AS session_no
+    FROM marked
+  )
+  SELECT
+    package_id,
+    session_no,
+    min(day) AS first_day,
+    max(day) AS last_day,
+    count(*) AS quiet_days
+  FROM numbered
+  GROUP BY package_id, session_no;
+  ```
+
+  43 sessions covering all 100 quiet days. Most packages have two; package 18 has
+  three, including two single-day sessions.
+
+  Three separate window passes, each doing one job. The first computes a
+  per-package mean without collapsing the rows — `avg(...) OVER (PARTITION BY
+  ...)` with no `ORDER BY` and therefore no frame, which means "the whole
+  partition" and is the idiomatic way to compare a row against its own group.
+  The second looks one row back. The third accumulates.
+
+  The `lag` comparison leans on three-valued logic on purpose. For a package's
+  very first quiet day there is no preceding row, so `lag` returns NULL, the
+  equality is UNKNOWN, `CASE` does not take the TRUE branch, and the row falls
+  through to `ELSE 1` — starting session 1 without any special case. Writing
+  `WHEN lag(...) <> day - INTERVAL 1 DAY THEN 1 ELSE 0` would look equivalent and
+  would assign session 0 to every package's first session, because that
+  comparison is UNKNOWN too. Which branch the NULL falls into is the whole
+  design.
+
+  Why this rather than `day - row_number()`? Because the definition of
+  "consecutive" is a parameter here. Change the rule to "a gap of up to two days
+  still counts as the same session" and this query needs one edit — `>= day -
+  INTERVAL 2 DAY` — while the subtraction trick has no equivalent, since it
+  depends on the day and the sequence advancing in exact lockstep. Real
+  sessionization (web sessions with a 30-minute idle timeout, say) is always the
+  threshold kind.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 43
+      message: >-
+        Expected 43 sessions. Twenty rows means each package's quiet days were
+        collapsed into one session regardless of the busy days between them.
+    - type: syntax
+      pattern: "\\blag\\s*\\("
+      negate: false
+      message: >-
+        Detect session boundaries with `lag`, comparing each quiet day against
+        the previous quiet day of the same package.
+    - type: syntax
+      pattern: "row_number\\s*\\("
+      negate: true
+      message: >-
+        The `day - row_number()` island trick is covered by
+        `pb-download-streak-islands`. Here, build the session number by
+        accumulating a boundary flag.
+    - type: predicate
+      sql: "SELECT sum(quiet_days) = 100 FROM __learner"
+      message: >-
+        100 rows are below their package's own mean, and every one of them
+        belongs to exactly one session.
+    - type: predicate
+      sql: "SELECT count(*) = 0 FROM __learner WHERE last_day - first_day + 1 <> quiet_days"
+      message: >-
+        A session's span must equal its day count; a longer span means two
+        sessions were merged across a busy day.
+    - type: predicate
+      sql: "SELECT (SELECT min(session_no) FROM __learner) = 1 AND (SELECT count(*) FROM __learner WHERE session_no = 1) = 20"
+      message: >-
+        Numbering starts at 1 for every package, so exactly 20 rows carry
+        `session_no = 1`. A zero there means the boundary flag mishandled the
+        NULL that `lag` returns on a partition's first row.
+    - type: plan
+      contains: ["WINDOW"]
+      notContains: ["CROSS_PRODUCT"]
+      message: >-
+        Every step here is a window pass; the plan should show WINDOW operators
+        and no cross product.

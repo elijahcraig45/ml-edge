@@ -1,0 +1,55 @@
+id: iterative-inorder
+kind: python
+title: Inorder without recursion
+difficulty: 3
+pattern: tree-traversal
+topics: [trees, stack]
+timeLimitMs: 15000
+prompt: |
+  Return the inorder values of a `(value, left, right)` tree **without
+  recursion**. Keep the pending nodes on a list you manage yourself.
+
+  ```
+  inorder_iterative(("b", ("a", None, None), ("c", None, None)))   # ["a", "b", "c"]
+  inorder_iterative(None)                                          # []
+  ```
+
+  One of the hidden tests hands you a left-leaning chain of 5,000 nodes. A
+  recursive solution raises `RecursionError` on it and fails; a loop with an
+  explicit stack does not notice. Raising the recursion limit is not an
+  acceptable answer and is rejected before your code runs.
+hints:
+  - "Inorder needs two phases per node: go as far left as you can, then come back up. A single `pop` per iteration is not enough."
+  - "Push every node you pass on the way down. When you can go no further left, pop — that node is the next value."
+  - "After emitting a node, move to its right child and start descending left again. The outer loop continues while either the stack is non-empty or the current node is not None."
+solutionWalkthrough: |
+  ```python
+  def inorder_iterative(root):
+      out, stack, node = [], [], root
+      while stack or node is not None:
+          while node is not None:
+              stack.append(node)
+              node = node[1]
+          node = stack.pop()
+          out.append(node[0])
+          node = node[2]
+      return out
+  ```
+
+  The loop condition is the part that repays a second look. `stack` empty and
+  `node is None` together mean there is nothing left to descend into and no
+  ancestor still owed a visit — and only both conditions together mean that.
+  Just after emitting the rightmost node of a left subtree, `node` is `None`
+  while the stack still holds its ancestors; just after popping the root,
+  `node` points at the right subtree while the stack is empty.
+
+  The stack holds the ancestors of the current node whose values have not been
+  emitted yet. That is the same set of nodes a recursive traversal would have
+  live frames for at that instant, which is why the two versions use the same
+  amount of memory — $O(h)$ — and differ only in *whose* memory it is.
+
+  A left chain of $n$ nodes has $h = n$. That is not a contrived input: it is
+  exactly what a binary search tree becomes when you insert sorted data, which
+  is the subject of the next lesson.
+forbid:
+  - setrecursionlimit

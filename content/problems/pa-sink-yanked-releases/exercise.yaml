@@ -1,0 +1,57 @@
+id: pa-sink-yanked-releases
+kind: python
+title: Push yanked releases to the end
+difficulty: 2
+pattern: two-pointers
+stage: s04-sorting-and-windows
+topics:
+  - arrays
+  - in-place
+timeLimitMs: 10000
+prompt: |
+  A release list has holes in it: a yanked release is recorded as `None`. Move
+  every `None` to the end of the list **in place**, leaving the surviving
+  releases in their original relative order. Return nothing.
+
+  ```
+  data = ["1.0", None, "1.1", None, "2.0"]
+  sink_yanked(data)
+  data   # ["1.0", "1.1", "2.0", None, None]
+  ```
+
+  Rebuilding the list with a comprehension and assigning to a slice is not the
+  exercise; neither is sorting. `sorted(`, `.sort(`, `.remove(` and `filter(`
+  are rejected.
+hints:
+  - "The surviving releases have to end up packed against the front, in order. That is a copy from one position to an earlier position — you need to track where the next survivor goes, separately from where you are reading."
+  - "One index reads every slot. A second index marks the first slot that has not yet been claimed by a survivor. Swap the two whenever the read index finds a survivor."
+  - "`names[write], names[read] = names[read], names[write]` then `write += 1`, only when `names[read] is not None`. When both indices are equal the swap is harmless, so no special case is needed."
+solutionWalkthrough: |
+  ```python
+  def sink_yanked(names):
+      write = 0
+      for read in range(len(names)):
+          if names[read] is not None:
+              names[write], names[read] = names[read], names[write]
+              write += 1
+  ```
+
+  The invariant is worth saying out loud: everything before `write` is a
+  survivor in original order, and everything between `write` and `read` is a
+  `None`. Swapping preserves both halves of that, which is why the `None`s pile
+  up correctly without ever being counted.
+
+  Assigning instead of swapping (`names[write] = names[read]`) also packs the
+  survivors, but then the tail has to be filled with `None` in a second loop —
+  and if you forget, the list ends with stale duplicates of real releases. The
+  swap version cannot leave that kind of wreckage behind, which makes it the
+  safer default even though it does slightly more work.
+
+  Stability is the constraint that rules out the cheap trick of swapping each
+  `None` with the last element: that is one pass and O(1) space too, but it
+  scrambles the order of the survivors.
+forbid:
+  - "sorted("
+  - ".sort("
+  - ".remove("
+  - "filter("

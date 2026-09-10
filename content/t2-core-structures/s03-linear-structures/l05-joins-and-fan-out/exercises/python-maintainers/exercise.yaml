@@ -1,0 +1,65 @@
+id: python-maintainers
+kind: sql
+title: One row per maintainer, not one per package
+difficulty: 2
+datasetId: package-registry
+pattern: semi-join
+topics: [joins, semi-join]
+timeLimitMs: 15000
+prompt: |
+  Return the `handle` of every maintainer who maintains **at least one** Python
+  package. One row per maintainer, sorted by `handle`.
+
+  The starter joins through to `packages` and filters on language, which is the
+  obvious move and produces thirteen rows for six maintainers — because `grace`
+  maintains four Python packages and the join emits one row per pair.
+
+  What you want is a **semi-join**: filter the left side by whether a match
+  exists, without letting the right side change the row count.
+hints:
+  - "Count the rows the starter returns and compare it to the number of distinct handles. The join is not wrong; it is answering \"which (maintainer, package) pairs\" when you asked \"which maintainers\"."
+  - "`EXISTS` is a yes/no question about the right side. It cannot duplicate a left row, because it never puts the right side in the output at all."
+  - "`WHERE EXISTS (SELECT 1 FROM package_maintainers pm JOIN packages p ON p.id = pm.package_id WHERE pm.maintainer_id = m.id AND p.language = 'python')`."
+solutionWalkthrough: |
+  ```sql
+  SELECT m.handle
+  FROM maintainers m
+  WHERE EXISTS (
+    SELECT 1
+    FROM package_maintainers pm
+    JOIN packages p ON p.id = pm.package_id
+    WHERE pm.maintainer_id = m.id
+      AND p.language = 'python'
+  )
+  ORDER BY m.handle;
+  ```
+
+  Six rows. The starter returns thirteen.
+
+  `SELECT DISTINCT` on the starter also produces six, and it is worth being
+  precise about why that is the weaker answer rather than a matter of taste.
+  `DISTINCT` builds all thirteen rows and then removes the ones it should never
+  have made — so the engine does the join, materialises the duplicates, then
+  sorts or hashes them away. `EXISTS` lets the planner stop scanning a
+  maintainer's packages the moment it finds one match, and it never creates a
+  duplicate to delete.
+
+  On twenty rows nobody can tell. On a fact table with a hundred million rows,
+  `SELECT DISTINCT` over a fan-out is one of the most reliable ways to make a
+  query fall over.
+
+  There is a second reason to prefer it, and it is the one that saves you from
+  real bugs: `DISTINCT` after a join is *also* what you would write if the
+  duplication were accidental. Once it is in the query, nobody reading it can
+  tell whether you meant "dedupe the fan-out" or "these happen to repeat".
+  `EXISTS` says what you meant.
+
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 6
+      message: >-
+        Expected 6 rows, one per maintainer. Thirteen means the join is emitting
+        one row per (maintainer, python package) pair.

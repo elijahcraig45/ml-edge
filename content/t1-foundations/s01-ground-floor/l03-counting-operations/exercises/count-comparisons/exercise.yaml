@@ -1,0 +1,54 @@
+id: count-comparisons
+kind: python
+title: Instrument a search and report its growth
+difficulty: 2
+pattern: instrumentation
+timeLimitMs: 12000
+prompt: |
+  Write `growth_table(fn, sizes)`, which measures how an operation count
+  responds to input size.
+
+  `fn` is a function you call as `fn(n)` and which returns an **operation
+  count** for an input of size `n`. `sizes` is a list of input sizes.
+
+  Return a list of `(size, count, ratio)` tuples, where `ratio` is
+  `count / previous_count`, rounded to two decimal places. The first row has no
+  previous count, so its ratio is `None`.
+
+  ```
+  growth_table(lambda n: n, [10, 20, 40])
+  # [(10, 10, None), (20, 20, 2.0), (40, 40, 2.0)]
+
+  growth_table(lambda n: n * n, [10, 20])
+  # [(10, 100, None), (20, 400, 4.0)]
+  ```
+
+  If a previous count is `0`, the ratio is `None` — dividing by it would raise.
+hints:
+  - "Walk `sizes` in order, keeping the previous count in a variable that starts as None."
+  - "The ratio is only computable when there IS a previous count and it is non-zero. Both conditions have to be checked."
+  - "`round(count / previous, 2)` produces the rounding the tests expect."
+solutionWalkthrough: |
+  ```python
+  def growth_table(fn, sizes):
+      rows = []
+      previous = None
+      for size in sizes:
+          count = fn(size)
+          if previous is None or previous == 0:
+              ratio = None
+          else:
+              ratio = round(count / previous, 2)
+          rows.append((size, count, ratio))
+          previous = count
+      return rows
+  ```
+
+  The guard is doing two different jobs and it is worth separating them in your
+  head: `previous is None` is the first row, which has nothing to compare
+  against; `previous == 0` is a real measurement that happens to be zero, which
+  would raise `ZeroDivisionError`. Both produce `None`, for different reasons.
+
+  This is a small function you will actually reuse. Every time you want to know
+  whether something is linear or quadratic, this is the tool — and it works on
+  code you cannot read.

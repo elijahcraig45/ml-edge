@@ -1,0 +1,70 @@
+- id: into-the-right-side
+  label: A filter on the right table lands on the right scan
+  code: |
+    p = pred("versions", "size_kb", ">", 100)
+    plan = filter_(p, join(scan("packages"), scan("versions")))
+    assert push_down(plan) == join(scan("packages"), filter_(p, scan("versions")))
+- id: into-the-left-side
+  label: A filter on the left table lands on the left scan
+  code: |
+    p = pred("packages", "language", "=", "python")
+    plan = filter_(p, join(scan("packages"), scan("versions")))
+    assert push_down(plan) == join(filter_(p, scan("packages")), scan("versions"))
+- id: through-a-projection
+  label: A filter moves below a projection
+  code: |
+    p = pred("packages", "language", "=", "python")
+    plan = filter_(p, project(["name"], scan("packages")))
+    assert push_down(plan) == project(["name"], filter_(p, scan("packages")))
+- id: already-at-the-scan
+  label: A filter already on its scan is left alone
+  code: |
+    p = pred("packages", "language", "=", "python")
+    plan = filter_(p, scan("packages"))
+    assert push_down(plan) == plan
+- id: two-filters-two-sides
+  label: Two stacked filters end up on different sides of the join
+  code: |
+    a = pred("versions", "size_kb", ">", 100)
+    b = pred("packages", "language", "=", "python")
+    plan = filter_(a, filter_(b, project(["name", "version"],
+                                         join(scan("packages"), scan("versions")))))
+    assert push_down(plan) == project(
+        ["name", "version"],
+        join(filter_(b, scan("packages")), filter_(a, scan("versions"))),
+    )
+- id: nested-join
+  label: A filter descends through more than one join
+  hidden: true
+  code: |
+    p = pred("downloads", "count", ">", 500)
+    plan = filter_(p, join(join(scan("packages"), scan("versions")), scan("downloads")))
+    assert push_down(plan) == join(
+        join(scan("packages"), scan("versions")),
+        filter_(p, scan("downloads")),
+    )
+    q = pred("versions", "size_kb", ">", 1)
+    plan2 = filter_(q, join(join(scan("packages"), scan("versions")), scan("downloads")))
+    assert push_down(plan2) == join(
+        join(scan("packages"), filter_(q, scan("versions"))),
+        scan("downloads"),
+    )
+- id: does-not-mutate
+  label: The input plan is not modified
+  hidden: true
+  code: |
+    import copy
+    p = pred("versions", "size_kb", ">", 100)
+    plan = filter_(p, join(scan("packages"), scan("versions")))
+    original = copy.deepcopy(plan)
+    push_down(plan)
+    assert plan == original, "push_down modified the plan it was given"
+- id: filters-below-a-projection-still-move
+  label: Filters buried under a projection are found and pushed
+  hidden: true
+  code: |
+    p = pred("versions", "size_kb", ">", 100)
+    plan = project(["version"], filter_(p, join(scan("packages"), scan("versions"))))
+    assert push_down(plan) == project(
+        ["version"], join(scan("packages"), filter_(p, scan("versions")))
+    )

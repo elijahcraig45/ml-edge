@@ -1,0 +1,67 @@
+id: reservoir-sample
+kind: python
+title: Reservoir sampling, and proving it uniform
+difficulty: 3
+pattern: streaming-sample
+topics: [sampling, streaming, randomness]
+timeLimitMs: 30000
+prompt: |
+  Finish `reservoir_sample`. The first `k` items are already handled; the rest
+  are being discarded, which returns the first `k` items rather than a sample.
+
+  For item at 0-based position `i` where `i >= k`:
+
+  1. draw `j = random.randrange(i + 1)` — uniform over `0 .. i`;
+  2. if `j < k`, write the item into `reservoir[j]`;
+  3. otherwise drop it.
+
+  ```
+  reservoir_sample(range(1_000_000), 5)   # 5 items, uniformly chosen
+  reservoir_sample(iter([1, 2]), 5)       # [1, 2] — the whole stream
+  ```
+
+  One test is **statistical**, not exact: it runs 6,000 trials against a
+  10-item stream with `k = 3` and checks that every item is selected close to
+  30% of the time. It seeds the RNG, so the result is reproducible — run it
+  twice and you will see identical numbers.
+
+  Do not call `len(stream)` or convert it to a list. One of the hidden tests
+  passes a generator, and the point of the algorithm is that it never needs the
+  length.
+hints:
+  - "The acceptance probability has to shrink as the stream grows. `random.randrange(i + 1)` gives a uniform draw over i+1 values, so `j < k` happens with probability k/(i+1)."
+  - "When the draw succeeds, you overwrite `reservoir[j]` — the same j you drew. Do not pick a separate random slot to evict; using one draw for both decisions is what makes the probabilities line up."
+  - "The whole addition is an `else` branch: `j = random.randrange(i + 1)` then `if j < k: reservoir[j] = item`."
+solutionWalkthrough: |
+  ```python
+  for i, item in enumerate(stream):
+      if i < k:
+          reservoir.append(item)
+      else:
+          j = random.randrange(i + 1)
+          if j < k:
+              reservoir[j] = item
+  ```
+
+  Two decisions are riding on one random draw, and that is deliberate. `j < k`
+  decides whether the new item is accepted, with probability $k/(i+1)$. When it
+  is accepted, the value of `j` also names the slot to overwrite, uniformly over
+  the $k$ slots. Splitting these into two independent draws still works, but
+  reusing one is cheaper and is how the algorithm is usually written.
+
+  The reason the constants have to be exactly these: an item already in the
+  reservoir survives step $n$ with probability $1 - \frac{k}{n}\cdot\frac{1}{k}
+  = \frac{n-1}{n}$, and $\frac{k}{n-1}\cdot\frac{n-1}{n} = \frac{k}{n}$. The
+  eviction rate is tuned to cancel the denominator of the previous step's
+  probability. Use `random.randrange(i)` instead of `i + 1` and the cancellation
+  fails — the sample skews toward late arrivals, and no ordinary unit test would
+  notice.
+
+  The alternative, when you *do* know $n$: shuffle and take the first $k$, or
+  draw $k$ distinct indices. Both need the whole stream in hand. Reservoir
+  sampling costs one extra random number per item and buys you the ability to
+  stop at any moment with a valid sample of everything so far.
+
+  For weighted sampling, keep a min-heap of size $k$ keyed on
+  $u_i^{1/w_i}$ with $u_i$ uniform on $(0,1)$, and keep the largest keys. Same
+  single pass, same no-length-needed property.

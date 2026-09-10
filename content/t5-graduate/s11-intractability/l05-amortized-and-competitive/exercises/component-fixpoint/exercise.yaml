@@ -1,0 +1,114 @@
+id: component-fixpoint
+kind: sql
+title: A recursion that reaches its fixpoint
+difficulty: 5
+datasetId: package-registry
+pattern: recursion
+topics: [sql, recursion, fixpoint]
+timeLimitMs: 15000
+prompt: |
+  Two packages are **linked** when they share a maintainer. Starting from
+  `arrowkit` (id 1), find every package reachable through any chain of links,
+  and how many links away it is.
+
+  Return two columns:
+
+  - `name` — the package name
+  - `hops` — the **fewest** links from `arrowkit`; `arrowkit` itself is 0
+
+  The link graph is undirected and full of cycles — `arrowkit`, `chunker` and
+  `lazyseq` form a triangle — so a recursion that does not reach a fixpoint runs
+  forever. Two things go wrong if you are not careful:
+
+  - `UNION ALL` never deduplicates, so going round the triangle derives the same
+    row again on every round, forever.
+  - `UNION` with a hop counter in the tuple is no better: `(chunker, 4)` and
+    `(chunker, 5)` are different tuples, so a cycle manufactures a new one every
+    round and the tuple space is infinite.
+
+  A recursion terminates when a round derives nothing new. Make that happen, and
+  reduce to the minimum hop count afterwards.
+
+  The starter returns `arrowkit` and its four direct neighbours — five rows. The
+  answer has eight.
+hints:
+  - "Build the link graph first, in its own CTE: self-join `package_maintainers` on `maintainer_id`, keeping pairs of different packages, and use DISTINCT — two packages can share more than one maintainer."
+  - "Either drop the hop counter from the recursion (so `UNION` on package ids alone reaches a fixpoint after three rounds) and reconstruct distance another way, or keep the counter and bound it: nineteen hops cannot be beaten in a twenty-package graph, so `WHERE hops < 19` is a bound that cannot cut off a real answer."
+  - "With the counter bounded, the same package appears at many depths. `GROUP BY name` with `min(hops)` collapses those into the shortest one."
+solutionWalkthrough: |
+  ```sql
+  WITH RECURSIVE
+  edge AS (
+    SELECT DISTINCT a.package_id AS p, b.package_id AS q
+    FROM package_maintainers a
+    JOIN package_maintainers b
+      ON a.maintainer_id = b.maintainer_id AND a.package_id <> b.package_id
+  ),
+  walk(id, hops) AS (
+    SELECT 1, 0
+    UNION
+    SELECT e.q, w.hops + 1
+    FROM walk w
+    JOIN edge e ON e.p = w.id
+    WHERE w.hops < 19
+  )
+  SELECT p.name, min(w.hops) AS hops
+  FROM walk w
+  JOIN packages p ON p.id = w.id
+  GROUP BY p.name
+  ORDER BY hops, name;
+  ```
+
+  **The fixpoint, stated properly.** The recursive term defines a monotone
+  operator $T$ on sets of tuples: $T(R)$ is the base row plus everything one
+  edge beyond $R$. The engine iterates $R_0 = \emptyset$,
+  $R_{i+1} = T(R_i)$ and stops when $R_{i+1} = R_i$. Knaster-Tarski says a least
+  fixpoint exists; whether the iteration *reaches* it in finitely many rounds
+  depends entirely on the tuple space being finite.
+
+  **Why the bound is the honest fix here.** Dropping the counter gives a tuple
+  space of 20 package ids, and the recursion halts after three rounds by itself.
+  Adding the counter makes the space $\{ids\} \times \mathbb{N}$, which is
+  infinite, and the recursion never halts on a cyclic graph. `WHERE hops < 19`
+  restores finiteness. Nineteen is not arbitrary: a shortest path in a
+  twenty-vertex graph has at most nineteen edges, so the bound can never discard
+  a row that belongs in the answer.
+
+  **The alternative, and its cost.** Carrying the path as a list and rejecting
+  any node already on it also terminates, because simple paths are finite. It
+  gives more information — the actual route — and it costs vastly more, because
+  the number of simple paths is exponential in the graph size while the number of
+  (node, depth) pairs is only $n \times depth$. Use the path only when you need
+  it, or when you must detect a cycle rather than merely survive one.
+
+  **Why `min` after the fact rather than during.** The recursion derives
+  `(chunker, 1)`, `(chunker, 3)`, `(chunker, 5)` and so on — every odd depth,
+  because the triangle lets you walk out and back. All of them are true
+  statements; only the smallest is the answer to the question. Aggregating
+  outside the recursion is the standard shape, because SQL forbids aggregation
+  inside a recursive term for exactly the reason that would break monotonicity.
+
+  **The answer.** Eight packages, in three shells: `arrowkit` at 0; `chunker`,
+  `graphwalk`, `lazyseq` and `skiplist` at 1; `dagrun`, `indexer` and
+  `quickselect` at 2. That is one connected component of the co-maintainer
+  graph, and the registry has four such components in total.
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 8
+      message: >-
+        Eight packages are reachable from arrowkit. Five means only the direct
+        neighbours were found; twenty means the whole registry was returned
+        rather than one connected component.
+    - type: predicate
+      sql: |
+        SELECT (SELECT hops FROM __learner WHERE name = 'arrowkit') = 0
+          AND (SELECT count(*) FROM __learner WHERE hops = 1) = 4
+          AND (SELECT count(*) FROM __learner WHERE hops = 2) = 3
+          AND (SELECT max(hops) FROM __learner) = 2
+      message: >-
+        The distances should be 1 package at 0 hops, 4 at 1 hop and 3 at 2 hops.
+        Getting larger numbers means the minimum was not taken — a cyclic graph
+        derives every reachable package at many depths.

@@ -1,0 +1,40 @@
+- id: addition
+  label: Adds two operands
+  code: |
+    assert evaluate(["3", "4", "+"]) == 7
+- id: subtraction-order
+  label: Subtraction respects operand order
+  code: |
+    # "5 1 -" is 5 - 1, not 1 - 5. The operand popped first is the RIGHT one.
+    assert evaluate(["5", "1", "-"]) == 4
+- id: nested
+  label: A nested expression evaluates inside out
+  code: |
+    assert evaluate(["2", "3", "4", "*", "+"]) == 14
+- id: single-value
+  label: A lone number is a valid expression
+  code: |
+    assert evaluate(["42"]) == 42
+- id: negative-literals
+  label: Negative literals are numbers, not operators
+  code: |
+    assert evaluate(["-3", "4", "*"]) == -12
+- id: left-associative
+  label: Repeated subtraction stays left-associative
+  hidden: true
+  code: |
+    # (10 - 2) - 3 = 5. Swapping the operands gives -5 or 11 depending on
+    # which swap you make, so this catches the order bug wherever it hides.
+    assert evaluate(["10", "2", "-", "3", "-"]) == 5
+- id: malformed
+  label: Malformed expressions raise ValueError
+  hidden: true
+  code: |
+    for tokens in (["1", "+"], ["1", "2"], [], ["+"]):
+        try:
+            evaluate(tokens)
+        except ValueError:
+            continue
+        except IndexError:
+            raise AssertionError("check the stack depth yourself; %r must raise ValueError" % (tokens,))
+        raise AssertionError("%r is malformed and must raise ValueError" % (tokens,))

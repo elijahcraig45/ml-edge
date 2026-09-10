@@ -1,0 +1,109 @@
+- id: sorted-order
+  label: Random inserts come back in sorted order
+  code: |
+    import random
+    random.seed(0)
+    sl = SkipList()
+    values = list(range(500))
+    random.shuffle(values)
+    for v in values:
+        sl.insert(v)
+    assert sl.to_list() == list(range(500))
+- id: membership
+  label: contains is true for inserted values and false otherwise
+  code: |
+    import random
+    random.seed(1)
+    sl = SkipList()
+    for v in (10, 3, 7, 1, 9):
+        sl.insert(v)
+    for v in (1, 3, 7, 9, 10):
+        assert v in sl, f"{v} was inserted but is not found"
+    for v in (0, 2, 8, 11, 100):
+        assert v not in sl, f"{v} was never inserted but is found"
+- id: duplicate-insert
+  label: Inserting an existing value returns False and changes nothing
+  code: |
+    import random
+    random.seed(2)
+    sl = SkipList()
+    assert sl.insert(5) is True
+    assert sl.insert(5) is False
+    assert sl.to_list() == [5]
+- id: delete
+  label: delete removes the value and reports whether it was there
+  code: |
+    import random
+    random.seed(3)
+    sl = SkipList()
+    for v in range(20):
+        sl.insert(v)
+    assert sl.delete(7) is True
+    assert 7 not in sl
+    assert sl.delete(7) is False
+    assert sl.to_list() == [v for v in range(20) if v != 7]
+- id: empty-list
+  label: An empty skip list behaves
+  code: |
+    sl = SkipList()
+    assert sl.to_list() == []
+    assert 1 not in sl
+    assert sl.delete(1) is False
+- id: heights-are-geometric
+  label: Node heights follow the coin-flip distribution
+  hidden: true
+  code: |
+    # A statistical assertion. The seed makes it reproducible; the tolerance is
+    # wide enough to survive a different RNG draw and narrow enough to reject a
+    # structure that is not actually multi-level.
+    import random
+    random.seed(7)
+    sl = SkipList()
+    for v in range(800):
+        sl.insert(v)
+    heights, node = [], sl.head.forward[0]
+    while node is not None:
+        heights.append(len(node.forward))
+        node = node.forward[0]
+    assert len(heights) == 800
+    n = len(heights)
+    for level in (2, 3, 4):
+        frac = sum(1 for h in heights if h >= level) / n
+        expected = 0.5 ** (level - 1)
+        assert abs(frac - expected) < 0.06, (
+            f"{frac:.3f} of nodes reach height {level}, expected about {expected}"
+        )
+- id: delete-unsplices-every-level
+  label: Deleting a tall node repairs all of its levels
+  hidden: true
+  code: |
+    # The bug this catches: unsplicing only level 0. The value then disappears
+    # from to_list() but a higher-level pointer still routes through the dead
+    # node, so later searches read a stale forward chain.
+    import random
+    random.seed(11)
+    sl = SkipList()
+    for v in range(400):
+        sl.insert(v)
+    for v in range(0, 400, 3):
+        sl.delete(v)
+    survivors = [v for v in range(400) if v % 3]
+    assert sl.to_list() == survivors
+    for v in survivors:
+        assert v in sl, f"{v} survived deletion but can no longer be found"
+    for v in range(0, 400, 3):
+        assert v not in sl, f"{v} was deleted but is still found"
+- id: predecessors-shape
+  label: predecessors returns one entry per level, all with smaller values
+  hidden: true
+  code: |
+    import random
+    random.seed(13)
+    sl = SkipList()
+    for v in range(0, 100, 2):
+        sl.insert(v)
+    update = sl.predecessors(51)
+    assert len(update) == SkipList.MAX_HEIGHT
+    assert update[0].value == 50, f"level 0 predecessor of 51 should be 50, got {update[0].value}"
+    for level, node in enumerate(update):
+        assert node is sl.head or node.value < 51, f"level {level} predecessor is not smaller"

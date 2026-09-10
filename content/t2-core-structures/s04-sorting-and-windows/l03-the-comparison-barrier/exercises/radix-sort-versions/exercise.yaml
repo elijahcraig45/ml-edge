@@ -1,0 +1,88 @@
+id: radix-sort-versions
+kind: python
+title: Radix sort a release list, least significant digit first
+difficulty: 4
+pattern: non-comparison-sort
+topics: [sorting, stability, radix]
+timeLimitMs: 10000
+forbid:
+  - "sorted("
+  - ".sort("
+  - "heapq"
+prompt: |
+  Each release is a tuple `(major, minor, patch, name)` with every version
+  component an integer in `0..99`. Sort the list by version — major, then minor,
+  then patch — using **three stable counting-sort passes**, one per component.
+
+  ```
+  sort_releases([
+      (1, 4, 2, "arrowkit"),
+      (1, 0, 0, "bitmask"),
+      (0, 9, 9, "skiplist"),
+      (1, 0, 3, "probe"),
+  ])
+  # [(0, 9, 9, 'skiplist'), (1, 0, 0, 'bitmask'), (1, 0, 3, 'probe'), (1, 4, 2, 'arrowkit')]
+  ```
+
+  Rules:
+
+  - No comparisons between releases. `sorted` and `.sort` are unavailable, and
+    you must not compare two tuples with `<`.
+  - Releases with an identical `(major, minor, patch)` keep their input order.
+  - Return a new list; do not reorder the caller's.
+
+  Getting the pass order wrong produces output that looks sorted on small
+  examples and is wrong in general, so think about which component you sort by
+  first.
+hints:
+  - "Write one helper first: a stable counting sort over the list that keys on a single tuple position. Components are in 0..99, so its counts array has 100 entries."
+  - "Run the helper three times. The question is the order — and it is the reverse of the order you would read the version number in."
+  - "Sort by `patch` first, then `minor`, then `major`. Each pass groups by its own component; stability is what keeps the previous passes' ordering intact inside each group."
+solutionWalkthrough: |
+  ```python
+  def _pass(rows, position, k=100):
+      counts = [0] * k
+      for row in rows:
+          counts[row[position]] += 1
+      starts, total = [0] * k, 0
+      for key in range(k):
+          starts[key] = total
+          total += counts[key]
+      out = [None] * len(rows)
+      for row in rows:
+          out[starts[row[position]]] = row
+          starts[row[position]] += 1
+      return out
+
+
+  def sort_releases(releases):
+      rows = list(releases)
+      for position in (2, 1, 0):        # patch, then minor, then major
+          rows = _pass(rows, position)
+      return rows
+  ```
+
+  **Why least significant first.** After the `patch` pass the list is ordered by
+  patch. The `minor` pass then groups by minor, and because it is stable, inside
+  each minor group the patch order survives untouched. The `major` pass does the
+  same one level up. Each pass owns one component and inherits everything below
+  it.
+
+  Reverse the order — major first, patch last — and the final pass throws away
+  everything the earlier ones established, because it reorders across major
+  versions. The result is a list sorted by patch. It will still look plausible on
+  a four-row example, which is why this bug survives code review.
+
+  **Why stability is not optional here.** This is the same argument as lesson 1's
+  two-pass ordering, run three times. If `_pass` reversed ties, the `minor` pass
+  would scramble the patch ordering and the whole scheme would collapse. Radix
+  sort is not "a sort that happens to be stable"; it is a construction that
+  *requires* a stable primitive and would otherwise be incorrect.
+
+  **Cost.** Three passes, each $\Theta(n + 100)$, so $\Theta(n)$ with a constant
+  of three plus a fixed 300 slots of bookkeeping. Compare that to a comparison
+  sort's $n\log_2 n$: at $n = 10^6$ radix does about $3 \times 10^6$ writes
+  against roughly $2 \times 10^7$ comparisons. The catch is that those three
+  passes each stream the whole array through memory, so below tens of thousands
+  of rows a cache-friendly quicksort usually wins despite doing more work on
+  paper.

@@ -1,0 +1,92 @@
+id: pa-detect-dependency-cycle
+kind: python
+title: Does the dependency chain loop
+difficulty: 3
+pattern: linked-list
+stage: s03-linear-structures
+topics:
+  - pointers
+timeLimitMs: 25000
+prompt: |
+  Each package points at the single package it depends on, forming a chain. A
+  broken manifest can make that chain loop back on itself. The starter defines
+  the node type:
+
+  ```python
+  class Node:
+      def __init__(self, value, next_node=None):
+          self.value = value
+          self.next = next_node
+  ```
+
+  Return `True` if the chain contains a cycle, `False` if it ends in `None`.
+
+  ```
+  a = Node("web"); b = Node("db"); a.next = b
+  has_cycle(a)          # False
+  b.next = a
+  has_cycle(a)          # True
+  ```
+
+  Use constant extra space: `set(` and `dict(` are rejected. **This one also
+  has a complexity budget**, so remembering visited nodes in a list is rejected
+  too — the checker walks a 20,000-node chain.
+hints:
+  - "You cannot remember where you have been, so you need something that behaves differently in a loop than on a straight run. Two walkers moving at different speeds do."
+  - "Move one reference one node per step and another two nodes per step. On a chain that ends, the fast one runs off the end. In a loop it cannot, so it must eventually come up behind the slow one."
+  - "`while fast is not None and fast.next is not None:` advance `slow = slow.next` and `fast = fast.next.next`, then test `slow is fast`. Use `is`, not `==` — two different packages can hold equal values."
+solutionWalkthrough: |
+  ```python
+  class Node:
+      def __init__(self, value, next_node=None):
+          self.value = value
+          self.next = next_node
+
+
+  def has_cycle(head):
+      slow = head
+      fast = head
+      while fast is not None and fast.next is not None:
+          slow = slow.next
+          fast = fast.next.next
+          if slow is fast:
+              return True
+      return False
+  ```
+
+  Why they must meet: once both walkers are inside the loop, the gap between
+  them shrinks by exactly one node per step, because the fast one gains one net
+  position each time. A quantity that decreases by one and cannot go negative
+  reaches zero, so they collide within one lap — no more than the length of the
+  loop in steps.
+
+  Checking both `fast` and `fast.next` is what keeps the terminating case from
+  raising `AttributeError` on the last step. And `is` rather than `==` matters
+  because identity is the question: a chain holding two packages named "web" is
+  not a loop.
+
+  O(n) time, O(1) space, against a hash set's O(n) time and O(n) space. The set
+  version is easier to explain and tells you *which* node repeats. Floyd's wins
+  when memory is the constraint, and it is the only version that works when the
+  "chain" is a sequence you can iterate but not store — a pseudorandom generator
+  looking for its own period, for instance.
+forbid:
+  - "set("
+  - "dict("
+complexityBudget:
+  setup: |
+    head = None
+    for i in range(19999, -1, -1):
+        head = Node(i, head)
+    data = head
+  call: |
+    has_cycle(data)
+  # Measured on CPython 3.13: the two-pointer walk takes ~0.2ms on this
+  # 20,000-node chain; remembering nodes in a list and testing `node in seen`
+  # takes ~1010ms. 100ms sits far above one and 10x below the other.
+  maxMs: 100
+  message: >-
+    Correct, but too slow: testing `node in seen` against a list rescans
+    everything visited so far, so the work grows with the square of the chain
+    length. Two references moving at different speeds settle this in constant
+    space.

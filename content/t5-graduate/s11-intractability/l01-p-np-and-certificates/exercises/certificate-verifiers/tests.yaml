@@ -1,0 +1,74 @@
+- id: cover-accepts
+  label: Accepts a genuine vertex cover
+  code: |
+    edges = [(0, 1), (1, 2), (2, 3), (3, 0), (0, 2)]
+    assert verify_cover(4, edges, 2, [0, 2]) is True
+
+- id: cover-rejects-uncovered
+  label: Rejects a set that misses an edge
+  code: |
+    edges = [(0, 1), (1, 2), (2, 3), (3, 0)]
+    assert verify_cover(4, edges, 2, [0, 1]) is False
+
+- id: cover-rejects-oversize
+  label: Rejects a cover that is larger than k
+  code: |
+    edges = [(0, 1), (1, 2), (2, 3), (3, 0)]
+    assert verify_cover(4, edges, 1, [0, 2]) is False
+
+- id: cover-empty-graph
+  label: A graph with no edges is covered by the empty certificate
+  code: |
+    assert verify_cover(3, [], 0, []) is True
+
+- id: tour-accepts
+  label: Accepts a tour inside budget
+  code: |
+    d = [[0, 1, 4], [1, 0, 2], [4, 2, 0]]
+    assert verify_tour(d, 7, [0, 1, 2]) is True
+
+- id: tour-budget
+  label: Rejects a tour over budget
+  code: |
+    d = [[0, 1, 4], [1, 0, 2], [4, 2, 0]]
+    assert verify_tour(d, 6, [0, 1, 2]) is False
+
+- id: cover-duplicates
+  label: Duplicate vertices in a certificate count once
+  hidden: true
+  code: |
+    edges = [(0, 1), (1, 2), (2, 3), (3, 0), (0, 2)]
+    assert verify_cover(4, edges, 2, [0, 0, 2, 2]) is True
+
+- id: cover-out-of-range
+  label: A vertex outside range(n) is rejected, not crashed on
+  hidden: true
+  code: |
+    edges = [(0, 1), (1, 2)]
+    assert verify_cover(3, edges, 2, [1, 99]) is False
+    assert verify_cover(3, edges, 2, [-1, 1]) is False
+
+- id: tour-repeat
+  label: A tour that repeats a city is rejected
+  hidden: true
+  code: |
+    d = [[0, 1], [1, 0]]
+    assert verify_tour(d, 100, [0, 0]) is False
+    assert verify_tour(d, 100, [0]) is False
+    assert verify_tour(d, 100, [0, 1, 1]) is False
+
+- id: tour-closes-the-cycle
+  label: The return leg is counted
+  hidden: true
+  code: |
+    # Path 0->1->2 costs 1 + 2 = 3, but the cycle must come home: 2->0 costs 40.
+    d = [[0, 1, 40], [1, 0, 2], [40, 2, 0]]
+    assert verify_tour(d, 10, [0, 1, 2]) is False
+    assert verify_tour(d, 43, [0, 1, 2]) is True
+
+- id: tour-single-city
+  label: One city is a legal tour
+  hidden: true
+  code: |
+    assert verify_tour([[0]], 0, [0]) is True
+    assert verify_tour([[0]], 0, []) is False

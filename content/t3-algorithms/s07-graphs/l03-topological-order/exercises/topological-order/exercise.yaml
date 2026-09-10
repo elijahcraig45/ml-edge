@@ -1,0 +1,78 @@
+id: topological-order
+kind: python
+title: Kahn's algorithm, with the cycle check
+difficulty: 3
+pattern: topological-sort
+topics: [graphs, heaps]
+timeLimitMs: 10000
+prompt: |
+  `graph` maps each node to the list of nodes that **depend on it** — if
+  `"parser"` is in `graph["config"]`, then `config` must come before `parser`.
+  Every node appears as a key.
+
+  Return a topological order as a list. When several nodes are ready at the
+  same time, emit the **smallest** one first, so the answer is the
+  lexicographically smallest valid order.
+
+  ```
+  topological_order({"b": ["z"], "a": ["z"], "z": []})   # ["a", "b", "z"]
+  ```
+
+  If the graph contains a cycle, no valid order exists — return `[]`. Do not
+  return a partial order: a graph whose first half is orderable and whose
+  second half is a cycle has no answer at all.
+
+  An empty graph returns `[]`.
+hints:
+  - "The question 'which node can I emit next?' has a precise answer: one with nothing left pointing at it. So the first thing to compute is, for every node, how many edges point at it."
+  - "Keep the ready nodes in a `heapq` rather than a deque. Popping the smallest is what makes the result lexicographically smallest, and pushing a node the moment its count reaches zero is what keeps the heap correct."
+  - "The cycle check is one comparison at the end: if you emitted fewer nodes than the graph has keys, the ones you did not emit are waiting on each other. Return `[]` then, not the partial list."
+solutionWalkthrough: |
+  ```python
+  import heapq
+
+  def topological_order(graph):
+      indegree = {node: 0 for node in graph}
+      for u in graph:
+          for v in graph[u]:
+              indegree[v] += 1
+
+      ready = [node for node in graph if indegree[node] == 0]
+      heapq.heapify(ready)
+
+      order = []
+      while ready:
+          u = heapq.heappop(ready)
+          order.append(u)
+          for v in graph[u]:
+              indegree[v] -= 1
+              if indegree[v] == 0:
+                  heapq.heappush(ready, v)
+
+      return order if len(order) == len(graph) else []
+  ```
+
+  **`if indegree[v] == 0`, not `<= 0`.** The equality is what makes each node
+  enter the heap exactly once. Using `<=` would push a node again on every
+  subsequent decrement — except there are none after zero, so it looks harmless
+  right up until a duplicate edge makes the count go negative and the node is
+  emitted twice.
+
+  **The cycle check has to be the count, not an exception.** Nothing raises here;
+  the loop runs out of ready nodes while some in-degrees are still
+  positive. Every one of those nodes is on a cycle or downstream of one, which
+  is also the most useful cycle report you can give a user: `set(graph) -
+  set(order)` names the stuck nodes.
+
+  **The heap is the only reason this is $O((V + E)\log V)$** rather than
+  $O(V + E)$. If the problem does not ask for a *specific* order, use a
+  `deque` and drop the log factor — most versions of this question do not care
+  which valid order you return, and the lexicographic requirement is the
+  standard follow-up rather than the base case. Knowing that the only change is
+  the container is the point.
+
+  The alternative construction is DFS post-order, reversed. It is the same
+  complexity and it cannot produce the lexicographically smallest order without
+  extra work, because DFS commits to a branch before it has seen its
+  alternatives. Kahn's algorithm keeps every ready node visible at once, which
+  is exactly what "choose the smallest available" needs.

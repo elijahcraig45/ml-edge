@@ -1,0 +1,65 @@
+- id: shifts-one-back
+  label: The next entry moves into the hole when it belongs there
+  code: |
+    # 1 and 9 both home to slot 1 in a 4-slot table (1 % 4 == 1, 9 % 4 == 1).
+    slots = [None, 1, 9, None]
+    assert delete_and_repair(slots, 1) is True
+    assert slots == [None, 9, None, None]
+- id: missing-key
+  label: Deleting an absent key changes nothing
+  code: |
+    slots = [None, 1, 9, None]
+    assert delete_and_repair(slots, 5) is False
+    assert slots == [None, 1, 9, None]
+    assert delete_and_repair([], 1) is False
+- id: leaves-unrelated-entries
+  label: An entry already at its own home slot does not move
+  code: |
+    slots = [None, None, 2, 3, None, None, None, None]
+    assert delete_and_repair(slots, 2) is True
+    assert slots == [None, None, None, 3, None, None, None, None]
+- id: wraps-around
+  label: Repairs a run that crosses the end of the array
+  hidden: true
+  code: |
+    # 3 sits at its home slot 3; 7 also homes to 3 and wrapped to slot 0.
+    slots = [7, None, None, 3]
+    assert delete_and_repair(slots, 3) is True
+    assert slots == [None, None, None, 7]
+- id: matches-rebuild
+  label: Agrees with rebuilding the table from scratch, on random tables
+  hidden: true
+  code: |
+    import random
+
+    def build(n, keys):
+        table = [None] * n
+        for key in keys:
+            i = key % n
+            while table[i] is not None:
+                i = (i + 1) % n
+            table[i] = key
+        return table
+
+    def present(table, key):
+        n = len(table)
+        i = key % n
+        for _ in range(n):
+            if table[i] is None:
+                return False
+            if table[i] == key:
+                return True
+            i = (i + 1) % n
+        return True
+
+    random.seed(3)
+    for _ in range(600):
+        n = random.choice([4, 5, 8, 11])
+        keys = random.sample(range(60), random.randint(1, n - 1))
+        table = build(n, keys)
+        victim = random.choice(keys)
+        assert delete_and_repair(table, victim) is True
+        rest = [k for k in keys if k != victim]
+        assert sorted(k for k in table if k is not None) == sorted(rest)
+        for k in rest:
+            assert present(table, k), (n, keys, victim, table, k)

@@ -1,0 +1,81 @@
+id: hyperloglog-estimator
+kind: python
+title: Build a HyperLogLog
+difficulty: 4
+pattern: cardinality-estimation
+topics: [hyperloglog, hashing, streaming]
+timeLimitMs: 30000
+prompt: |
+  Fill in `estimate_cardinality`. `hashed` is given; the register bookkeeping
+  is set up for you.
+
+  **The update.** For each item, hash it once. The top `p` bits pick a register:
+  `index = h >> width`. The remaining `width` bits give the rank — the number of
+  leading zeros in those bits, plus one:
+
+  ```
+  rank = width - (h & mask).bit_length() + 1
+  ```
+
+  Keep the **maximum** rank ever seen in each register.
+
+  **The estimate.**
+
+  $$
+  \hat{n} = \alpha_m \, m^2 \Big/ \sum_j 2^{-M_j},
+  \qquad \alpha_m = \frac{0.7213}{1 + 1.079/m}
+  $$
+
+  **The small-range correction.** When the raw estimate is at most $2.5m$ and at
+  least one register is still zero, the formula is biased low. Return
+  $m \ln(m / \text{zeros})$ instead — linear counting, which is accurate exactly
+  when most registers are empty. Without this, an empty stream returns a
+  positive number rather than 0.
+
+  ```
+  estimate_cardinality([], 1024)                              # 0.0
+  estimate_cardinality((f"u-{i}" for i in range(10000)), 1024)  # about 10000
+  ```
+
+  `items` may be a one-pass iterator. Read it once.
+hints:
+  - "`(h & mask).bit_length()` is the position of the highest set bit. If the low `width` bits are `00001011`, its bit_length is 4, so there are `width - 4` leading zeros."
+  - "Only write to `registers[index]` when the new rank is larger — the register holds a running maximum, not the latest value."
+  - "The two returns are: `alpha * m * m / sum(2.0 ** -r for r in registers)`, and, when `raw <= 2.5 * m` and `registers.count(0)` is non-zero, `m * math.log(m / zeros)`."
+solutionWalkthrough: |
+  ```python
+  for item in items:
+      h = hashed(item)
+      index = h >> width
+      rank = width - (h & mask).bit_length() + 1
+      if rank > registers[index]:
+          registers[index] = rank
+
+  alpha = 0.7213 / (1 + 1.079 / m)
+  raw = alpha * m * m / sum(2.0 ** -r for r in registers)
+  empty = registers.count(0)
+  if raw <= 2.5 * m and empty:
+      return m * math.log(m / empty)
+  return raw
+  ```
+
+  The loop body is four lines and it is the entire data structure. Everything
+  else is arithmetic on `registers`, which is `m` small integers — the state
+  never grows, no matter how long the stream runs.
+
+  Two things are worth arguing about.
+
+  **Why the harmonic mean.** The registers are estimates of the same quantity,
+  but $2^{M_j}$ is heavily right-skewed: one register that got a 25 would
+  dominate an arithmetic mean and inflate the answer permanently. The harmonic
+  mean is dominated by the *small* terms instead, which caps the damage a single
+  lucky hash can do. That choice is the difference between LogLog and
+  HyperLogLog, and it cut the error by about a third.
+
+  **Why the small-range correction exists.** When most registers are empty, the
+  harmonic-mean formula has almost nothing to average and its bias becomes
+  large. Linear counting — "how many buckets are still empty?" — is precise in
+  exactly that regime, and useless once the registers fill. The real
+  implementations switch between the two, and the switch point is the `2.5m`
+  above. Production HyperLogLog++ replaces this with an empirically calibrated
+  bias table, which is more accurate and much less explicable.

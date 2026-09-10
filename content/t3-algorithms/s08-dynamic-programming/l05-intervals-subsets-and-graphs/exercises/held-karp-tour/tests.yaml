@@ -1,0 +1,47 @@
+- id: six-sites
+  label: Six mirror sites — greedy gets 194, the optimum is 156
+  code: |
+    latency = [[0, 27, 24, 26, 42, 31],
+               [27, 0, 25, 33, 69, 12],
+               [24, 25, 0, 10, 46, 37],
+               [26, 33, 10, 0, 36, 39],
+               [42, 69, 46, 36, 0, 73],
+               [31, 12, 37, 39, 73, 0]]
+    assert min_tour_cost(latency) == 156
+- id: five-sites
+  label: A five-site instance where nearest-neighbour is 12% too high
+  code: |
+    latency = [[0, 42, 12, 61, 41],
+               [42, 0, 52, 19, 31],
+               [12, 52, 0, 71, 43],
+               [61, 19, 71, 0, 32],
+               [41, 31, 43, 32, 0]]
+    assert min_tour_cost(latency) == 148
+- id: tiny
+  label: One and two sites
+  code: |
+    assert min_tour_cost([[0]]) == 0
+    assert min_tour_cost([[0, 3], [9, 0]]) == 12
+- id: asymmetric
+  label: A directed instance where the cheap direction matters
+  code: |
+    assert min_tour_cost([[0, 5, 40], [40, 0, 5], [5, 40, 0]]) == 15
+- id: seven-sites
+  label: Seven sites, still exact
+  hidden: true
+  code: |
+    latency = [[0, 34, 35, 19, 85, 36, 42],
+               [34, 0, 3, 25, 51, 40, 70],
+               [35, 3, 0, 22, 54, 41, 71],
+               [19, 25, 22, 0, 76, 27, 55],
+               [85, 51, 54, 76, 0, 49, 47],
+               [36, 40, 41, 27, 49, 0, 30],
+               [42, 70, 71, 55, 47, 30, 0]]
+    assert min_tour_cost(latency) == 208
+- id: empty-and-uniform
+  label: An empty matrix, and one where every tour costs the same
+  hidden: true
+  code: |
+    assert min_tour_cost([]) == 0
+    uniform = [[0 if i == j else 7 for j in range(5)] for i in range(5)]
+    assert min_tour_cost(uniform) == 35

@@ -1,0 +1,106 @@
+id: karger-min-cut
+kind: python
+title: Karger's min cut, and how many times to run it
+difficulty: 5
+pattern: randomized
+topics: [randomized, graphs, probability]
+timeLimitMs: 25000
+prompt: |
+  **`karger_min_cut(n, edges, trials)`** runs the contraction algorithm
+  `trials` times independently and returns the **smallest** cut size found.
+
+  One run: while more than two vertices remain, pick a uniformly random edge
+  from the current multigraph and contract it — merge its endpoints, keep
+  parallel edges, drop self-loops. When two vertices remain, the number of
+  original edges crossing between them is the run's answer.
+
+  Return `0` when `n < 2`.
+
+  **`trials_for_confidence(n, delta)`** returns the smallest integer $t \ge 1$
+  with $(1-p)^t \le \delta$, where $p = \dfrac{2}{n(n-1)}$ is the proven per-run
+  success probability. Assume $n \ge 2$ and $0 < \delta < 1$.
+
+  ```
+  trials_for_confidence(10, 0.01)   # 205
+  trials_for_confidence(4, 0.05)    # 17
+  trials_for_confidence(2, 0.5)     # 1
+  ```
+
+  Use the `random` module. The tests call `random.seed(0)` first, so runs are
+  reproducible — but every assertion about the randomised part is
+  **statistical**, not an exact sequence: with enough trials the true minimum is
+  found, and no run may ever report a value below it.
+
+  A union-find over the vertices is the clean way to contract without rebuilding
+  the graph: contracting an edge is a `union`, and an edge is "gone" once its
+  endpoints share a root.
+hints:
+  - "You never have to build a contracted graph. Keep a union-find; a contraction is one union, and the run is over when the number of distinct roots reaches 2. The answer is the count of original edges whose endpoints have different roots."
+  - "Sampling a uniformly random edge of the *current* multigraph is not the same as sampling a uniformly random surviving edge of the original — but it is, if you keep every parallel edge. That is why the algorithm says 'keep parallel edges': the multiplicities are the probability distribution."
+  - "For trials_for_confidence, loop t upwards from 1 until (1 - p) ** t <= delta. The closed form ceil(log(delta) / log(1 - p)) agrees with the loop on every input the tests use, and is what you would write for large n."
+solutionWalkthrough: |
+  ```python
+  import random
+
+  def _contract_once(n, edges):
+      parent = list(range(n))
+
+      def find(x):
+          while parent[x] != x:
+              parent[x] = parent[parent[x]]
+              x = parent[x]
+          return x
+
+      live = list(edges)
+      remaining = n
+      while remaining > 2 and live:
+          u, v = live[random.randrange(len(live))]
+          ru, rv = find(u), find(v)
+          if ru != rv:
+              parent[ru] = rv
+              remaining -= 1
+              live = [(a, b) for a, b in live if find(a) != find(b)]
+      return sum(1 for a, b in edges if find(a) != find(b))
+
+  def karger_min_cut(n, edges, trials):
+      if n < 2:
+          return 0
+      best = len(edges)
+      for _ in range(trials):
+          best = min(best, _contract_once(n, edges))
+      return best
+
+  def trials_for_confidence(n, delta):
+      p = 2.0 / (n * (n - 1))
+      t = 1
+      while (1 - p) ** t > delta:
+          t += 1
+      return t
+  ```
+
+  **Why the answer is always a real cut.** Whatever the contractions do, the
+  final two groups partition the vertices into two non-empty sides, and the
+  returned number counts the original edges between them. So the output is
+  always achievable — the algorithm's error is one-sided and always *upward*.
+  That is what makes `min` over independent runs the right way to combine them:
+  more runs can only help, and the result is never below the true minimum.
+
+  **Why parallel edges are kept.** Contracting picks an edge uniformly at
+  random. After merging $u$ and $v$, the merged vertex has all of both their
+  edges, so it is more likely to be picked next — and it should be, because it
+  represents more of the graph. Deduplicating the multigraph would flatten those
+  probabilities and break Step 3 of the proof, which counts $|E| \ge nk/2$ edges
+  in the *multi*graph.
+
+  **The filtering cost.** Rebuilding `live` after each union is $O(|E|)$, so a
+  run is $O(n|E|)$. Doing it lazily — skipping self-loops when sampled, and
+  retrying — is $O(|E| \log |E|)$ expected and is what a serious implementation
+  does. The version above is written to be readable; the asymptotics that matter
+  for the amplification argument are per-*run*, and both versions are polynomial.
+
+  **What `trials_for_confidence` is really telling you.** With $p$ this small,
+  the count grows like $n^2 \ln(1/\delta)$. At $n = 100$ and
+  $\delta = 10^{-6}$ it is 68,380 runs — expensive, still polynomial, and still
+  the right shape of answer. The instinct to run $1/p$ times is wrong by a factor
+  of $\ln(1/\delta)$: $1/p$ repetitions leaves a failure probability of about
+  $1/e \approx 0.37$, which is not a guarantee of anything.

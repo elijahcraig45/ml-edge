@@ -1,0 +1,76 @@
+id: pb-semi-join-us-maintained
+kind: sql
+title: At least one US maintainer
+difficulty: 3
+pattern: joins
+stage: s03-linear-structures
+topics: [semi-join, exists]
+datasetId: package-registry
+timeLimitMs: 15000
+prompt: |
+  Which packages have at least one maintainer based in the US?
+
+  Return `name` and `language`, one row per package. Order does not matter.
+
+  The straightforward join through `package_maintainers` gives 10 rows for 8
+  packages, because `chunker` has three US maintainers and gets emitted three
+  times. Duplicated rows are the smallest, most survivable version of the
+  fan-out bug — the same join in front of a `SUM` would silently triple a
+  number instead of visibly repeating a name.
+hints:
+  - "Count what you got and count the distinct names in it. If those two numbers differ, the join changed the grain of the result from \"one row per package\" to \"one row per package-maintainer pair\"."
+  - "You do not need anything from `maintainers` in the output. That is the signature of a semi-join: the right-hand table is a filter, not a source of columns."
+  - "`WHERE EXISTS (SELECT 1 FROM package_maintainers pm JOIN maintainers m ON m.id = pm.maintainer_id WHERE pm.package_id = p.id AND m.country = 'US')` stops at the first match, so a package can only be emitted once."
+solutionWalkthrough: |
+  ```sql
+  SELECT p.name, p.language
+  FROM packages p
+  WHERE EXISTS (
+    SELECT 1
+    FROM package_maintainers pm
+    JOIN maintainers m ON m.id = pm.maintainer_id
+    WHERE pm.package_id = p.id
+      AND m.country = 'US'
+  );
+  ```
+
+  Eight packages: `arrowkit`, `chunker`, `indexer`, `keyspace`, `lazyseq`,
+  `orderby`, `quickselect`, `skiplist`.
+
+  `SELECT DISTINCT` over the plain join returns the same eight rows and is not
+  wrong, but it is a different shape of thinking. `DISTINCT` fixes the damage
+  after the join has already produced 10 rows; `EXISTS` compiles to a semi-join,
+  which stops probing a package as soon as one US maintainer is found and never
+  materialises the duplicates at all. On this dataset the difference is two rows.
+  On a fact table with a thousand matches per key it is the difference between a
+  cheap probe and a sort-and-dedup over a million rows.
+
+  There is a second reason to prefer `EXISTS`, and it survives to production:
+  `DISTINCT` is a global claim about the whole result. Add a numeric column
+  later — a download total, say — and `DISTINCT` silently stops deduplicating,
+  because the rows are no longer identical. `EXISTS` keeps the grain of the
+  result fixed at "one row per package" no matter what you select.
+
+  `p.id IN (SELECT package_id FROM ... WHERE country = 'US')` is the third
+  spelling and also compiles to a semi-join. It is safe here because `IN` does
+  not have `NOT IN`'s NULL problem.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 8
+      message: >-
+        Expected 8 packages. 10 rows means the join fanned out — `chunker` has
+        three US maintainers and was emitted once per maintainer.
+    - type: predicate
+      sql: "SELECT count(*) = count(DISTINCT name) FROM __learner"
+      message: >-
+        A package appears more than once in your result. The grain has to stay
+        one row per package.
+    - type: plan
+      notContains: ["CROSS_PRODUCT"]
+      message: >-
+        Join on the key columns rather than pairing every package with every
+        maintainer and filtering afterwards.

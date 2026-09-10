@@ -1,0 +1,75 @@
+id: lazy-limit
+kind: python
+title: A LIMIT that actually limits
+difficulty: 2
+pattern: iterator-pipeline
+topics: [generators, query-execution]
+timeLimitMs: 10000
+prompt: |
+  Implement the `limit` operator.
+
+  `limit(child, n)` returns an iterator over the first `n` rows its child
+  produces. That part is easy. The part being graded is the part that makes it
+  a query operator rather than a slice:
+
+  - it must pull **at most `n` rows** from `child` — never `n + 1`, never all
+    of them;
+  - it must pull **nothing at all** until someone asks it for a row.
+
+  ```
+  rows = iter([{"id": 1}, {"id": 2}, {"id": 3}])
+  list(limit(rows, 2))    # [{"id": 1}, {"id": 2}]
+  list(limit(rows, 0))    # []
+  ```
+
+  The starter returns the right rows and reads the entire child to do it. On a
+  billion-row scan that is the difference between a query that returns and one
+  that does not.
+hints:
+  - "Ask what has to be true at the moment the caller stops asking. If your function has already run to completion by then, it has already read everything."
+  - "Make it a generator: a function with `yield` in it does no work until the first `next()`, and stops as soon as the consumer stops pulling."
+  - "The order of the two statements in the loop body decides whether you pull n or n+1 rows. Yield the row first, then count it and decide whether to stop — a `for` loop that checks the counter at the top must fetch one more row before it can check."
+solutionWalkthrough: |
+  ```python
+  def limit(child, n):
+      if n <= 0:
+          return
+      taken = 0
+      for row in child:
+          yield row
+          taken += 1
+          if taken >= n:
+              return
+  ```
+
+  Two decisions are doing all the work.
+
+  **`yield` before the count check.** Write the loop the other way round —
+
+  ```python
+  for i, row in enumerate(child):
+      if i >= n:
+          return
+      yield row
+  ```
+
+  — and it returns exactly the same rows while pulling `n + 1`. To evaluate
+  `i >= n` for `i == n`, the `for` loop must first call `next(child)` to get
+  that row. One extra pull sounds harmless until the child is a join whose
+  next row costs a full hash probe, or a scan that has to fetch another page
+  from disk. This is precisely why the Volcano interface has an explicit
+  `next()` that returns an end-of-rows signal instead of leaving the caller to
+  count: the operator decides when to stop, not the loop above it.
+
+  **The early `return` for `n <= 0`.** `LIMIT 0` is a real query — it is how
+  clients ask for a result's column types without paying for its rows. A
+  version that falls into the loop first pulls one row to discover it does not
+  want it.
+
+  The `return` inside a generator raises `StopIteration` in the consumer, which
+  is Volcano's "no more rows". And when the consumer walks away early, Python
+  calls `close()` on this generator, which propagates a `GeneratorExit` down
+  the chain — the same teardown a real engine performs to free a hash table
+  when a `LIMIT` cuts a query short.
+forbid:
+  - islice

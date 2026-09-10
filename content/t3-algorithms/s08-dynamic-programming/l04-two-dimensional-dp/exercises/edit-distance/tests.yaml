@@ -1,0 +1,39 @@
+- id: classic
+  label: kitten to sitting takes three edits
+  code: |
+    assert edit_distance("kitten", "sitting") == 3
+- id: substitution-beats-indel
+  label: A substitution costs 1, not 2
+  code: |
+    assert edit_distance("abc", "axc") == 1
+    assert edit_distance("memoise", "memoize") == 1
+- id: one-insertion
+  label: A missing character costs one edit
+  code: |
+    assert edit_distance("graphwak", "graphwalk") == 1
+- id: empty-strings
+  label: Empty inputs on either side
+  code: |
+    assert edit_distance("", "abc") == 3
+    assert edit_distance("abc", "") == 3
+    assert edit_distance("", "") == 0
+- id: identical
+  label: Identical strings cost nothing
+  code: |
+    assert edit_distance("lazyseq", "lazyseq") == 0
+- id: symmetric
+  label: The distance is symmetric
+  hidden: true
+  code: |
+    pairs = [("quickselect", "quicksort"), ("sunday", "saturday"), ("", "treewalk")]
+    for x, y in pairs:
+        assert edit_distance(x, y) == edit_distance(y, x), (x, y)
+    assert edit_distance("quickselect", "quicksort") == 4
+    assert edit_distance("sunday", "saturday") == 3
+- id: no-free-match-bonus
+  label: A match must cost zero, not be minimised against a detour
+  hidden: true
+  code: |
+    # Every character matches; the answer is the length difference alone.
+    assert edit_distance("aaaa", "aaaaaa") == 2
+    assert edit_distance("abcdef", "abcdef") == 0

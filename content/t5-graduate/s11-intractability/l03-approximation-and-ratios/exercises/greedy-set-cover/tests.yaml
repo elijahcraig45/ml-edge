@@ -1,0 +1,107 @@
+- id: picks-by-gain
+  label: The largest remaining gain wins, not the first usable set
+  code: |
+    # [2,3,4] covers three; [1] covers one. Greedy must take index 1 first.
+    assert greedy_set_cover([1, 2, 3, 4], [[1], [2, 3, 4], [1, 2]]) == [1, 0]
+
+- id: small-instance
+  label: A pinned three-set instance
+  code: |
+    assert greedy_set_cover([1, 2, 3], [[1, 2], [2, 3], [3]]) == [0, 1]
+
+- id: no-cover
+  label: Returns None when the sets cannot cover the universe
+  code: |
+    assert greedy_set_cover([1, 2], [[1]]) is None
+    assert greedy_set_cover([1, 2, 3], [[1], [2], []]) is None
+
+- id: bait-instance
+  label: Greedy takes three sets where two suffice
+  code: |
+    from itertools import combinations
+    A  = list(range(0, 8))
+    B  = list(range(8, 16))
+    G1 = [4, 5, 6, 7, 12, 13, 14, 15]
+    G2 = [2, 3, 10, 11]
+    G3 = [0, 1, 8, 9]
+    universe = list(range(16))
+    sets = [G1, G2, G3, A, B]
+    chosen = greedy_set_cover(universe, sets)
+    assert chosen == [0, 1, 2], chosen
+    covered = set().union(*[set(sets[i]) for i in chosen])
+    assert covered >= set(universe)
+    # the optimum is 2: A and B.
+    assert set(A) | set(B) == set(universe)
+
+- id: ratio-bound
+  label: Never worse than (1 + ln n) times the brute-force optimum
+  code: |
+    import math
+    from itertools import combinations
+    def opt_size(universe, sets):
+        U = set(universe)
+        if not U:
+            return 0
+        for size in range(1, len(sets) + 1):
+            for sub in combinations(range(len(sets)), size):
+                if set().union(*[set(sets[i]) for i in sub]) >= U:
+                    return size
+        return None
+    CASES = [
+        ([1, 2, 3], [[1, 2], [2, 3], [3]]),
+        (list(range(6)), [[0,1,2],[3,4,5],[0,3],[1,4],[2,5]]),
+        (list(range(10)), [[0,1,2,3,4],[5,6,7,8,9],[0,5],[1,6],[2,7],[3,8],[4,9]]),
+        (list(range(16)), [[4,5,6,7,12,13,14,15],[2,3,10,11],[0,1,8,9],
+                           list(range(8)), list(range(8, 16))]),
+    ]
+    for universe, sets in CASES:
+        chosen = greedy_set_cover(universe, sets)
+        opt = opt_size(universe, sets)
+        n = len(set(universe))
+        assert chosen is not None and opt is not None
+        assert len(chosen) <= opt * (1 + math.log(n)) + 1e-9, (universe, chosen, opt)
+
+- id: result-is-a-cover
+  label: The chosen sets really do cover the universe
+  code: |
+    CASES = [
+        ([1, 2, 3], [[1, 2], [2, 3], [3]]),
+        (list(range(6)), [[0,1,2],[3,4,5],[0,3],[1,4],[2,5]]),
+        ([5, 5, 5, 9], [[9], [5], [5, 9]]),
+    ]
+    for universe, sets in CASES:
+        chosen = greedy_set_cover(universe, sets)
+        covered = set()
+        for i in chosen:
+            covered |= set(sets[i])
+        assert covered >= set(universe), (universe, chosen)
+
+- id: empty-universe
+  label: Nothing to cover means no sets chosen
+  hidden: true
+  code: |
+    assert greedy_set_cover([], [[1], [2]]) == []
+    assert greedy_set_cover([], []) == []
+
+- id: ties-go-to-lowest-index
+  label: Equal gains are broken by index
+  hidden: true
+  code: |
+    assert greedy_set_cover([1, 2], [[1], [2], [1]]) == [0, 1]
+    assert greedy_set_cover([1, 2, 3, 4], [[1, 2], [3, 4], [1, 2]]) == [0, 1]
+
+- id: empty-and-duplicate-sets
+  label: Empty sets are never chosen and duplicates in the universe do not matter
+  hidden: true
+  code: |
+    assert greedy_set_cover([1, 1, 2, 2], [[], [1, 2], []]) == [1]
+    assert greedy_set_cover([1, 2, 3], [[], [1], [], [2, 3]]) == [3, 1]
+
+- id: gains-are-recomputed
+  label: A set's value drops once its elements are covered
+  hidden: true
+  code: |
+    # Round 1: [0,1,2,3] wins with 4. Round 2: [3,4,5] has gain 2, [4] has gain 1,
+    # so index 1 must win — which only happens if gains are rescored.
+    sets = [[0, 1, 2, 3], [3, 4, 5], [4]]
+    assert greedy_set_cover([0, 1, 2, 3, 4, 5], sets) == [0, 1]

@@ -1,0 +1,34 @@
+id: s08-dynamic-programming
+tier: t3-algorithms
+order: 8
+title: "Dynamic Programming: Proof First, Table Last"
+status: published
+thesis: >-
+  Dynamic programming is not a table. It is a proof of optimal substructure
+  plus a memo — and the table is only what the memo looks like once you have
+  chosen the state.
+summary: >-
+  Seven lessons on the family of algorithms that trades memory for
+  recomputation. You will write one recurrence three ways and watch the three
+  collapse into each other, learn state design as an explicit procedure rather
+  than a knack, and meet the boundary where a dynamic program stops being a
+  Python loop and becomes a window function — or a recursive CTE, or nothing a
+  single SQL statement can express. The stage ends with greedy algorithms,
+  which are dynamic programs with the search deleted, and with the proofs that
+  tell you when deleting it is safe.
+outcomes:
+  - Turn a recursive definition into a memoized version and a tabulated one, and say what actually changed.
+  - Design a DP state by procedure — name the decision, name what the future needs, discard the rest — and test the state for sufficiency before writing code.
+  - Write 1-D and 2-D dynamic programs, including the O(n log n) longest increasing subsequence where the DP array's monotonicity buys a binary search.
+  - Recognise interval, bitmask, tree and DAG dynamic programs from their state shape.
+  - Say which DP recurrences collapse to a SQL window function, which need a recursive CTE, and which need a procedural loop — and why.
+  - Recover the actual optimal solution, not only its value, and know what rolling arrays cost you when you do.
+  - Prove a greedy algorithm correct with an exchange argument, and recognise the problems where greedy quietly returns second best.
+lessons:
+  - l01-one-recurrence-three-forms
+  - l02-designing-the-state
+  - l03-one-dimensional-dp
+  - l04-two-dimensional-dp
+  - l05-intervals-subsets-and-graphs
+  - l06-rolling-arrays-and-reconstruction
+  - l07-greedy-and-the-exchange-argument

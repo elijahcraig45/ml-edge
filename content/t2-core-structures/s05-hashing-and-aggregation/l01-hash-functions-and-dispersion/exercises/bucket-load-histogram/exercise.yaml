@@ -1,0 +1,82 @@
+id: bucket-load-histogram
+kind: sql
+title: Draw the bucket-load histogram
+difficulty: 3
+datasetId: package-registry
+pattern: hashing
+topics: [hashing, aggregation]
+timeLimitMs: 15000
+prompt: |
+  Hash all 20 package names into 8 buckets with `hash(name) % 8`, then report
+  the **distribution of bucket loads**: for each load, how many buckets carry
+  exactly that many packages.
+
+  Return two columns named `bucket_load` and `bucket_count`, ordered by
+  `bucket_load` ascending.
+
+  The catch is the empty bucket. Grouping the packages by their bucket can only
+  produce buckets that have at least one package in them, and a histogram that
+  cannot show a zero is not a histogram — the empty buckets are the interesting
+  part. You need all eight bucket numbers to exist before you count.
+
+  `range(8)` produces the numbers 0 through 7 as a table you can join against.
+hints:
+  - "Two aggregations, not one. First get a load for every bucket; then count how many buckets share each load."
+  - "`range(8) b(i)` gives you the eight bucket numbers. LEFT JOIN the packages onto it so buckets with no packages survive."
+  - "Inside the LEFT JOIN, count a column from the *packages* side — `count(p.id)` — not `count(*)`. `count(*)` counts the row the outer join manufactured and reports 1 for an empty bucket."
+solutionWalkthrough: |
+  ```sql
+  WITH bucket_of AS (
+    SELECT b.i AS bucket, count(p.id) AS bucket_load
+    FROM range(8) b(i)
+    LEFT JOIN packages p ON hash(p.name) % 8 = b.i
+    GROUP BY b.i
+  )
+  SELECT bucket_load, count(*) AS bucket_count
+  FROM bucket_of
+  GROUP BY bucket_load
+  ORDER BY bucket_load;
+  ```
+
+  The result reads: one bucket empty, one with a single package, two with two,
+  two with three, one with four, one with five. Average load 2.5, maximum load
+  5, and one bucket doing nothing at all.
+
+  Every part of that is normal. Twenty balls into eight bins has an expected
+  empty-bin count of $8 \cdot (7/8)^{20} \approx 0.55$, and the maximum load of
+  a random assignment runs well above the mean until the number of balls is
+  large relative to $m \log m$. If you concluded from this picture that
+  `hash(name)` was defective and went looking for a better hash, you would spend
+  a day and find nothing, because there is nothing to find.
+
+  `count(p.id)` versus `count(*)` is the trap, and it is the same NULL rule from
+  Stage 1 wearing different clothes: a LEFT JOIN with no match produces a row
+  full of NULLs, `count(*)` counts that row, and `count(p.id)` skips it. On this
+  data the difference is one bucket reporting 1 instead of 0 — a wrong histogram
+  that looks entirely plausible.
+
+  The reason to draw this at all: it is the diagnostic you run before believing
+  any claim about a hash function or a partitioning key. Lesson 6 runs the same
+  query against a real workload and finds one key holding a quarter of the rows,
+  which is a case where the picture *is* telling you something.
+
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 6
+      message: >-
+        Expected six distinct loads (0, 1, 2, 3, 4 and 5). If you got five, the
+        empty bucket is missing — grouping the packages alone can never produce
+        a bucket that holds nothing.
+    - type: predicate
+      sql: "SELECT sum(bucket_count) = 8 AND sum(bucket_load * bucket_count) = 20 FROM __learner"
+      message: >-
+        The histogram must account for all 8 buckets and all 20 packages. Check
+        that every bucket number appears exactly once before you count loads.
+    - type: syntax
+      pattern: "\\bleft\\s+(outer\\s+)?join\\b"
+      message: >-
+        Use a LEFT JOIN from range(8) onto packages, so buckets with no packages
+        still produce a row.

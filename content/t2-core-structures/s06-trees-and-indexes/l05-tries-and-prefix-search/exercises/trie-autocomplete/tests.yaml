@@ -1,0 +1,80 @@
+- id: contains-and-prefix
+  label: A prefix is not a word
+  code: |
+    t = Trie()
+    for word in ["arrow", "arrowkit", "array"]:
+        t.insert(word)
+    assert t.contains("arrow") is True
+    assert t.contains("arr") is False
+    assert t.starts_with("arr") is True
+    assert t.starts_with("arz") is False
+- id: autocomplete
+  label: keys_with_prefix returns the matching words, sorted
+  code: |
+    t = Trie()
+    for word in ["arrow", "arrowkit", "array", "bit", "bitmask"]:
+        t.insert(word)
+    assert t.keys_with_prefix("arro") == ["arrow", "arrowkit"]
+    assert t.keys_with_prefix("bit") == ["bit", "bitmask"]
+    assert t.keys_with_prefix("z") == []
+- id: empty-prefix
+  label: The empty prefix returns everything
+  code: |
+    t = Trie()
+    for word in ["b", "a", "c"]:
+        t.insert(word)
+    assert t.keys_with_prefix("") == ["a", "b", "c"]
+    assert t.starts_with("") is True
+- id: empty-trie
+  label: An empty trie answers everything with nothing
+  code: |
+    t = Trie()
+    assert t.contains("a") is False
+    assert t.starts_with("a") is False
+    assert t.keys_with_prefix("") == []
+- id: word-is-prefix-of-word
+  label: A word that is a prefix of another word is still a word
+  hidden: true
+  code: |
+    t = Trie()
+    t.insert("arrowkit")
+    assert t.contains("arrow") is False, "arrow was never inserted"
+    t.insert("arrow")
+    assert t.contains("arrow") is True
+    assert t.contains("arrowkit") is True
+    assert t.keys_with_prefix("arrow") == ["arrow", "arrowkit"]
+- id: walk-starts-at-the-prefix
+  label: The subtree walk does not visit unrelated branches
+  hidden: true
+  code: |
+    # Every children dict counts how often it is iterated. The trie below has 31
+    # nodes; the subtree under "alp" has 3. A walk that starts at the root and
+    # filters by startswith touches all 31 and fails here.
+    class Counting(dict):
+        reads = 0
+        def items(self):
+            Counting.reads += 1
+            return dict.items(self)
+        def keys(self):
+            Counting.reads += 1
+            return dict.keys(self)
+        def values(self):
+            Counting.reads += 1
+            return dict.values(self)
+        def __iter__(self):
+            Counting.reads += 1
+            return dict.__iter__(self)
+
+    t = Trie()
+    for word in ["alpha", "beta", "gamma", "delta", "epsilon", "zeta"]:
+        t.insert(word)
+
+    def convert(node):
+        node.children = Counting(node.children)
+        for child in dict.values(node.children):
+            convert(child)
+
+    convert(t.root)
+    Counting.reads = 0
+    assert t.keys_with_prefix("alp") == ["alpha"]
+    assert Counting.reads <= 10, "the walk visited nodes outside the 'alp' subtree"

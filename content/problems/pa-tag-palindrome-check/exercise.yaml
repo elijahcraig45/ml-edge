@@ -1,0 +1,57 @@
+id: pa-tag-palindrome-check
+kind: python
+title: Palindromic package slug
+difficulty: 1
+pattern: two-pointers
+stage: s04-sorting-and-windows
+topics:
+  - strings
+timeLimitMs: 10000
+prompt: |
+  A slug reads the same forwards and backwards if you ignore case and throw
+  away every character that is not a letter or a digit. Return `True` when it
+  does, `False` otherwise.
+
+  ```
+  is_tag_palindrome("Repo-Per")        # True   -> "repoper"
+  is_tag_palindrome("v2.0.2v")         # True   -> "v202v"
+  is_tag_palindrome("build-tools")     # False
+  ```
+
+  The empty string counts as a palindrome. Do not build a cleaned-up copy of
+  the string first — walk the original. `[::-1]` and `reversed(` are rejected.
+hints:
+  - "You are comparing the character at one end against the character at the other. What should happen when one of those two characters is punctuation? Not both — one."
+  - "Two indices, one at each end, moving toward each other. Advance the offending index past any non-alphanumeric character before comparing, and compare with `.lower()` on both sides."
+  - "Handle the two skips as separate `continue` branches, otherwise a string like `#a` will compare a `#` against an `a`. Only when both characters are alphanumeric do you compare them and move both indices."
+solutionWalkthrough: |
+  ```python
+  def is_tag_palindrome(text):
+      left, right = 0, len(text) - 1
+      while left < right:
+          if not text[left].isalnum():
+              left += 1
+              continue
+          if not text[right].isalnum():
+              right -= 1
+              continue
+          if text[left].lower() != text[right].lower():
+              return False
+          left += 1
+          right -= 1
+      return True
+  ```
+
+  The obvious alternative — strip the string down to `"".join(c.lower() for c in
+  text if c.isalnum())` and compare it with its reverse — is shorter and
+  correct, and it allocates two more strings the size of the input. On a slug
+  that is nothing. On a hundred-megabyte log line it is the whole cost of the
+  operation, and the two-pointer version answers `False` on the first mismatch
+  without touching the rest of the input.
+
+  The subtle part is that the two skips must be independent. Written as a single
+  combined condition, a string with punctuation on only one side walks both
+  indices at once and compares the wrong pair.
+forbid:
+  - "[::-1]"
+  - "reversed("

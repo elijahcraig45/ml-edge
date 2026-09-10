@@ -1,0 +1,52 @@
+id: pa-rank-packages-by-downloads
+kind: python
+title: Rank the registry leaderboard
+difficulty: 2
+pattern: sorting
+stage: s04-sorting-and-windows
+topics:
+  - arrays
+  - strings
+timeLimitMs: 10000
+prompt: |
+  `packages` is a list of `(name, downloads, published_year)` tuples. Return
+  just the names, ranked by:
+
+  1. downloads, highest first;
+  2. then published year, **oldest** first;
+  3. then name, alphabetically.
+
+  ```
+  rank_packages([("b", 10, 2020), ("a", 10, 2019), ("c", 99, 2021)])
+  # ["c", "a", "b"]
+  ```
+
+  Every rule has to be expressed in one sort, not three passes. Ties are the
+  point of this exercise, so an unstable-looking answer that happens to pass one
+  example is not enough.
+hints:
+  - "Sorting by three rules at once means producing one comparable value per package that encodes all three, in priority order. Tuples compare left to right, which is exactly that."
+  - "`sorted(packages, key=...)` where the key returns a tuple. The trouble is that one component sorts descending and the other two ascending — `reverse=True` would flip all three together."
+  - "Negate the numeric component you want descending: `key=lambda p: (-p[1], p[2], p[0])`, then take `p[0]` from each result. Negation works for numbers only, which is why the name has to be handled by putting it last rather than reversed."
+solutionWalkthrough: |
+  ```python
+  def rank_packages(packages):
+      ranked = sorted(packages, key=lambda p: (-p[1], p[2], p[0]))
+      return [name for name, _downloads, _year in ranked]
+  ```
+
+  A tuple key works because tuple comparison is lexicographic: it decides on the
+  first component and only consults the second when the first ties. That is the
+  same priority order the question asks for, so one sort covers all three rules.
+
+  `reverse=True` is the trap. It reverses the entire comparison, so names would
+  come out `z` before `a` among packages tied on downloads and year. Negating
+  the one component that runs backwards is the fix, and it only works on
+  numbers — for a descending string you have to sort in stages, relying on
+  Python's stable sort: sort by the least significant rule first, then by the
+  most significant.
+
+  Cost is O(n log n) with n key tuples built once each. Building the key inside
+  a comparison function instead — the `cmp_to_key` route — recomputes it on
+  every comparison, which is why Python dropped `cmp` from `sort` in the first
+  place.

@@ -1,0 +1,70 @@
+id: witness-pair
+kind: python
+title: Find the smallest threshold that witnesses an O-bound
+difficulty: 3
+pattern: asymptotic-definition
+topics: [asymptotics]
+timeLimitMs: 12000
+prompt: |
+  The definition of $f(n) = O(g(n))$ asks for a constant $c$ and a threshold
+  $n_0$ such that $f(n) \le c \cdot g(n)$ holds for **every** $n \ge n_0$. This
+  exercise makes you produce the threshold.
+
+  Write `smallest_witness(f, g, c, limit)`. Given two functions of one integer,
+  a constant `c`, and a search ceiling `limit`, return the **smallest** integer
+  $n_0$ in `1..limit` such that
+
+  ```
+  f(n) <= c * g(n)
+  ```
+
+  holds for every `n` from `n_0` up to and including `limit`. If no such `n_0`
+  exists inside the search range, return `None`.
+
+  ```
+  smallest_witness(lambda n: 3*n**2 + 500*n + 20000, lambda n: n**2, 4, 2000)
+  # 538   -- from 538 upward, 3n^2 + 500n + 20000 stays under 4n^2
+
+  smallest_witness(lambda n: n**2, lambda n: n, 5, 100)
+  # None  -- n^2 overtakes 5n and never comes back
+  ```
+
+  Read the quantifier before you write the loop. The condition is not "the first
+  `n` where the inequality holds". It is "the first `n` after which the
+  inequality *never fails again*". Those are different numbers, and a function
+  that dips below the bound and then climbs back out will tell you so.
+hints:
+  - "Scanning upward and returning the first `n` that satisfies the inequality answers a different question. What would that answer do to a function that satisfies the bound at n = 3, breaks it at n = 7, and satisfies it forever after?"
+  - "Whether `n` can serve as the threshold depends on every value above it, not below it. So walk `limit` downward instead — the moment you hit a failure, everything at or below it is disqualified."
+  - "Walk `n` from `limit` down to 1, remembering the last `n` that held. Stop at the first failure and return what you remembered — `None` if you never held even at `limit`."
+solutionWalkthrough: |
+  ```python
+  def smallest_witness(f, g, c, limit):
+      if limit < 1:
+          return None
+      n0 = None
+      for n in range(limit, 0, -1):
+          if f(n) <= c * g(n):
+              n0 = n
+          else:
+              break
+      return n0
+  ```
+
+  The direction of the loop is the entire exercise. The predicate "`n` works as
+  a threshold" is a statement about the *suffix* $[n, \text{limit}]$, so it can
+  only be settled after the larger values are known. Going downward settles them
+  first, and the `break` is what makes the answer a witness rather than a
+  coincidence — everything from that point down is disqualified by a single
+  failure above it.
+
+  An upward scan is the tempting alternative and it costs the same time. It also
+  returns 1 for a function that satisfies the bound at $n = 1$ and violates it at
+  $n = 7$, which is exactly the mistake the definition's $\forall$ is written to
+  prevent.
+
+  The other thing this makes concrete: `None` here does not mean "$f$ is not
+  $O(g)$". It means no threshold exists *below your search ceiling*. Raise
+  `limit` and the answer may appear. That gap — between what you can check and
+  what the definition asserts — is why an asymptotic claim ultimately needs a
+  proof and not a scan.

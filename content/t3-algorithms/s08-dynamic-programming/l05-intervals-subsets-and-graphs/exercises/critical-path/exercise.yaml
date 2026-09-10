@@ -1,0 +1,94 @@
+id: critical-path
+kind: sql
+title: Longest dependency chain, as a recursive CTE
+difficulty: 4
+datasetId: package-registry
+pattern: recursive-cte
+topics: [dynamic-programming, graphs, sql]
+timeLimitMs: 25000
+prompt: |
+  The registry has no dependency table, so the starter supplies one as a `deps`
+  CTE: `(pkg, needs)` means `pkg` cannot build until `needs` has built. The
+  graph is acyclic. A package's build cost is the size of its largest release,
+  `max(size_kb)` over its versions.
+
+  For every package, return the **critical path**: the largest total build cost
+  over any chain starting at that package and following dependency edges. A
+  package with no dependencies has a critical path equal to its own cost.
+
+  Return `name` and `critical_path_kb`, sorted by `critical_path_kb` descending
+  then by `name`. All twenty packages appear.
+
+  The starter looks one edge ahead — a package plus its most expensive direct
+  dependency. That gets `treewalk` to 442. The real answer is 1034, because the
+  chain keeps going: `treewalk` needs `graphwalk`, which needs `arrowkit`, which
+  needs `chunker`.
+hints:
+  - "One join reaches depth two. Two joins reach depth three. You do not know the depth in advance, which is what `WITH RECURSIVE` is for."
+  - "Seed the recursion with one row per package: (root = the package, node = the package, total = its own cost). Then the recursive term extends a partial chain by one edge, carrying the same root forward and adding the next package's cost."
+  - "The recursion enumerates every chain, so the final step is `GROUP BY` the root and take `max(total)`. Aggregating inside the recursive term will not help — see the lesson's warning about what a round can see."
+solutionWalkthrough: |
+  ```sql
+  WITH RECURSIVE deps(pkg, needs) AS (
+    SELECT * FROM (VALUES (1,3),(1,12),(4,1),(6,12),(7,1),(7,17),(10,6),
+                          (10,7),(11,16),(16,2),(18,11),(20,7),(20,19)) v(a, b)
+  ),
+  cost AS (
+    SELECT package_id AS id, max(size_kb) AS kb FROM versions GROUP BY package_id
+  ),
+  chain(root, node, total) AS (
+    SELECT c.id, c.id, c.kb FROM cost c
+    UNION ALL
+    SELECT ch.root, d.needs, ch.total + c.kb
+    FROM chain ch
+    JOIN deps d ON d.pkg = ch.node
+    JOIN cost c ON c.id = d.needs
+  )
+  SELECT p.name, max(ch.total) AS critical_path_kb
+  FROM chain ch
+  JOIN packages p ON p.id = ch.root
+  GROUP BY p.name
+  ORDER BY critical_path_kb DESC, p.name;
+  ```
+
+  Three columns in the recursive relation, each doing one job. `root` is carried
+  unchanged so every partial chain remembers which package's answer it
+  contributes to. `node` is the frontier — where this chain currently ends.
+  `total` is the accumulated cost.
+
+  The recursion terminates because the graph is acyclic and every step moves
+  strictly downstream, so eventually a round produces no rows. Add a single cycle
+  to `deps` and this query runs until it exhausts memory: there is no visited set
+  and nothing to stop it. Production versions of this query carry the path as an
+  array and filter with `NOT array_contains(path, next)`, which is a visited set
+  written by hand because the engine will not keep one for you.
+
+  And that is the honest limitation. This is a dynamic program in the sense that
+  it computes the right answer by following the recurrence
+  $f(v) = w_v + \max_{v \to u} f(u)$, but it is not memoized. It materialises
+  every chain — 49 rows here for 20 packages — and takes the maximum at the end.
+  On this graph that is nothing. On a graph where the number of paths grows
+  exponentially in the number of vertices, it is the difference between a query
+  and an outage.
+
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 20
+      message: >-
+        All twenty packages should appear, including the ones with no
+        dependencies — their critical path is their own build cost. If you
+        have fewer, an inner join dropped the leaves.
+    - type: syntax
+      pattern: "with\\s+recursive"
+      message: >-
+        The chain length is not known in advance, so a fixed number of joins
+        cannot find it. This exercise wants WITH RECURSIVE.
+    - type: predicate
+      sql: "SELECT max(critical_path_kb) = 1034 AND min(critical_path_kb) = 18 FROM __learner"
+      message: >-
+        The longest chain is treewalk at 1034 KB (treewalk, graphwalk,
+        arrowkit, chunker) and the shortest is memoize at 18 KB. A maximum of
+        442 means the recursion only went one edge deep.

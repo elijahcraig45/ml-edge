@@ -12,6 +12,8 @@ import {
   Radio,
   Headphones,
   type LucideIcon,
+  GraduationCap,
+  Timer,
 } from "lucide-react";
 import { AuthStatusCard } from "@/components/auth/auth-status-card";
 import { navigationItems } from "@/components/navigation/navigation-items";
@@ -25,6 +27,8 @@ const iconMap: Record<string, LucideIcon> = {
   Target,
   Radio,
   Headphones,
+  GraduationCap,
+  Timer,
 };
 
 export function MobileConsoleNav() {

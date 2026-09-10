@@ -1,0 +1,40 @@
+- id: leaf
+  label: A package with no dependencies is depth 1
+  code: |
+    assert tree_depth({"name": "http", "deps": []}) == 1
+- id: no-tree
+  label: No tree at all is depth 0
+  code: |
+    assert tree_depth(None) == 0
+- id: three-levels
+  label: Depth follows the deepest branch
+  code: |
+    tree = {"name": "web", "deps": [
+        {"name": "http", "deps": []},
+        {"name": "db", "deps": [{"name": "driver", "deps": []}]},
+    ]}
+    assert tree_depth(tree) == 3
+- id: wide-and-shallow
+  label: Many dependencies do not add depth
+  code: |
+    tree = {"name": "app", "deps": [{"name": str(i), "deps": []} for i in range(5)]}
+    assert tree_depth(tree) == 2
+- id: deepest-branch-last
+  label: The deepest branch is found wherever it sits
+  hidden: true
+  code: |
+    chain = {"name": "d", "deps": []}
+    for name in ("c", "b", "a"):
+        chain = {"name": name, "deps": [chain]}
+    tree = {"name": "root", "deps": [{"name": "shallow", "deps": []}, chain]}
+    assert tree_depth(tree) == 5
+    tree = {"name": "root", "deps": [chain, {"name": "shallow", "deps": []}]}
+    assert tree_depth(tree) == 5
+- id: long-chain
+  label: A long chain of single dependencies
+  hidden: true
+  code: |
+    node = {"name": "leaf", "deps": []}
+    for i in range(199):
+        node = {"name": "n%d" % i, "deps": [node]}
+    assert tree_depth(node) == 200

@@ -1,0 +1,53 @@
+id: pa-balance-point-index
+kind: python
+title: The day the traffic balances
+difficulty: 3
+pattern: prefix-sum
+stage: s01-ground-floor
+topics:
+  - arrays
+timeLimitMs: 15000
+prompt: |
+  Find the day that splits a download series evenly: the downloads strictly
+  before it total the same as the downloads strictly after it. The day itself
+  counts for neither side. Return its index, or `-1` if no such day exists. If
+  several qualify, return the earliest.
+
+  ```
+  balance_day([1, 7, 3, 6, 5, 6])   # 3   -> 1+7+3 == 5+6
+  balance_day([2, 2, 2])            # -1
+  balance_day([9])                  # 0   -> both sides are empty
+  ```
+
+  Counts may be negative — a correction can remove downloads. Do it in one pass
+  after computing the total.
+hints:
+  - "You do not need both sums. Once you know the grand total and the sum of everything to the left of day i, the right-hand sum follows from arithmetic."
+  - "Take `total = sum(daily)` up front. Then walk the list keeping `left`, the sum strictly before the current day. The right-hand side is `total - left - daily[i]`."
+  - "Compare `left == total - left - daily[i]` before adding the current day into `left`. Add it afterwards, so `left` always means strictly-before."
+solutionWalkthrough: |
+  ```python
+  def balance_day(daily):
+      total = sum(daily)
+      left = 0
+      for i, count in enumerate(daily):
+          if left == total - left - count:
+              return i
+          left += count
+      return -1
+  ```
+
+  Two passes, O(1) extra space. The naive version recomputes `sum(daily[:i])`
+  and `sum(daily[i+1:])` inside the loop, which is O(n²) and, more to the point,
+  hides the fact that the two sums are not independent — knowing one and the
+  total determines the other.
+
+  Negative counts are why you cannot shortcut this with a two-pointer walk
+  inwards from both ends. With non-negative values, `left` grows monotonically
+  and you could binary search the crossing point; a negative correction breaks
+  the monotonicity and the crossing can happen more than once, so the linear
+  scan is the honest answer.
+
+  The single-element case falls out for free: `left` and the right side are both
+  0 before anything is added, so index 0 balances. Code that special-cases it is
+  code that misunderstood the definition.

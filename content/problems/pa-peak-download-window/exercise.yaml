@@ -1,0 +1,65 @@
+id: pa-peak-download-window
+kind: python
+title: Busiest stretch of days
+difficulty: 2
+pattern: sliding-window
+stage: s04-sorting-and-windows
+topics:
+  - arrays
+timeLimitMs: 20000
+prompt: |
+  `daily` holds one download count per day. Return the largest total any
+  `k` consecutive days reached. If `k` is not a usable window length — zero,
+  negative, or longer than the list — return `None`.
+
+  ```
+  busiest_window([3, 1, 9, 2, 4], 2)   # 11   (9 + 2)
+  busiest_window([3, 1, 9, 2, 4], 5)   # 19
+  busiest_window([3, 1], 4)            # None
+  ```
+
+  **This one has a complexity budget.** Summing each window from scratch is
+  correct and will be rejected: the checker runs 200,000 days with a
+  1,000-day window.
+hints:
+  - "Two neighbouring windows share every day but two. Write down what changes between the window starting at day 3 and the window starting at day 4."
+  - "Compute the first window's total once, then slide: add the day entering the window and subtract the day leaving it. That is two arithmetic operations per step regardless of how wide the window is."
+  - "Seed `total = sum(daily[:k])`, then loop `i` from `k` to the end doing `total += daily[i] - daily[i - k]`, tracking the maximum as you go. Guard the bad `k` values before you touch the list."
+solutionWalkthrough: |
+  ```python
+  def busiest_window(daily, k):
+      if k <= 0 or k > len(daily):
+          return None
+      total = sum(daily[:k])
+      best = total
+      for i in range(k, len(daily)):
+          total += daily[i] - daily[i - k]
+          if total > best:
+              best = total
+      return best
+  ```
+
+  Recomputing each window costs `k` additions and n-k+1 windows, so the work
+  grows with `n * k` — and the wider the window you care about, the worse it
+  gets. Sliding makes the window width vanish from the cost entirely: one
+  addition and one subtraction per day, O(n) no matter what `k` is.
+
+  The technique needs an operation you can undo. Sums and counts qualify because
+  subtraction reverses addition. Maximum does not: drop a day from the window
+  and you cannot recover the new maximum from the old one, which is why
+  "maximum over a sliding window" needs a monotonic deque rather than this
+  trick. Floating-point sums are the other place this stops being safe — the
+  repeated add/subtract accumulates rounding error that a fresh sum would not.
+complexityBudget:
+  setup: |
+    data = [(i * 7919) % 1000 for i in range(200000)]
+  call: |
+    busiest_window(data, 1000)
+  # Measured on CPython 3.13: the sliding solution takes ~10ms, re-summing each
+  # window ~970ms. 150ms is 15x above one and 6x below the other, so it holds
+  # the line on a slow runner and under Pyodide.
+  maxMs: 150
+  message: >-
+    Correct, but too slow: this re-added every day of every window, so the work
+    grows with the number of days times the window width. Compute the first
+    window once, then add the entering day and subtract the leaving day.

@@ -1,0 +1,104 @@
+id: pb-qualify-top-three
+kind: sql
+title: Top three days per package, with QUALIFY
+difficulty: 4
+pattern: window-functions
+stage: s04-sorting-and-windows
+topics: [qualify, top-n-per-group]
+datasetId: package-registry
+timeLimitMs: 20000
+prompt: |
+  Return each package's three best download days.
+
+  Four columns: `package_id`, `day`, `count`, `day_rank` (1, 2 or 3). Sixty rows
+  — twenty packages, three days each. Order does not matter.
+
+  Use `QUALIFY`. It is the clause that filters on a window function directly,
+  without the wrapping subquery that `WHERE` forces on you: `WHERE` runs before
+  window functions are computed, so `WHERE row_number() OVER (...) <= 3` is not a
+  thing any engine can execute.
+
+  Getting `QUALIFY` right is not the hard part. Forgetting the `PARTITION BY` is:
+  the query still parses, still runs, and returns the registry's three busiest
+  days overall — three rows, all belonging to `arrowkit`.
+hints:
+  - "Run it without the partition first and count the rows. Three is the answer to a different question: \"the top three days in the registry\", not \"the top three days of each package\"."
+  - "`QUALIFY` is to window functions what `HAVING` is to aggregates — a filter that runs late enough to see them. In the pipeline it sits after the window step and before `ORDER BY`."
+  - "`QUALIFY row_number() OVER (PARTITION BY package_id ORDER BY count DESC) <= 3`, with the same window expression repeated (or named with a `WINDOW` clause) for the `day_rank` column."
+solutionWalkthrough: |
+  ```sql
+  SELECT
+    package_id,
+    day,
+    count,
+    row_number() OVER w AS day_rank
+  FROM downloads
+  WINDOW w AS (PARTITION BY package_id ORDER BY count DESC)
+  QUALIFY day_rank <= 3;
+  ```
+
+  Sixty rows, three per package, and the winning days differ package by package —
+  `arrowkit` peaks on the 8th, `chunker` on the 1st.
+
+  Without `QUALIFY` the same query needs a subquery, purely to give the window
+  function somewhere to land before it can be filtered:
+
+  ```sql
+  SELECT package_id, day, count, day_rank
+  FROM (
+    SELECT package_id, day, count,
+           row_number() OVER (PARTITION BY package_id ORDER BY count DESC) AS day_rank
+    FROM downloads
+  )
+  WHERE day_rank <= 3;
+  ```
+
+  Both compile to exactly the same plan. `QUALIFY` buys readability, not speed —
+  the point is that the filter sits next to the ranking it refers to instead of
+  one nesting level away, which matters when the query has four windows and two
+  of them are filtered.
+
+  The cost is portability: `QUALIFY` came from Teradata and is implemented by
+  DuckDB, Snowflake, BigQuery and Databricks, but not by PostgreSQL, MySQL or
+  SQLite. Know both spellings, and know that the subquery form is the one that
+  travels.
+
+  `row_number()` versus `rank()` is again a real choice here. `row_number()`
+  guarantees exactly three rows per package even when the third and fourth days
+  are tied — it just picks one, arbitrarily. `rank()` would return four rows for
+  that package and keep the tie honest. This dataset has no ties within a
+  package, so both give sixty rows; on data that does have them, pick the one
+  that matches what happens downstream if the count changes.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 60
+      message: >-
+        Expected 60 rows — three per package. Three rows total means the window
+        was not partitioned and you ranked the whole registry at once.
+    - type: syntax
+      pattern: "\\bqualify\\b"
+      negate: false
+      message: >-
+        Use `QUALIFY` here rather than wrapping the ranking in a subquery; the
+        problem is about the clause that can see window functions.
+    - type: predicate
+      sql: "SELECT count(DISTINCT package_id) = 20 FROM __learner"
+      message: Every package should contribute its own top three days.
+    - type: predicate
+      sql: "SELECT count(*) = 0 FROM __learner WHERE day_rank NOT BETWEEN 1 AND 3"
+      message: "`day_rank` must be 1, 2 or 3."
+    - type: predicate
+      sql: "SELECT count(*) = 0 FROM __learner l WHERE (SELECT count(*) FROM downloads d WHERE d.package_id = l.package_id AND d.count > l.count) >= 3"
+      message: >-
+        A day that outranks one of your chosen days is missing from the result —
+        the three rows per package must be that package's three highest counts.
+    - type: plan
+      contains: ["WINDOW"]
+      notContains: ["CROSS_PRODUCT"]
+      message: >-
+        The plan should show a WINDOW operator. Ranking with a correlated
+        counting subquery is quadratic and will not satisfy this.

@@ -1,0 +1,32 @@
+- id: basic
+  label: Answers several ranges over a short list
+  code: |
+    assert range_totals([10, 20, 30, 40], [(0, 1), (1, 3), (2, 2)]) == [30, 90, 30]
+- id: whole-array
+  label: A query spanning everything
+  code: |
+    counts = [770, 850, 490, 570, 650]
+    assert range_totals(counts, [(0, 4)]) == [3330]
+- id: single-day
+  label: A range of one day is that day's count
+  code: |
+    assert range_totals([5, 7, 9], [(0, 0), (1, 1), (2, 2)]) == [5, 7, 9]
+- id: no-queries
+  label: No queries means no answers
+  code: |
+    assert range_totals([1, 2, 3], []) == []
+- id: repeated-and-overlapping
+  label: Repeated and overlapping queries are answered independently
+  hidden: true
+  code: |
+    counts = [1, 2, 3, 4, 5, 6]
+    got = range_totals(counts, [(0, 5), (0, 5), (2, 4), (1, 2), (5, 5)])
+    assert got == [21, 21, 12, 5, 6], got
+- id: leaves-input-alone
+  label: Does not modify the counts it was given
+  hidden: true
+  code: |
+    counts = [3, 1, 4, 1, 5]
+    original = list(counts)
+    range_totals(counts, [(0, 4), (1, 3)])
+    assert counts == original

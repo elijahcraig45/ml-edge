@@ -1,0 +1,37 @@
+- id: rotated
+  label: Finds a value in the wrapped-around part
+  code: |
+    assert find_rotated([7, 9, 1, 3, 5], 3) == 3
+- id: absent
+  label: Reports -1 for a value that is not there
+  code: |
+    assert find_rotated([7, 9, 1, 3, 5], 4) == -1
+- id: not-rotated
+  label: A zero rotation is an ordinary sorted list
+  code: |
+    assert find_rotated([1, 2, 3], 1) == 0
+    assert find_rotated([1, 2, 3], 3) == 2
+- id: before-the-seam
+  label: Finds a value in the first sorted run
+  code: |
+    assert find_rotated([7, 9, 1, 3, 5], 9) == 1
+- id: empty-and-single
+  label: An empty list and a one-element list
+  hidden: true
+  code: |
+    assert find_rotated([], 1) == -1
+    assert find_rotated([4], 4) == 0
+    assert find_rotated([4], 5) == -1
+- id: every-rotation
+  label: Every rotation of the same list, and every target in it
+  hidden: true
+  code: |
+    base = [1, 3, 5, 7, 9, 11]
+    for shift in range(len(base)):
+        rotated = base[shift:] + base[:shift]
+        for value in base:
+            assert find_rotated(rotated, value) == rotated.index(value)
+        assert find_rotated(rotated, 2) == -1
+    original = [5, 7, 1, 3]
+    find_rotated(original, 1)
+    assert original == [5, 7, 1, 3], "the input must not be modified"

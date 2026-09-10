@@ -1,0 +1,101 @@
+id: skew-diagnosis
+kind: sql
+title: Measure the skew of a grouping key
+difficulty: 4
+datasetId: package-registry
+pattern: aggregation-skew
+topics: [aggregation, skew]
+timeLimitMs: 20000
+prompt: |
+  Write the diagnostic you run *before* you accuse the cluster of being slow: a
+  one-row report on how evenly a grouping key divides the work.
+
+  Work over the download **event stream**, which you get by expanding each daily
+  total into one row per download:
+
+  ```sql
+  WITH events AS (
+    SELECT d.package_id, d.day, e.i AS event_no
+    FROM downloads d, range(d.count) e(i)
+  )
+  ```
+
+  Return exactly one row with five columns:
+
+  - `groups` — how many distinct `package_id` values there are
+  - `total_events` — how many events in total
+  - `largest_group` — the event count of the busiest package
+  - `largest_share_pct` — that package's share of all events, as a percentage
+    rounded to two decimals
+  - `skew_ratio` — `largest_group` divided by the mean group size, rounded to
+    two decimals
+
+  `skew_ratio` is the number to read first. At 1.0 the key is perfectly
+  balanced. Above about 3 you have a straggler, and the run time of a
+  distributed aggregation is set by that one task.
+
+  The starter aggregates the `downloads` table directly, which reports a
+  skew_ratio of exactly 1.0 — because that table stores one row per package per
+  day, and every package has ten of them. It is measuring the shape of the
+  summary, not the shape of the data.
+hints:
+  - "Two levels of aggregation. The inner one gives you an event count per package; the outer one summarises those counts."
+  - "`range(d.count)` used as a table in the FROM clause produces `count` rows for each row of `downloads` — that is the expansion from daily totals to individual events."
+  - "In the outer SELECT, `count(*)` is the number of groups, `sum(events)` the number of events, and `max(events)` the largest group. The mean group size is `sum(events) / count(*)`, so the ratio is `max(events)` divided by that."
+solutionWalkthrough: |
+  ```sql
+  WITH events AS (
+    SELECT d.package_id, d.day, e.i AS event_no
+    FROM downloads d, range(d.count) e(i)
+  ),
+  per_key AS (
+    SELECT package_id, count(*) AS events
+    FROM events
+    GROUP BY package_id
+  )
+  SELECT
+    count(*)                                         AS groups,
+    sum(events)                                      AS total_events,
+    max(events)                                      AS largest_group,
+    round(100.0 * max(events) / sum(events), 2)      AS largest_share_pct,
+    round(max(events) / (sum(events) / count(*)), 2) AS skew_ratio
+  FROM per_key;
+  ```
+
+  Twenty groups, 363,840 events, largest group 92,000, share 25.29%, skew ratio
+  **5.06**. One key out of twenty is doing five times its share, and a
+  distributed `GROUP BY package_id` therefore runs at 25.3% of single-machine
+  time no matter how many machines you add — the straggler's fraction is a
+  property of the data, not of the cluster.
+
+  The interesting part of this exercise is the starter. It is the same query
+  against `downloads` directly, and it reports a perfectly flat skew ratio of
+  1.0, because `downloads` holds exactly one row per package per day. That
+  answer is not wrong — it correctly describes the *rows of that table* — it
+  answers a question nobody asked. Aggregating a pre-aggregated table and
+  concluding the data is balanced is a real and common mistake, and it is why
+  the first line of a skew investigation is "what is one row of this thing".
+
+  Once the ratio is above about 3, the fix is the next exercise. Below it, the
+  problem is somewhere else and salting will only make the query slower.
+
+grading:
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 1
+      message: This is a one-row summary of the whole grouping key.
+    - type: predicate
+      sql: >-
+        SELECT groups = 20 AND total_events = 363840 AND largest_group = 92000
+        FROM __learner
+      message: >-
+        Expected 20 groups over 363,840 events with a largest group of 92,000.
+        If total_events is 200 you are counting rows of `downloads` rather than
+        individual download events — expand each row with range(d.count).
+    - type: predicate
+      sql: "SELECT skew_ratio > 3 FROM __learner"
+      message: >-
+        The skew ratio should come out above 5. A value of 1.0 means every group
+        looks the same size, which happens when you aggregate the daily summary
+        instead of the events it summarises.

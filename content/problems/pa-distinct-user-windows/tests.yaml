@@ -1,0 +1,31 @@
+- id: pairs
+  label: Counts distinct pairs
+  code: |
+    assert distinct_windows(["a", "b", "a", "c"], 2) == 3
+- id: triples
+  label: Counts distinct triples
+  code: |
+    assert distinct_windows(["a", "b", "a", "c"], 3) == 1
+- id: repeat-blocks-everything
+  label: A repeated account rules a window out
+  code: |
+    assert distinct_windows(["a", "a"], 2) == 0
+- id: window-of-one
+  label: Every single event is trivially distinct
+  code: |
+    assert distinct_windows(["a", "a", "a"], 1) == 3
+- id: degenerate-k
+  label: Zero, negative, oversized k, and an empty log
+  hidden: true
+  code: |
+    assert distinct_windows(["a", "b"], 0) == 0
+    assert distinct_windows(["a", "b"], -1) == 0
+    assert distinct_windows(["a", "b"], 3) == 0
+    assert distinct_windows([], 1) == 0
+- id: stale-keys
+  label: An account leaving the window stops counting against it
+  hidden: true
+  code: |
+    # Every length-3 window here is distinct even though "a" recurs later.
+    assert distinct_windows(["a", "b", "c", "a", "b", "c"], 3) == 4
+    assert distinct_windows(["a", "a", "a", "a"], 2) == 0

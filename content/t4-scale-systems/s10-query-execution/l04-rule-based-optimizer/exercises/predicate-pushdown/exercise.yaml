@@ -1,0 +1,93 @@
+id: predicate-pushdown
+kind: python
+title: Push every predicate to its scan
+difficulty: 4
+pattern: tree-rewrite
+topics: [optimizer, trees, recursion]
+timeLimitMs: 10000
+prompt: |
+  Implement the pushdown rule over the plan tree.
+
+  `push_down(plan)` returns a rewritten plan in which every `filter` node has
+  been moved down until it sits directly on the `scan` of the table its
+  predicate names. The constructors, the predicate shape, and a `tables(node)`
+  helper that returns the set of base tables in a subtree are given to you.
+
+  ```python
+  plan = filter_(pred("versions", "size_kb", ">", 100),
+                 join(scan("packages"), scan("versions")))
+
+  push_down(plan)
+  # join(scan("packages"),
+  #      filter_(pred("versions", "size_kb", ">", 100), scan("versions")))
+  ```
+
+  The three cases:
+
+  - **over a `project`** — the filter moves below the projection.
+  - **over a `join`** — the filter moves into whichever side contains its table.
+  - **over a `scan`** — it stays there. Done.
+
+  Two filters stacked on top of each other both get pushed, and they may end up
+  on different sides of the same join. Do not mutate the input plan — return a
+  new tree.
+
+  This exercise assumes inner joins throughout, which is what makes every push
+  legal. Read the lesson's pitfall for the outer-join case before you trust
+  this rule anywhere real.
+hints:
+  - "Two jobs, so probably two functions. One walks the tree looking for filters; the other takes a predicate and a subtree and works out how far down the predicate can go."
+  - "Rewrite the child first, then place the predicate into the already-rewritten child. Placing into an unrewritten child means a filter below yours has not moved yet, and you will have to handle it twice."
+  - "For the join case: `tables(node['left'])` tells you whether the predicate belongs on the left. If it belongs to neither side — which cannot happen for these plans, but is worth handling — leave the filter where it is."
+solutionWalkthrough: |
+  ```python
+  def push_down(node):
+      if node["op"] == "scan":
+          return dict(node)
+      if node["op"] == "join":
+          return join(push_down(node["left"]), push_down(node["right"]))
+      if node["op"] == "project":
+          return project(list(node["columns"]), push_down(node["child"]))
+      # filter: rewrite below us first, then place our predicate into the result
+      return place(node["predicate"], push_down(node["child"]))
+
+
+  def place(predicate, node):
+      if node["op"] == "scan":
+          return filter_(predicate, node)
+      if node["op"] == "project":
+          return project(list(node["columns"]), place(predicate, node["child"]))
+      if node["op"] == "filter":
+          return filter_(node["predicate"], place(predicate, node["child"]))
+      if predicate["table"] in tables(node["left"]):
+          return join(place(predicate, node["left"]), node["right"])
+      if predicate["table"] in tables(node["right"]):
+          return join(node["left"], place(predicate, node["right"]))
+      return filter_(predicate, node)
+  ```
+
+  **Why it is two functions.** `push_down` is a traversal; `place` is a
+  descent carrying a payload. Trying to do both in one function means the
+  recursive call has two different meanings depending on how it was reached,
+  and that is how these rewrites become unreadable — which matters, because in
+  a real optimizer this file has thirty rules in it, not one.
+
+  **Why the child is rewritten first.** `push_down(node["child"])` runs before
+  `place`, so by the time a predicate is being placed, everything below it has
+  already settled. Push top-down instead and you meet filters that have not
+  moved yet and have to reason about a half-rewritten tree.
+
+  **The `filter` case in `place` is the interesting one.** Meeting another
+  filter, we keep it and continue past it. Filters commute — `a AND b` is
+  `b AND a` — so their relative order is free, and both end up on their own
+  scans. This is only true because a filter cannot invent rows. The moment the
+  node below is an outer join, the same reasoning fails, and a real optimizer
+  carries a table of which rewrites are legal past which operators rather than
+  a rule per case.
+
+  **What this rule cannot do.** It moves predicates that name exactly one
+  table. A predicate spanning two tables — `packages.created_at <
+  versions.published_at` — cannot go below the join that brings them together;
+  the best an optimizer can do is evaluate it *as* the join condition rather
+  than above the join. That is a different rule, and the reason plans sometimes
+  show a filter sitting directly on a join rather than beneath it.

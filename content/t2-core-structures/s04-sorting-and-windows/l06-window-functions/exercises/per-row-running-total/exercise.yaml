@@ -1,0 +1,93 @@
+id: per-row-running-total
+kind: sql
+title: A running total that is actually per row
+difficulty: 4
+datasetId: package-registry
+pattern: window-frame
+topics: [window-functions, frames, rows-vs-range]
+timeLimitMs: 15000
+prompt: |
+  Return every row of `downloads` with a **cumulative total of `count` across
+  the whole table**, accumulating row by row in `(day, package_id)` order.
+
+  Four columns named `day`, `package_id`, `count`, `running_total`, ordered by
+  `day` then `package_id`.
+
+  The first three rows must read:
+
+  ```
+  2024-03-01 | 1 | 9280 |  9280
+  2024-03-01 | 2 | 4620 | 13900
+  2024-03-01 | 3 | 3400 | 17300
+  ```
+
+  and the last row's `running_total` must be 363840, the grand total.
+
+  Twenty packages share every day, so `day` alone is nowhere near a unique sort
+  key. Two things follow, and both are the exercise: you need a **total order**
+  for "the previous row" to mean anything, and you need to say which kind of
+  frame you want. Get either wrong and every row of a given day reports the same
+  number — the day's closing total — instead of climbing through the day.
+hints:
+  - "`sum(count) OVER (ORDER BY day)` gives all twenty rows of a day the same value. Work out which rows the default frame contains before you try to fix it."
+  - "The default frame is RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW. Under RANGE, \"current row\" means every row that ties with it on the sort key — so all twenty peers of that day are inside the frame."
+  - "Two changes. Order by `day, package_id` so that no two rows tie, and write `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` so the frame counts physical rows rather than key values."
+solutionWalkthrough: |
+  ```sql
+  SELECT day, package_id, count,
+         sum(count) OVER (
+           ORDER BY day, package_id
+           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+         ) AS running_total
+  FROM downloads
+  ORDER BY day, package_id;
+  ```
+
+  **What the default frame really is.** Writing `ORDER BY` inside `OVER` with no
+  frame does not mean "no frame". The standard fills in
+  `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`, and under `RANGE` the
+  phrase *current row* means *every row whose sort key equals this row's*. With
+  twenty packages per day, that is twenty rows, so each of them sees the same
+  frame and reports the same total. Across the whole table, 190 of the 200 rows
+  differ from the true per-row running total. The ten that agree are the last row
+  of each day — which is exactly why a glance at the top of the output does not
+  catch it.
+
+  **Why the ordering needs `package_id` too.** Even with `ROWS`, "the rows before
+  this one" is only well defined if the sort puts them in a definite order. With
+  `ORDER BY day` alone the engine may arrange a day's twenty rows however it
+  likes, so the intermediate totals are unspecified and can change between runs
+  or versions. This is lesson 1's tiebreaker rule showing up again: if the order
+  matters, name enough columns to make it unique.
+
+  **The shape of the thing you have built.** `running_total` is a prefix-sum
+  array — the same construction as lesson 5, computed by the engine in one pass
+  over the sorted rows. Any range total is a difference of two of its entries,
+  which is why a windowed cumulative sum plus a `LAG` is often a cheaper answer
+  than a self-join.
+
+  **A cheaper habit.** If you only ever need running totals *within* each package,
+  add `PARTITION BY package_id` — the engine then sorts and scans each package
+  independently, which parallelises and keeps the sort keys short.
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: syntax
+      pattern: "\\brows\\b"
+      message: >-
+        You need an explicit ROWS frame. The default RANGE frame includes every
+        row tied on the sort key, which is why a whole day collapses to one value.
+    - type: rowcount
+      equals: 200
+      message: Expected all 200 rows of `downloads`.
+    - type: predicate
+      sql: >-
+        SELECT (SELECT running_total FROM __learner WHERE day = DATE '2024-03-01' AND package_id = 2) = 13900
+      message: >-
+        The second row of 2024-03-01 should read 13900 (9280 + 4620). Reporting
+        36620 means the frame swallowed all twenty of that day's rows at once.
+    - type: predicate
+      sql: >-
+        SELECT (SELECT max(running_total) FROM __learner) = 363840
+      message: The final running total must be the grand total, 363840.

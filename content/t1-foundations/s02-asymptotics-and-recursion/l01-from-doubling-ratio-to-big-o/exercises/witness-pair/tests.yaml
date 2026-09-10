@@ -1,0 +1,32 @@
+- id: quadratic-witness
+  label: Finds the threshold for 3n^2 + 500n + 20000 against 4n^2
+  code: |
+    got = smallest_witness(lambda n: 3*n**2 + 500*n + 20000, lambda n: n**2, 4, 2000)
+    assert got == 538, got
+- id: holds-everywhere
+  label: Returns 1 when the bound holds from the very start
+  code: |
+    assert smallest_witness(lambda n: n, lambda n: n, 1, 10) == 1
+- id: never-holds
+  label: Returns None when the bound is broken at the ceiling
+  code: |
+    assert smallest_witness(lambda n: n**2, lambda n: n, 5, 100) is None
+- id: tiny-limit
+  label: A limit below 1 has no threshold to find
+  code: |
+    assert smallest_witness(lambda n: n, lambda n: n, 1, 0) is None
+- id: dips-and-recovers
+  label: A single violation disqualifies every smaller threshold
+  hidden: true
+  code: |
+    # f(n) = n except for a spike at n = 7. The bound holds at n = 1, fails at
+    # n = 7, and holds forever after -- so the smallest witness is 8, not 1.
+    f = lambda n: 40 if n == 7 else n
+    got = smallest_witness(f, lambda n: n, 2, 20)
+    assert got == 8, got
+- id: violation-at-the-ceiling
+  label: A violation exactly at the ceiling yields None
+  hidden: true
+  code: |
+    f = lambda n: 999 if n == 12 else n
+    assert smallest_witness(f, lambda n: n, 2, 12) is None

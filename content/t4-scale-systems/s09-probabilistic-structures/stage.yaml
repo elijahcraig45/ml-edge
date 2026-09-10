@@ -1,0 +1,35 @@
+id: s09-probabilistic-structures
+tier: t4-scale-systems
+order: 9
+title: "Probabilistic Structures: Paying for Space with Error"
+status: published
+thesis: >-
+  When exactness is unaffordable, trade a provable error bound for space.
+summary: >-
+  Seven lessons on structures that are wrong on purpose. A Bloom filter answers
+  set membership in a few bits per item and never says "no" when the answer is
+  "yes". HyperLogLog counts a billion distinct users in 12 KB. Count-Min
+  finds heavy hitters in a stream you cannot store. Reservoir sampling keeps a
+  uniform sample of a stream whose length you do not know. MinHash and LSH turn
+  near-duplicate detection into hashing. Skip lists get balance from a coin
+  flip — and HNSW, the index under every vector database, is that same idea
+  generalised to a graph. Every claim here is derived, not asserted: you will
+  prove the false-positive rate and the uniformity of the reservoir, and you
+  will measure DuckDB's own approximate aggregates against the exact answers to
+  see the error is real and bounded.
+outcomes:
+  - Derive a Bloom filter's false-positive rate and the optimal number of hash functions, and explain why false negatives are impossible.
+  - Explain how HyperLogLog turns the longest run of leading zeros into a cardinality estimate with O(1/sqrt(m)) standard error.
+  - Build a Count-Min Sketch, state its epsilon/delta guarantee, and say why every estimate is an over-count and never an under-count.
+  - Prove that reservoir sampling leaves every item of an unknown-length stream in the sample with probability k/n.
+  - Estimate Jaccard similarity with MinHash, bucket candidates with LSH, and read a t-digest quantile.
+  - Explain skip-list balance as a probability argument, and describe HNSW as the same construction on a graph — including what M and ef_construction buy.
+  - Choose a cache eviction policy from an access pattern, and treat a materialized view as a cache with the same questions to answer.
+lessons:
+  - l01-bloom-filters
+  - l02-hyperloglog
+  - l03-count-min-sketch
+  - l04-reservoir-sampling
+  - l05-minhash-lsh-and-tdigest
+  - l06-skip-lists-and-hnsw
+  - l07-cache-eviction-and-materialized-views

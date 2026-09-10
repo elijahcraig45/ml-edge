@@ -1,0 +1,28 @@
+- id: simple-run
+  label: Finds a run in the middle of the table
+  code: |
+    assert longest_cluster([None, "a", "b", None, "c", None]) == 2
+- id: empty-table
+  label: A table with nothing in it has no cluster
+  code: |
+    assert longest_cluster([None, None, None]) == 0
+- id: full-table
+  label: A completely full table is one run of length n
+  code: |
+    assert longest_cluster(["a", "b", "c"]) == 3
+    assert longest_cluster(["a"]) == 1
+- id: wraps-around
+  label: A run that crosses slot 0 counts as one run
+  hidden: true
+  code: |
+    # Slots 3, 0 and 1 are a single cyclic run of length 3.
+    assert longest_cluster(["a", "b", None, "c"]) == 3
+    assert longest_cluster(["a", None, None, "b", "c"]) == 3
+- id: degenerate-inputs
+  label: Empty and single-slot tables behave
+  hidden: true
+  code: |
+    assert longest_cluster([]) == 0
+    assert longest_cluster([None]) == 0
+    # Zero is an occupied slot: only None means empty.
+    assert longest_cluster([0, 0, None]) == 2

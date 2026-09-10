@@ -1,0 +1,81 @@
+id: download-share
+kind: sql
+title: Compute the registry total once and reuse it
+difficulty: 3
+datasetId: package-registry
+pattern: memoization
+topics: [memoization]
+timeLimitMs: 15000
+prompt: |
+  Every package's share of total downloads needs two things: that package's
+  total, and the registry-wide total. The registry-wide total is the same number
+  for all twenty rows — a subproblem that recurs, which is the situation
+  memoization exists for.
+
+  Return one row per package, with exactly these three columns in this order:
+
+  - `name`
+  - `downloads` — that package's total across all days in `downloads`
+  - `pct_of_registry` — its percentage of the registry-wide total, rounded to 2
+    decimal places
+
+  Order by `downloads` descending, then `name` ascending. Twenty rows out.
+
+  **Write it with a `WITH` clause**, naming the per-package totals once and
+  referring to that name twice — once for the rows and once for the grand total.
+  The grader requires it. You could get the same answer with the aggregate spelled
+  out in two places; the point of this exercise is that you should not have to.
+
+  The top row should read `arrowkit`, `92000`, `25.29`.
+hints:
+  - "Start with the piece you need twice: `SELECT package_id, sum(count) AS downloads FROM downloads GROUP BY package_id`. Give it a name with WITH."
+  - "The registry total is a sum over that named result: `(SELECT sum(downloads) FROM totals)`. A scalar subquery is allowed anywhere a number is."
+  - "`count` is a column name here and also a function name. `sum(count)` works, and `sum(d.count)` is clearer if you alias the table."
+solutionWalkthrough: |
+  ```sql
+  WITH totals AS (
+    SELECT package_id, sum(count) AS downloads
+    FROM downloads
+    GROUP BY package_id
+  )
+  SELECT
+    p.name,
+    t.downloads,
+    round(t.downloads * 100.0 / (SELECT sum(downloads) FROM totals), 2) AS pct_of_registry
+  FROM totals t
+  JOIN packages p ON p.id = t.package_id
+  ORDER BY t.downloads DESC, p.name;
+  ```
+
+  `totals` is referenced twice and the engine builds it once. Run `EXPLAIN` over
+  this query and over the version with the aggregate written out twice, and the
+  difference is visible as plan shape: one `CTE` node with two `CTE_SCAN`
+  consumers, against two `SEQ_SCAN`s each with its own hash aggregation. That is the
+  dictionary and the cache hit, drawn as operators.
+
+  The result is worth looking at as data, not only as SQL. `arrowkit` is 25.29%
+  of all downloads and `treewalk` is 1.78% — a fourteen-fold spread across twenty
+  packages, because the seed data is deliberately Zipf-shaped the way real
+  registry traffic is. That skew is not decoration: it is what makes the hashing
+  stage's straggler problem real, and what makes the flat-selectivity estimate
+  from lesson 1 wrong in the direction that hurts.
+
+  `100.0` rather than `100` is the same integer-division trap as before. So is
+  rounding once at the end rather than rounding `downloads` first.
+
+grading:
+  # The ordering is the report: biggest share first.
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 20
+      message: >-
+        Twenty rows — one per package. Every package has download rows, so no
+        package should drop out of the join.
+    - type: syntax
+      pattern: "\\bwith\\b"
+      message: >-
+        Name the per-package totals with a WITH clause and reference it twice.
+        Spelling the aggregate out in two places makes the engine compute it
+        twice, which is the thing this exercise is about.

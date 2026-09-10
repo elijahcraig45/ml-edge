@@ -1,0 +1,47 @@
+- id: simple-chain
+  label: Finds the path along a chain
+  code: |
+    g = {"a": ["b"], "b": ["c"], "c": ["d"], "d": []}
+    assert shortest_path(g, "a", "d") == ["a", "b", "c", "d"]
+- id: prefers-fewer-edges
+  label: Takes the two-edge route over the four-edge one
+  code: |
+    g = {
+        "a": ["b", "z"],
+        "b": ["c"], "c": ["d"], "d": ["e"], "e": ["f"],
+        "z": ["f"],
+        "f": [],
+    }
+    assert shortest_path(g, "a", "f") == ["a", "z", "f"]
+- id: same-node
+  label: start == goal is a one-node path
+  code: |
+    g = {"a": ["b"], "b": []}
+    assert shortest_path(g, "a", "a") == ["a"]
+- id: unreachable
+  label: Returns None when no path exists
+  code: |
+    g = {"a": ["b"], "b": [], "c": ["a"]}
+    assert shortest_path(g, "a", "c") is None
+- id: cycle-terminates
+  label: A cycle does not stop it terminating
+  hidden: true
+  code: |
+    g = {"a": ["b"], "b": ["c"], "c": ["a", "d"], "d": []}
+    assert shortest_path(g, "a", "d") == ["a", "b", "c", "d"]
+    assert shortest_path(g, "d", "a") is None
+- id: missing-node
+  label: A start or goal that is not in the graph returns None
+  hidden: true
+  code: |
+    g = {"a": ["b"], "b": []}
+    assert shortest_path(g, "a", "zzz") is None
+    assert shortest_path(g, "zzz", "a") is None
+- id: tie-follows-adjacency-order
+  label: Among equal-length paths, follows the adjacency-list order
+  hidden: true
+  code: |
+    # Two two-edge routes to "t". "b" is listed before "c", so BFS discovers
+    # "t" from "b" first and that is the parent that gets recorded.
+    g = {"s": ["b", "c"], "b": ["t"], "c": ["t"], "t": []}
+    assert shortest_path(g, "s", "t") == ["s", "b", "t"]

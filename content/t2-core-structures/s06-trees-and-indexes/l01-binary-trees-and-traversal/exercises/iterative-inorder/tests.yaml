@@ -1,0 +1,38 @@
+- id: balanced
+  label: Inorder on a full three-level tree
+  code: |
+    tree = (
+        "d",
+        ("b", ("a", None, None), ("c", None, None)),
+        ("f", ("e", None, None), ("g", None, None)),
+    )
+    assert inorder_iterative(tree) == ["a", "b", "c", "d", "e", "f", "g"]
+- id: empty
+  label: The empty tree gives an empty list
+  code: |
+    assert inorder_iterative(None) == []
+- id: single
+  label: A one-node tree
+  code: |
+    assert inorder_iterative((7, None, None)) == [7]
+- id: right-chain
+  label: A right-leaning chain
+  code: |
+    tree = (1, None, (2, None, (3, None, None)))
+    assert inorder_iterative(tree) == [1, 2, 3]
+- id: deep-left-chain
+  label: A 5,000-node left chain does not overflow the stack
+  hidden: true
+  code: |
+    tree = None
+    for value in range(1, 5001):
+        tree = (value, tree, None)   # each new node becomes the root
+    assert inorder_iterative(tree) == list(range(1, 5001))
+- id: right-subtree-after-pop
+  label: The right subtree of an interior node is not skipped
+  hidden: true
+  code: |
+    # "b" has a right child; a loop that forgets `node = node[2]` after popping
+    # returns ["a", "b", "d"] and loses "c".
+    tree = ("d", ("b", ("a", None, None), ("c", None, None)), None)
+    assert inorder_iterative(tree) == ["a", "b", "c", "d"]

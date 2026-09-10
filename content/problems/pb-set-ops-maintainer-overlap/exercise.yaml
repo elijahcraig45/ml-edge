@@ -1,0 +1,115 @@
+id: pb-set-ops-maintainer-overlap
+kind: sql
+title: INTERSECT and EXCEPT, three buckets
+difficulty: 3
+pattern: set-operations
+stage: s03-linear-structures
+topics: [intersect, except]
+datasetId: package-registry
+timeLimitMs: 15000
+prompt: |
+  Two sets of maintainers: those attached to at least one MIT-licensed package,
+  and those attached to at least one package with no declared license.
+
+  Classify every maintainer who is in at least one of them:
+
+  - `handle`
+  - `bucket` — `both`, `mit-only`, or `undeclared-only`
+
+  Nine rows. `ada` maintains only Apache-2.0 packages and appears in neither set,
+  so she is absent entirely. Order does not matter.
+
+  Build it from `INTERSECT` and `EXCEPT` over the two sets rather than from a
+  pile of `EXISTS` clauses. Note that `EXCEPT` is directional: `mit EXCEPT
+  undeclared` and `undeclared EXCEPT mit` are different sets, and you need both.
+hints:
+  - "Define the two sets once, in CTEs, and then combine them three ways. Writing the membership test out four times is how the buckets drift apart."
+  - "`INTERSECT` gives you `both`. `EXCEPT` in each direction gives you the two one-sided buckets. Glue the three results together with `UNION ALL` — the buckets are disjoint by construction, so there is nothing to deduplicate."
+  - "`INTERSECT` and `EXCEPT` deduplicate their inputs, which is what makes them safe over `package_maintainers`: a maintainer attached to three MIT packages appears once, not three times."
+solutionWalkthrough: |
+  ```sql
+  WITH mit AS (
+    SELECT pm.maintainer_id
+    FROM package_maintainers pm
+    JOIN packages p ON p.id = pm.package_id
+    WHERE p.license = 'MIT'
+  ),
+  undeclared AS (
+    SELECT pm.maintainer_id
+    FROM package_maintainers pm
+    JOIN packages p ON p.id = pm.package_id
+    WHERE p.license IS NULL
+  ),
+  buckets AS (
+    SELECT maintainer_id, 'both'            AS bucket FROM (SELECT * FROM mit        INTERSECT SELECT * FROM undeclared)
+    UNION ALL
+    SELECT maintainer_id, 'mit-only'                  FROM (SELECT * FROM mit        EXCEPT    SELECT * FROM undeclared)
+    UNION ALL
+    SELECT maintainer_id, 'undeclared-only'           FROM (SELECT * FROM undeclared EXCEPT    SELECT * FROM mit)
+  )
+  SELECT m.handle, b.bucket
+  FROM buckets b
+  JOIN maintainers m ON m.id = b.maintainer_id;
+  ```
+
+  `grace` and `linus` in both. Five in `mit-only`, two in `undeclared-only`.
+
+  The set operators are doing two jobs at once and it is worth separating them.
+  They combine relations — which a join also does — and they *deduplicate*, which
+  a join does not. `mit` on its own returns 13 rows for 7 distinct maintainers,
+  because `package_maintainers` is many-to-many and grace maintains several MIT
+  packages. `INTERSECT` collapses that automatically. Written with `EXISTS` you
+  would have to remember `DISTINCT`, and forgetting it produces duplicate rows
+  that look like a data problem rather than a query problem.
+
+  The `ALL` variants exist and behave differently: `INTERSECT ALL` keeps the
+  minimum multiplicity across both sides, `EXCEPT ALL` subtracts multiplicities.
+  Those are the right tools when the duplicates carry meaning — reconciling two
+  ledgers, for instance — and the wrong tools here, where you want set
+  membership.
+
+  Note the NULL handling you get for free. `undeclared` is defined by `license IS
+  NULL`, which is a filter, not a comparison, so it works. And `EXCEPT` itself
+  treats NULLs as not-distinct-from each other, exactly like `GROUP BY` does and
+  unlike `=` does — so a set operation over nullable columns does not have the
+  `NOT IN` problem. That is a real reason to prefer `EXCEPT` to `NOT IN` when the
+  values might be missing.
+
+  `UNION ALL` rather than `UNION` for the final glue is deliberate. The three
+  buckets are provably disjoint, so `UNION` would spend a sort or a hash proving
+  something you already know.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 9
+      message: >-
+        Expected 9 maintainers. Ten means `ada` slipped in — she maintains only
+        Apache-2.0 packages and belongs to neither set.
+    - type: syntax
+      pattern: "\\bintersect\\b"
+      negate: false
+      message: The `both` bucket is an intersection; write it as one.
+    - type: syntax
+      pattern: "\\bexcept\\b"
+      negate: false
+      message: >-
+        The two one-sided buckets are set differences, and `EXCEPT` is
+        directional — you need it in both directions.
+    - type: predicate
+      sql: "SELECT count(*) FILTER (WHERE bucket = 'both') = 2 AND count(*) FILTER (WHERE bucket = 'mit-only') = 5 AND count(*) FILTER (WHERE bucket = 'undeclared-only') = 2 FROM __learner"
+      message: >-
+        The buckets should split 2 / 5 / 2. Equal one-sided buckets usually means
+        the same `EXCEPT` was written twice.
+    - type: predicate
+      sql: "SELECT count(*) = count(DISTINCT handle) FROM __learner"
+      message: >-
+        A maintainer must land in exactly one bucket. Duplicates mean the
+        many-to-many link table was not deduplicated.
+    - type: predicate
+      sql: "SELECT bucket = 'both' FROM __learner WHERE handle = 'grace'"
+      message: >-
+        `grace` maintains MIT packages and an unlicensed one, so she belongs in
+        `both`.

@@ -1,0 +1,46 @@
+id: package-summary
+kind: python
+title: Summarise a list of packages
+difficulty: 1
+pattern: iteration
+timeLimitMs: 10000
+prompt: |
+  You are given a list of packages. Each package is a dictionary with a
+  `name`, a `size_kb`, and a `language`.
+
+  Write `summarise(packages)` so it returns a dictionary with three keys:
+
+  - `count` — how many packages there are
+  - `total_kb` — the sum of every `size_kb`
+  - `largest` — the `name` of the biggest package, or `None` when the list is empty
+
+  **An empty list must not raise.** Return `{"count": 0, "total_kb": 0, "largest": None}`.
+
+  ```
+  summarise([{"name": "arrowkit", "size_kb": 190, "language": "python"}])
+  # {"count": 1, "total_kb": 190, "largest": "arrowkit"}
+  ```
+hints:
+  - "Handle the empty list first, before any loop. Deciding what an empty input returns is part of the problem, not an afterthought."
+  - "You need a running total and a running best. Initialise the best to the first package rather than to None, and you avoid a special case inside the loop."
+  - "`max(packages, key=lambda p: p[\"size_kb\"])[\"name\"]` gives the largest name in one expression — but only after you have handled the empty case, because `max` of an empty sequence raises."
+solutionWalkthrough: |
+  The empty case is checked once, up front, so the rest of the function can
+  assume there is at least one package:
+
+  ```python
+  def summarise(packages):
+      if not packages:
+          return {"count": 0, "total_kb": 0, "largest": None}
+      largest = max(packages, key=lambda p: p["size_kb"])
+      return {
+          "count": len(packages),
+          "total_kb": sum(p["size_kb"] for p in packages),
+          "largest": largest["name"],
+      }
+  ```
+
+  Three passes over the list here (`max`, `len`, `sum`) instead of one. At this
+  size that is irrelevant, and the version above is far easier to read — which
+  is the right trade until a measurement says otherwise. Stage 2 gives you the
+  vocabulary to say precisely when it stops being the right trade.

@@ -1,450 +1,129 @@
 # The ML Edge
 
-A self-directed ML/data science learning platform built for depth over breadth — dark-mode terminal aesthetic, fully authored interactive lessons, daily AI news digests, streak-tracked quizzes, and a 13-course curriculum mapped to ML engineering competency. Deployed to Google Cloud Run.
+A free data structures and algorithms curriculum, from first principles to
+graduate level, taught in **Python and SQL** — with every exercise runnable and
+auto-graded in the browser.
 
-**Live:** https://mle-edge.dev
+Live at [mle-edge.dev](https://mle-edge.dev).
 
----
+## The idea
 
-## What it is
+Every data structure has an exact relational twin, and almost nobody teaches the
+pair together.
 
-The ML Edge is a personal tutor platform I built to study ML and data science systematically. The goal was to replace "read a paper, forget it" with a structured interactive experience: authored lessons with checkpoints, guided practice problems, difficulty-graded challenges, lesson quizzes, and course badge assessments.
+- A hash join **is** a hash table.
+- A merge join **is** merge sort.
+- An index scan **is** a B-tree search.
+- A window function **is** a sliding-window scan.
+- A recursive CTE **is** breadth-first search — where `UNION` vs `UNION ALL`
+  literally *is* the visited set.
+- The optimiser's join enumeration **is** bitmask DP.
 
-It also has a daily loop: every morning Cloud Scheduler triggers a Gemini-powered digest built from deduplicated NewsAPI coverage from the last 24 hours, which becomes that day's headline plus a structured technical deep dive. The daily quiz is sourced separately from an authored foundations question bank spanning DS&A and ML/AI.
+So SQL is not a separate track here. It is woven through every stage as the
+answer to "how does a real system do this at scale?"
 
-### Curriculum
+## How it works
 
-13 courses, 48 authored lessons, 96 practice problems, 69 badge assessment questions. All written by hand — no placeholder content.
+- **Everything runs in your browser.** Python via Pyodide, SQL via DuckDB-WASM.
+  No accounts, no sandbox service, no per-submission server cost.
+- **Python is graded against hidden tests**, in a fresh namespace per test, with
+  a timeout that survives an infinite loop.
+- **SQL is graded three ways**: result-set equivalence against a reference
+  solution run in your own engine, optional assertions on row counts and result
+  predicates, and — the unusual one — assertions on the **execution plan**.
+  That is the only way to teach index design as a skill rather than a story.
+- **Correct-but-slow is rejected.** Exercises can carry a complexity budget, so
+  a quadratic solution to a linear problem fails even though its answer is right.
+- **One lesson, three ways through it.** A required spine plus optional
+  `interview`, `proof` and `systems` passes. Choosing a pass only ever adds
+  content.
+- **Progress is yours.** localStorage by default; sign in to sync across devices.
 
-| # | Course | Lessons |
-|---|--------|---------|
-| 1 | Mathematical Thinking for Machine Learning | 4 |
-| 2 | ML Problem Framing & Evaluation | 4 |
-| 3 | Statistical Inference & Probabilistic Modeling | 2 |
-| 4 | Scientific Computing & Data Systems for MLEs | 2 |
-| 5 | History of AI/ML | 4 |
-| 6 | Classical ML & Statistical Learning | 4 |
-| 7 | Deep Learning & Representation Engineering | 4 |
-| 8 | ML Systems & MLOps | 4 |
-| 9 | LLM, RAG & Agentic Systems | 4 |
-| 10 | Reliable, Responsible & Frontier ML | 4 |
-| 11 | Computer Vision & Multimodal Systems | 3 |
-| 12 | Reinforcement Learning & Sequential Decision-Making | 3 |
-| 13 | Data Structures & Algorithms | 6 |
-
-Each lesson contains:
-- Lecture segments with applied engineering lens + checkpoint questions
-- Guided tutorial steps
-- Two practice problems (warm-up + challenge) with hints, solutions, and a "check your work" rubric
-- A 2-question lesson quiz with a checklist gate
-- An engineer's checklist of takeaways
-
-Courses end with a multi-question badge assessment that unlocks only after all lessons are completed.
-
----
-
-## Screenshots
-
-| Dashboard | Curriculum |
-|-----------|------------|
-| ![Dashboard](docs/screenshots/dashboard.png) | ![Curriculum](docs/screenshots/curriculum-page.png) |
-
-| Interactive Lesson | Practice Problem |
-|--------------------|-----------------|
-| ![Lesson](docs/screenshots/lesson-mid.png) | ![Practice](docs/screenshots/practice-solution.png) |
-
-| Course Overview | Quiz |
-|-----------------|------|
-| ![Course](docs/screenshots/course-page.png) | ![Quiz](docs/screenshots/quiz-graded.png) |
-
----
-
-## Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 16 App Router, TypeScript, Tailwind CSS |
-| Auth | Firebase Auth (Google OAuth) — graceful guest-mode fallback |
-| Database | Firestore (learner progress, daily content, curriculum metadata) |
-| AI | Gemini 2.5 Flash (daily digest generation) + NewsAPI |
-| Storage | Google Cloud Storage (curriculum + question-bank artifacts) |
-| Analytics | BigQuery (curriculum publish lineage, resource catalog) |
-| Hosting | Google Cloud Run (containerized, always-on) |
-| CI/CD | Google Cloud Build (Docker image build + push to Artifact Registry) |
-| Scheduling | Cloud Scheduler (daily 8AM ET digest trigger) |
-| Progress | `localStorage` + `useSyncExternalStore` (syncs to Firestore when signed in) |
-
----
-
-## Architecture
+## Repository layout
 
 ```
-Browser
-  └─ Next.js App Router (Cloud Run)
-       ├─ /dashboard          → daily headline + quiz CTA
-       ├─ /curriculum         → full 13-course map
-       ├─ /curriculum/authored/[course]/lessons/[id]
-       │     └─ InteractiveLessonExperience (client component)
-       │          ├─ Segment progress tracker
-       │          ├─ Checkpoint textareas
-       │          ├─ Practice problems (hint / solution / check-your-work)
-       │          ├─ Lesson quiz (checklist-gated grading)
-       │          └─ localStorage ↔ Firestore sync
-       ├─ /quiz               → daily quiz (streak tracking)
-       └─ /news               → AI-generated deep dive
+content/            All authored curriculum. Markdown + YAML, no TypeScript.
+  AUTHORING.md      How to write a lesson. Read before contributing content.
+  curriculum.yaml   Tier and stage order.
+  datasets/         Shared SQL datasets.
+  problems/         Standalone problems for the bank.
+  <tier>/<stage>/   Lessons.
 
-API Routes (server-side, Cloud Run)
-  ├─ POST /api/cron/daily-update     → Gemini digest + Firestore write
-  ├─ POST /api/admin/seed-curriculum → Firestore curriculum seed
-  ├─ POST /api/admin/publish-curriculum → GCS + BigQuery publish
-  └─ POST /api/admin/publish-question-bank → GCS + Firestore metadata publish
-
-Background
-  └─ Cloud Scheduler → daily-update cron (8AM ET)
+lib/curriculum/     Schema, compiler, loader.  README.md explains the system.
+lib/runtime/        Pyodide worker + DuckDB client, and the graders.
+lib/progress/       localStorage progress and Firestore sync.
+components/learn/   The lesson renderer.
+components/problems/The problem bank and interview mode.
+app/learn/          Curriculum routes (statically prerendered).
+app/problems/       Problem bank routes.
+scripts/            Content checker, scaffolding, runtime vendoring.
 ```
 
-**Data flow for curriculum:** source metadata in `lib/` → `seedCurriculum()` writes to Firestore → `publishCurriculum()` uploads versioned artifact to GCS and writes lineage rows to BigQuery.
-
-**Data flow for foundations question bank:** authored source in `lib/` → `publishQuestionBankArtifact()` uploads a versioned JSON artifact to GCS and writes the active version metadata to Firestore → runtime pages load the published artifact with an in-repo fallback when nothing has been published yet.
-
-**Progress:** stored in `localStorage` keyed by `lesson-progress:{courseSlug}:{lessonId}`. Syncs to Firestore `users/{uid}` on sign-in. Guest mode works fully offline.
-
----
+Two documents carry the detail: **`lib/curriculum/README.md`** for how the
+system works, and **`content/AUTHORING.md`** for how to write for it.
 
 ## Local setup
 
 ```bash
 npm install
+npm run dev          # http://localhost:3000
 ```
 
-Create `.env.local`:
+No environment variables are required. Firebase is entirely optional — every
+feature works signed out.
+
+To see unpublished content locally:
 
 ```bash
-# Firebase (client-side)
-NEXT_PUBLIC_FIREBASE_API_KEY=
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
-NEXT_PUBLIC_FIREBASE_APP_ID=
-
-# Firebase Admin (server-side) — leave empty to use Application Default Credentials
-FIREBASE_PROJECT_ID=
-FIREBASE_CLIENT_EMAIL=
-FIREBASE_PRIVATE_KEY=
-
-# AI / News
-NEWS_API_KEY=
-GEMINI_API_KEY=
-
-# Admin API auth
-CRON_SECRET=
-
-# GCP
-GCS_CURRICULUM_BUCKET=
-BIGQUERY_CURRICULUM_DATASET=
+NEXT_PUBLIC_CURRICULUM_PREVIEW=1 npm run dev
 ```
 
-```bash
-npm run dev
-```
-
-Firebase Auth and Firestore are optional for local development. The app runs fully in guest mode without them — all lesson progress is stored in `localStorage`.
-
----
-
-## Deploy to Cloud Run
-
-**Build and push the container:**
-
-```bash
-gcloud builds submit \
-  --tag us-central1-docker.pkg.dev/YOUR_PROJECT/YOUR_REPO/mledge:latest \
-  --project YOUR_PROJECT
-```
-
-**Deploy:**
-
-```bash
-gcloud run deploy mledge \
-  --image us-central1-docker.pkg.dev/YOUR_PROJECT/YOUR_REPO/mledge:latest \
-  --platform managed \
-  --region us-central1 \
-  --allow-unauthenticated \
-  --project YOUR_PROJECT
-```
-
-> `NEXT_PUBLIC_*` vars bake into the JS bundle at build time — include `.env.local` before running `gcloud builds submit`. Server-side vars (`FIREBASE_PROJECT_ID`, `GEMINI_API_KEY`, etc.) should be set as Cloud Run environment variables or via Secret Manager.
-
-**Seed Firestore after first deploy:**
-
-```bash
-curl -X POST https://YOUR_CLOUD_RUN_URL/api/admin/seed-curriculum \
-  -H "Authorization: Bearer YOUR_CRON_SECRET"
-```
-
-**Publish curriculum artifact to GCS + BigQuery:**
-
-```bash
-curl -X POST https://YOUR_CLOUD_RUN_URL/api/admin/publish-curriculum \
-  -H "Authorization: Bearer YOUR_CRON_SECRET"
-```
-
-**Publish question-bank artifact to GCS + Firestore metadata:**
-
-```bash
-curl -X POST https://YOUR_CLOUD_RUN_URL/api/admin/publish-question-bank \
-  -H "Authorization: Bearer YOUR_CRON_SECRET"
-```
-
-**Create the Cloud Scheduler job:**
-
-```bash
-gcloud scheduler jobs create http mledge-daily-update \
-  --location us-central1 \
-  --schedule "0 8 * * *" \
-  --time-zone "America/New_York" \
-  --uri "https://YOUR_CLOUD_RUN_URL/api/cron/daily-update" \
-  --http-method POST \
-  --headers "Authorization=Bearer YOUR_CRON_SECRET"
-```
-
----
-
-## Firestore schema
-
-```
-users/
-  {uid}: { uid, email, streakCount, lastLogin, completedModules: string[] }
-
-daily_content/
-  {YYYY-MM-DD}: { date, headline, technicalSummary, deepDive: { tldr, themes: [], industryState }, status, sourceArticles: [] }
-
-question_bank_meta/
-  current: { version, generatedAt, strategy, gcsBucket, gcsObjectPrefix, questionCount, topicCount, countsByLevel }
-
-curriculum_courses/
-  {id}: { id, slug, title, level, timeframe, summary, prerequisites, outcomes, modules: [...] }
-
-curriculum_tracks/
-  {id}: { courseId, title, description, stages: [{ id, title, objective, resourceIds }] }
-
-curriculum_resources/
-  {id}: { id, title, provider, url, format, accessModel, license, topics, difficulty }
-
-curriculum_meta/
-  latest: { version, generatedAt, courseCount, resourceCount, trackCount, gcsBucket }
-```
-
----
-
-## Project structure
-
-```
-app/                   Next.js App Router pages and API routes
-  api/admin/           Seed and publish endpoints (auth: Bearer CRON_SECRET)
-  api/cron/            Daily digest trigger
-  curriculum/          Curriculum map, authored lessons, library, tracks
-  dashboard/           Daily headline + quiz CTA
-  news/                AI-generated deep dive
-  quiz/                Daily streak quiz
-components/
-  curriculum/          InteractiveLessonExperience, CourseOutline, CourseBadgeAssessment
-  ui/                  Panel, shared primitives
-context/               Firebase context (auth + Firestore)
-lib/
-  authored-academy.ts       13-course authored academy definitions
-  authored-hosted-lessons.ts 42 fully authored lessons (hook, segments, tutorials)
-  authored-practice-problems.ts 84 practice problems with hints + solutions
-  authored-question-bank.ts 1850 authored DS&A + ML/AI questions + daily quiz selector
-  question-bank-pipeline.ts  publish/read helpers for the GCS-backed question bank
-  content.ts                Server-side data layer (seed, publish, daily content)
-  curriculum-program.ts     ML Engineer Program course definitions
-  curriculum-catalog.ts     Supporting curriculum catalog
-  lesson-progress.ts        localStorage progress store
-  course-achievements.ts    Badge achievement store
-data/
-  open-resource-catalog.json    Curated open-license resource metadata
-  curriculum-resource-tracks.json Learning track definitions
-```
-
----
-
-## Key technical decisions
-
-**Guest mode first.** Firebase is entirely optional. Every feature works without an account — progress lives in `localStorage` and syncs to Firestore only when signed in. This makes the app fully functional without any auth setup.
-
-**`useSyncExternalStore` for localStorage.** Lesson progress and badge state use React's external store primitive rather than context, which gives correct hydration behavior on SSR and avoids prop-drilling.
-
-**Firestore rejects `undefined`.** Any object key explicitly set to `undefined` causes Firestore to throw. TypeScript optional fields (`project?: CurriculumProject`) still produce `project: undefined` when the variable is `undefined`. All Firestore writes use conditional spreads: `...(val !== undefined ? { key: val } : {})`.
-
-**Cloud Run with ADC.** The Cloud Run service account (`roles/datastore.user`) uses Application Default Credentials for Firebase Admin — no service account key file needed. `FIREBASE_CLIENT_EMAIL` and `FIREBASE_PRIVATE_KEY` are left empty in production.
-
-**`useSyncExternalStore` snapshot stability.** Snapshots must return stable primitives — returning a new array on every call causes React Error #185 (infinite render loop). Completed lesson lists are serialized to comma-joined strings and split in `useMemo`.
-
----
-
-## Useful commands
-
-```bash
-npm run dev       # local dev server
-npm run build     # production build
-npm run lint      # ESLint
-npm run publish:question-bank  # publish authored foundations bank artifact
-```
-
-
-## Stack
-
-- Next.js App Router + TypeScript + Tailwind CSS
-- Firebase Auth with Google OAuth
-- Firestore for users, daily content, and curriculum
-- NewsAPI + Gemini 2.5 Flash for the automated news brief
-- Google Cloud Storage for published curriculum and question-bank artifacts
-- Google Cloud Run + Cloud Scheduler for deployment and daily content generation
-
-## Local setup
-
-1. Install dependencies:
-
-```bash
-npm install
-```
-
-2. Create an `.env.local` file:
-
-```bash
-NEXT_PUBLIC_FIREBASE_API_KEY=
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
-NEXT_PUBLIC_FIREBASE_APP_ID=
-FIREBASE_PROJECT_ID=
-FIREBASE_CLIENT_EMAIL=
-FIREBASE_PRIVATE_KEY=
-NEWS_API_KEY=
-GEMINI_API_KEY=
-CRON_SECRET=
-GCS_CURRICULUM_BUCKET=
-BIGQUERY_CURRICULUM_DATASET=
-```
-
-3. Start the app:
-
-```bash
-npm run dev
-```
-
-## Firestore collections
-
-```text
-users: { uid, email, streakCount, lastLogin, completedModules: [] }
-daily_content: { date, headline, technicalSummary, deepDive: { tldr, themes: [], industryState }, status: "generated", sourceArticles: [] }
-question_bank_meta: { version, generatedAt, strategy, gcsBucket, gcsObjectPrefix, questionCount, topicCount, countsByLevel }
-curriculum_meta: { version, generatedAt, strategy, gcsBucket, gcsObjectPrefix, courseCount, resourceCount, trackCount }
-curriculum_courses: { id, slug, title, level, timeframe, summary, whyItMatters, prerequisites: [], outcomes: [], tags: [], modules: [...], capstone: {...} }
-curriculum_tracks: { courseId, title, description, stages: [{ id, title, objective, resourceIds: [], feedbackLoop }] }
-curriculum_resources: { id, title, provider, url, format, accessModel, license, topics, difficulty, notes }
-```
-
-## Curriculum storage model
-
-- **GCS**: raw source metadata snapshots plus published curriculum and question-bank artifacts
-- **Firestore**: app-serving snapshot for curriculum, tracks, resources, and learner progress
-- **BigQuery**: resource catalog lineage, prerequisite graph, publish versions, and future assessment analytics
-
-This keeps the live app fast while moving heavyweight artifacts and analytics out of the codebase.
-
-If Firebase is not configured yet, you can still build curriculum with **BigQuery now** and add **GCS** later. GCS bucket creation may require a billing-enabled project even if you stay within free-tier usage.
-
-The curriculum pipeline is designed around **open-license resources only**. The platform stores metadata, sequencing, generated notes, exercises, grading logic, and publish artifacts rather than republishing third-party copyrighted lesson text.
-
-## Curriculum publish flow
-
-1. Curate source metadata in `data/open-resource-catalog.json` and ordered learning flows in `data/curriculum-resource-tracks.json`
-2. Generate or revise curriculum artifacts in the app pipeline
-3. Publish to GCS, Firestore, and BigQuery through:
-
-```bash
-curl -X POST https://YOUR_CLOUD_RUN_URL/api/admin/publish-curriculum \
-  -H "X-Admin-Secret: YOUR_CRON_SECRET"
-```
-
-Publish the foundations question bank artifact through:
-
-```bash
-curl -X POST https://YOUR_CLOUD_RUN_URL/api/admin/publish-question-bank \
-  -H "X-Admin-Secret: YOUR_CRON_SECRET"
-```
-
-If you only want to seed Firestore without GCS/BigQuery publishing, use:
-
-```bash
-curl -X POST https://YOUR_CLOUD_RUN_URL/api/admin/seed-curriculum \
-  -H "X-Admin-Secret: YOUR_CRON_SECRET"
-```
-
-For local development with Application Default Credentials, you can publish directly without Firebase:
-
-```bash
-npm run publish:curriculum
-npm run publish:question-bank
-```
-
-That publishes curriculum to **BigQuery** if `BIGQUERY_CURRICULUM_DATASET` is set or falls back to dataset name `curriculum`. Both publish commands write artifacts to **GCS** only when `GCS_CURRICULUM_BUCKET` is set.
-
-## Deploy to Cloud Run
-
-Build the container with Cloud Build:
-
-```bash
-gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/the-ml-edge
-```
-
-Deploy to Cloud Run:
-
-```bash
-gcloud run deploy the-ml-edge \
-  --image gcr.io/YOUR_PROJECT_ID/the-ml-edge \
-  --platform managed \
-  --region us-central1 \
-  --allow-unauthenticated \
-  --set-env-vars NEXT_PUBLIC_FIREBASE_API_KEY=YOUR_VALUE,NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=YOUR_VALUE,NEXT_PUBLIC_FIREBASE_PROJECT_ID=YOUR_VALUE,NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=YOUR_VALUE,NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=YOUR_VALUE,NEXT_PUBLIC_FIREBASE_APP_ID=YOUR_VALUE,FIREBASE_PROJECT_ID=YOUR_VALUE,NEWS_API_KEY=YOUR_VALUE,GEMINI_API_KEY=YOUR_VALUE,CRON_SECRET=YOUR_VALUE,GCS_CURRICULUM_BUCKET=YOUR_BUCKET,BIGQUERY_CURRICULUM_DATASET=YOUR_DATASET
-```
-
-If you use an explicit Firebase service account outside Application Default Credentials, add:
-
-```bash
-gcloud run services update the-ml-edge \
-  --region us-central1 \
-  --set-env-vars FIREBASE_CLIENT_EMAIL=YOUR_VALUE,FIREBASE_PRIVATE_KEY='YOUR_VALUE'
-```
-
-## Create the Cloud Scheduler job
-
-The cron route accepts `X-Cron-Secret` and writes the generated daily deep dive to `daily_content/{YYYY-MM-DD}`.
-
-```bash
-gcloud scheduler jobs create http ml-edge-daily-update \
-  --location us-central1 \
-  --schedule "0 12 * * *" \
-  --time-zone "America/New_York" \
-  --uri "https://YOUR_CLOUD_RUN_URL/api/cron/daily-update" \
-  --http-method POST \
-  --headers "X-Cron-Secret=YOUR_CRON_SECRET"
-```
-
-Run it immediately:
-
-```bash
-gcloud scheduler jobs run ml-edge-daily-update --location us-central1
-```
-
-## Useful commands
-
-```bash
-npm run lint
-npm run build
-npm run publish:question-bank
-```
+## Commands
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Dev server; content hot-reloads |
+| `npm run build` | Production build; prerenders every lesson and problem |
+| `npm run verify` | lint + types + unit tests + content check |
+| `npm run test` | Vitest unit tests |
+| `npm run test:e2e` | Playwright, against a locally built server |
+| `npm run test:smoke` | Playwright against production |
+| `npm run curriculum:check` | **Executes every authored exercise.** See below |
+| `npm run curriculum:check -- --stage <tier>/<stage>` | Validate one stage |
+| `npm run curriculum:new -- --tier … --stage … --lesson … --id …` | Scaffold a lesson |
+| `npm run runtimes:vendor` | Mirror the wasm runtimes into `public/` |
+
+## The content contract
+
+`curriculum:check` is the reason content can be trusted. It does not lint — it
+runs things:
+
+- Every file parses and validates against its Zod schema.
+- Every exercise reference, dataset reference and prerequisite resolves.
+- **Every Python solution passes its own tests**, under real CPython.
+- **Every Python starter fails** at least one test — or, for a
+  budgeted exercise, fails the budget. A starter that already passes is a build
+  failure, because the exercise would be a no-op.
+- **Every Python solution meets its own complexity budget**, so a budget cannot
+  be so tight it rejects correct answers.
+- **Every SQL solution passes its own grading** in real DuckDB, and every SQL
+  starter fails.
+
+CI runs this before anything deploys.
+
+Its one honest limit: the reference solution *is* the oracle, so a solution that
+correctly answers the wrong question will pass. Pin the intent with a `rowcount`
+or `predicate` assertion when the prose makes a specific claim.
+
+## Deployment
+
+Cloud Run, via GitHub Actions on push to `main`, gated on the verify job. See
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the cost model, Firestore rules,
+and environment variables.
+
+## History
+
+An earlier version of this site was a broader ML curriculum with a daily news
+and quiz pipeline. It has been retired: those routes now redirect to the
+curriculum, and roughly 16,500 lines of content-as-TypeScript came out with it.
+Git history has all of it if you want to look.

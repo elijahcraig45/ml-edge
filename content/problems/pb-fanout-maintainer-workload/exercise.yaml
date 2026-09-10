@@ -1,0 +1,111 @@
+id: pb-fanout-maintainer-workload
+kind: sql
+title: Two child tables, one maintainer
+difficulty: 4
+pattern: fan-out
+stage: s03-linear-structures
+topics: [pre-aggregation, having]
+datasetId: package-registry
+timeLimitMs: 20000
+prompt: |
+  Build a workload report for the maintainers who look after **two or more**
+  packages. One row each:
+
+  - `handle`
+  - `packages` — distinct packages they are linked to
+  - `total_size_kb` — the summed `size_kb` of every release of those packages
+  - `total_downloads` — the summed download count of those packages
+
+  Eight maintainers qualify. Order does not matter.
+
+  `versions` and `downloads` are both children of `packages` and they share no
+  key with each other. Join both into one `FROM` clause and every release row is
+  paired with every download row of the same package: `grace` comes out at
+  14,610 KB instead of 1,461, and 355,800 downloads instead of 139,920.
+hints:
+  - "Look at the inflation factors. Grace's size is exactly 10× too big and her downloads are somewhere between 2× and 3× too big. Ten is the number of days in `downloads`; the other factor is her release count."
+  - "Two sibling child tables joined to the same parent produce a cross product within each parent key. Neither `DISTINCT` nor `count(DISTINCT ...)` can undo it for a `SUM`, because the duplicated values are genuinely equal."
+  - "Collapse each child table to one row per `package_id` in its own CTE first, then join those two single-grain tables to `package_maintainers`. Nothing can multiply when both sides are unique on the join key."
+solutionWalkthrough: |
+  ```sql
+  WITH release_size AS (
+    SELECT package_id, sum(size_kb) AS size_kb
+    FROM versions
+    GROUP BY package_id
+  ),
+  package_downloads AS (
+    SELECT package_id, sum(count) AS downloads
+    FROM downloads
+    GROUP BY package_id
+  )
+  SELECT
+    m.handle,
+    count(DISTINCT pm.package_id) AS packages,
+    sum(rs.size_kb)               AS total_size_kb,
+    sum(pd.downloads)             AS total_downloads
+  FROM maintainers m
+  JOIN package_maintainers pm ON pm.maintainer_id = m.id
+  JOIN release_size      rs ON rs.package_id = pm.package_id
+  JOIN package_downloads pd ON pd.package_id = pm.package_id
+  GROUP BY m.handle
+  HAVING count(DISTINCT pm.package_id) >= 2;
+  ```
+
+  `grace` 4 packages / 1,461 KB / 139,920 downloads. `linus` 5 / 465 / 85,140.
+
+  Pre-aggregation is the general answer to fan-out and it is worth understanding
+  why it always works. A join multiplies rows when both sides are non-unique on
+  the join key. Collapse each child to one row per key and the join becomes
+  many-to-one on both sides, which cannot duplicate anything. You are not
+  patching the sum; you are removing the condition that made it wrong.
+
+  The alternative — scalar correlated subqueries in the SELECT list — is also
+  correct and reads more directly:
+
+  ```sql
+  sum((SELECT sum(size_kb) FROM versions v WHERE v.package_id = pm.package_id))
+  ```
+
+  DuckDB will decorrelate that into roughly the same plan. It stops being a good
+  trade when the report grows: five metrics means five correlated subqueries,
+  each re-deriving the same grain, and a reader has to check each one
+  independently. The CTE form names the grain once — "one row per package" — and
+  every subsequent join is obviously safe.
+
+  Note that `count(DISTINCT pm.package_id)` reports the right number even in the
+  broken query. Distinct counts are immune to fan-out; sums are not. A report
+  where the counts look sane and the sums do not is the usual way this bug is
+  discovered, weeks late.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 8
+      message: >-
+        Expected 8 maintainers with two or more packages. `katherine` and
+        `margaret` each have one and should be excluded.
+    - type: syntax
+      pattern: "\\bhaving\\b"
+      negate: false
+      message: >-
+        The two-or-more cut is a condition on an aggregate, so it belongs in
+        `HAVING` — `WHERE` runs before the grouping exists.
+    - type: predicate
+      sql: "SELECT total_size_kb = 1461 AND total_downloads = 139920 AND packages = 4 FROM __learner WHERE handle = 'grace'"
+      message: >-
+        Grace maintains 4 packages totalling 1,461 KB and 139,920 downloads.
+        14,610 KB is the release rows multiplied by the 10 download days.
+    - type: predicate
+      sql: "SELECT sum(total_downloads) = 512680 FROM __learner"
+      message: >-
+        The eight rows should sum to 512,680 downloads. A package with several
+        maintainers is legitimately counted once per maintainer here; what must
+        not happen is a package being counted once per release.
+    - type: plan
+      notContains: ["CROSS_PRODUCT"]
+      message: >-
+        Every join needs an equality condition on `package_id` or
+        `maintainer_id`. A cross product here would be catastrophic rather than
+        merely wrong.

@@ -1,0 +1,80 @@
+id: hash-aggregate
+kind: python
+title: HASH_GROUP_BY, including what it does with NULL
+difficulty: 3
+pattern: hash-aggregation
+topics: [aggregation, hashing, null-semantics]
+timeLimitMs: 10000
+prompt: |
+  Implement the aggregate operator, with SQL's NULL rules rather than Python's.
+
+  `aggregate(child, key, value)` computes, per distinct `key`:
+
+  | Field | SQL equivalent | Rule |
+  | --- | --- | --- |
+  | `total` | `sum(value)` | Sum of the non-`None` values. `None` if the group has no non-`None` value at all. |
+  | `count_all` | `count(*)` | Every row in the group. |
+  | `count_value` | `count(value)` | Only the rows where `value` is not `None`. |
+
+  Yield one dict per group — `{key: <the key>, "total": ..., "count_all": ...,
+  "count_value": ...}` — in **first-seen order**: the group whose first row
+  arrived earliest comes out first.
+
+  ```
+  rows = [
+      {"language": "python", "size_kb": 190},
+      {"language": "rust",   "size_kb": None},
+      {"language": "python", "size_kb": 402},
+  ]
+  list(aggregate(rows, "language", "size_kb"))
+  # [{"language": "python", "total": 592, "count_all": 2, "count_value": 2},
+  #  {"language": "rust",   "total": None, "count_all": 1, "count_value": 0}]
+  ```
+
+  `child` is an iterator and you get one pass over it. Your state must be
+  proportional to the number of groups, not the number of rows.
+hints:
+  - "One dictionary, keyed by the group key, holding a small mutable accumulator per group. The rows themselves are never needed after they have been added in."
+  - "`groups.setdefault(k, {...})` gives you the accumulator for a key, creating it on first sight. Because Python dicts preserve insertion order, iterating the dict at the end gives you first-seen order without sorting anything."
+  - "A missing value has to change two of the three fields and not the third: skip it in the sum and in `count_value`, count it in `count_all`. And a group where every value was missing must report `total: None`, not `0` — which means you cannot start the accumulator at zero and hope."
+solutionWalkthrough: |
+  ```python
+  def aggregate(child, key, value):
+      groups = {}
+      for row in child:
+          state = groups.setdefault(row[key], {"total": None, "all": 0, "seen": 0})
+          state["all"] += 1
+          v = row[value]
+          if v is not None:
+              state["total"] = v if state["total"] is None else state["total"] + v
+              state["seen"] += 1
+      for k, state in groups.items():
+          yield {
+              key: k,
+              "total": state["total"],
+              "count_all": state["all"],
+              "count_value": state["seen"],
+          }
+  ```
+
+  **Why the accumulator starts at `None` rather than `0`.** `SUM` over an empty
+  set of values is `NULL` in SQL, not zero, and this is not pedantry — it is the
+  difference between "this group reported no sizes" and "this group reported a
+  total size of zero". Start at `0` and those two facts become
+  indistinguishable in the output, which is how a dashboard ends up showing a
+  confident zero for a metric nobody measured.
+
+  **Why the state is fixed size.** Three numbers per group, no matter how many
+  rows arrive. That is why a `GROUP BY` over a billion rows into twelve groups
+  costs nothing, and it is the property that makes `HASH_GROUP_BY` safe where
+  a hash join's build side is not.
+
+  Not every aggregate has it. `count(DISTINCT x)` must retain every distinct
+  value it has seen and `median` must retain everything, so both turn a cheap
+  aggregate into a memory risk — which is precisely why engines ship approximate
+  versions of those two and not of `sum`.
+
+  **Do not rely on first-seen order in SQL.** It falls out of Python's dict here
+  and it is genuinely useful for testing. A real engine aggregates in parallel
+  across threads and merges partial hash tables, so the group order is whatever
+  the merge produced. Without `ORDER BY`, `GROUP BY` output has no order at all.

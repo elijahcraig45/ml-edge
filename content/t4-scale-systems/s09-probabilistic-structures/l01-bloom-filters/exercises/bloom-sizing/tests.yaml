@@ -1,0 +1,31 @@
+- id: one-percent
+  label: 1000 items at 1% error
+  code: |
+    assert optimal_parameters(1000, 0.01) == (9586, 7)
+- id: one-per-mille
+  label: 1000 items at 0.1% error
+  code: |
+    assert optimal_parameters(1000, 0.001) == (14378, 10)
+- id: five-percent
+  label: 10000 items at 5% error
+  code: |
+    assert optimal_parameters(10000, 0.05) == (62353, 4)
+- id: bits-per-item-is-scale-free
+  label: Bits per item depends on p, not on n
+  hidden: true
+  code: |
+    # The headline consequence of m = -n ln p / (ln 2)^2: the ratio is constant.
+    for n in (1_000, 100_000, 10_000_000):
+        m, k = optimal_parameters(n, 0.01)
+        assert abs(m / n - 9.5851) < 0.01, f"n={n} gave {m / n} bits per item"
+        assert k == 7, f"n={n} gave k={k}, expected 7"
+- id: k-never-zero
+  label: k is at least 1 even for a loose target
+  hidden: true
+  code: |
+    # p = 0.5 wants m/n = 2.08 bits, so (m/n) ln 2 rounds to 1. A formula that
+    # returned 0 hash functions would make every query a false positive.
+    m, k = optimal_parameters(1, 0.5)
+    assert k >= 1, f"k must be at least 1, got {k}"
+    m, k = optimal_parameters(1000, 0.6)
+    assert k >= 1, f"k must be at least 1, got {k}"

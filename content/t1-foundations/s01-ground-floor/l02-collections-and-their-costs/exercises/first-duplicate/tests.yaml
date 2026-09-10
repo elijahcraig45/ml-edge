@@ -1,0 +1,22 @@
+- id: finds-first
+  label: Returns the earliest second occurrence
+  code: |
+    assert first_duplicate(["1.0.0", "1.1.0", "1.0.0", "1.1.0"]) == "1.0.0"
+- id: none-when-unique
+  label: Returns None when every tag is unique
+  code: |
+    assert first_duplicate(["1.0.0", "1.1.0", "2.0.0"]) is None
+- id: empty
+  label: An empty log returns None
+  code: |
+    assert first_duplicate([]) is None
+- id: adjacent
+  label: Handles an immediate repeat
+  code: |
+    assert first_duplicate(["a", "a"]) == "a"
+- id: not-alphabetical
+  label: Reports the earliest repeat, not the alphabetically smallest
+  hidden: true
+  code: |
+    # "b" repeats at index 3; "a" repeats at index 4. The answer is "b".
+    assert first_duplicate(["b", "a", "c", "b", "a"]) == "b"

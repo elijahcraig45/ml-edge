@@ -1,0 +1,68 @@
+id: sargable-year-filter
+kind: sql
+title: Make the date filter sargable
+difficulty: 3
+datasetId: package-registry
+pattern: sargability
+topics: [query-plans, sargability]
+timeLimitMs: 15000
+prompt: |
+  Return every package created during 2021, oldest first.
+
+  Two columns named `name` and `created_at`. There are three such packages.
+
+  The starter uses `year(created_at) = 2021`. It is correct, it is what almost
+  everyone writes, and it is the reason an index on `created_at` sits unused.
+
+  This exercise is graded on its **execution plan**. Express the same filter as
+  a range on `created_at` itself: the plan must contain a lower bound written
+  `created_at>=`, and must not mention `year` anywhere.
+hints:
+  - "The index — and the scan's block-skipping — can only use bounds on the stored column. So the predicate has to be about `created_at`, not about a function of it."
+  - "A calendar year is a half-open interval: everything from the first day of 2021 up to, but not including, the first day of 2022."
+  - "`WHERE created_at >= DATE '2021-01-01' AND created_at < DATE '2022-01-01'`. Use `<` on the upper bound, not `<= DATE '2021-12-31'` — that second form is a trap on timestamp columns, where it silently drops the last day."
+solutionWalkthrough: |
+  ```sql
+  SELECT name, created_at
+  FROM packages
+  WHERE created_at >= DATE '2021-01-01'
+    AND created_at < DATE '2022-01-01'
+  ORDER BY created_at;
+  ```
+
+  The two versions return the same three rows and produce different plans.
+  `year(created_at) = 2021` becomes a `FILTER` operator sitting above the scan,
+  and the scan below it reports all 20 rows leaving it. The range becomes two
+  bounds *inside* the scan, and only the matching rows leave it. On twenty rows
+  that is invisible; on a table where the scan can skip whole blocks, or where
+  an index could seek to the lower bound, it is the difference between reading
+  three rows and reading the table.
+
+  The half-open interval is the part worth making a habit. `BETWEEN DATE
+  '2021-01-01' AND DATE '2021-12-31'` looks equivalent and is a real bug waiting
+  for the column type to change: the moment `created_at` becomes a timestamp,
+  `2021-12-31 09:15:00` is greater than `2021-12-31 00:00:00` and the last day
+  of the year quietly vanishes from every report. `>= start AND < next_start`
+  has no such edge and reads the same for dates, timestamps and timestamps with
+  a time zone.
+
+  There is a second fix worth knowing: an index on the expression,
+  `CREATE INDEX ... ON packages(year(created_at))`, which stores exactly the
+  value being compared. Use it when the expression is genuinely the thing you
+  search by. Prefer the range when it is not — one index on `created_at` serves
+  every date question, while an index on `year(created_at)` serves only that one.
+
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 3
+      message: Expected three rows — the packages created during 2021.
+    - type: plan
+      contains: ["created_at>="]
+      notContains: ["year"]
+      message: >-
+        The rows are right, but the plan still shows a function wrapped around
+        the column instead of a bound on it. Rewrite the filter as a half-open
+        range on created_at itself.

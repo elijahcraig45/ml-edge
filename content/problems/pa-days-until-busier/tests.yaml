@@ -1,0 +1,31 @@
+- id: basic
+  label: Reports the wait for each day
+  code: |
+    assert days_until_busier([3, 1, 4, 1, 5]) == [2, 1, 2, 1, 0]
+- id: declining
+  label: A series that only falls never has a busier day
+  code: |
+    assert days_until_busier([5, 4, 3]) == [0, 0, 0]
+- id: rising
+  label: A series that only rises waits one day each time
+  code: |
+    assert days_until_busier([1, 2, 3, 4]) == [1, 1, 1, 0]
+- id: empty
+  label: An empty series gives an empty answer
+  code: |
+    assert days_until_busier([]) == []
+- id: plateau
+  label: Equal days do not satisfy each other
+  hidden: true
+  code: |
+    assert days_until_busier([2, 2, 2]) == [0, 0, 0]
+    assert days_until_busier([2, 2, 3]) == [2, 1, 0]
+- id: single-and-negative
+  label: One day, negative counts, and an untouched input
+  hidden: true
+  code: |
+    assert days_until_busier([7]) == [0]
+    assert days_until_busier([-3, -5, -1]) == [2, 1, 0]
+    original = [1, 3, 2]
+    days_until_busier(original)
+    assert original == [1, 3, 2], "the input must not be modified"

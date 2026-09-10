@@ -1,0 +1,81 @@
+id: selectivity-report
+kind: sql
+title: Measure the selectivity a planner has to guess
+difficulty: 3
+datasetId: package-registry
+pattern: cardinality-estimation
+topics: [asymptotics]
+timeLimitMs: 15000
+prompt: |
+  A planner with no histogram guesses that a filter on a column keeps
+  $1/d$ of the rows, where $d$ is the number of distinct values in that column.
+  It is the flattest possible assumption: every value equally likely. This
+  exercise measures how far off that assumption is for `packages.language`.
+
+  Return one row per language, with exactly these five columns, in this order:
+
+  - `language`
+  - `matching_rows` — how many packages have that language
+  - `true_selectivity` — `matching_rows` divided by the total row count,
+    rounded to 3 decimal places
+  - `flat_guess` — `1 / (number of distinct languages)`, rounded to 3 decimal
+    places. The same value on every row; that is the point of it.
+  - `error_ratio` — `true_selectivity / flat_guess`, rounded to 3 decimal places
+
+  Order by `error_ratio` descending, then `language` ascending. The ordering is
+  part of the answer: the top row is the value the flat guess underestimates
+  most, which is the row that would cause a bad plan.
+
+  Four languages are present, so four rows out.
+hints:
+  - "Every row's `true_selectivity` needs the table total, which is not something GROUP BY hands you. A scalar subquery — `(SELECT count(*) FROM packages)` — can be used anywhere a number can."
+  - "`count(*)` returns an integer, and integer division truncates. Multiply by `1.0` before dividing, or you will get zeros."
+  - "`flat_guess` is `1.0 / (SELECT count(DISTINCT language) FROM packages)`. Dividing `true_selectivity` by that is the same as multiplying by the distinct count, which avoids dividing by an already-rounded number."
+solutionWalkthrough: |
+  ```sql
+  SELECT
+    language,
+    count(*) AS matching_rows,
+    round(count(*) * 1.0 / (SELECT count(*) FROM packages), 3) AS true_selectivity,
+    round(1.0 / (SELECT count(DISTINCT language) FROM packages), 3) AS flat_guess,
+    round(
+      (count(*) * 1.0 / (SELECT count(*) FROM packages))
+        * (SELECT count(DISTINCT language) FROM packages),
+      3
+    ) AS error_ratio
+  FROM packages
+  GROUP BY language
+  ORDER BY error_ratio DESC, language;
+  ```
+
+  The result: `python` at 1.6, `rust` at 1.0, `sql` at 0.8, `js` at 0.6. The flat
+  guess is wrong by 60% in the worst direction on a table with four values and no
+  real skew in it. Real columns — a `status` that is 99% `'active'`, a
+  `country` that is 70% one value — break it by two or three orders of magnitude,
+  and that is why every serious planner keeps histograms.
+
+  Two details worth taking with you.
+
+  `count(*) * 1.0` is not decoration. Both operands are integers, so without it
+  the division truncates toward zero and every selectivity comes out 0. This is
+  the same integer-division trap as Python's `//`, wearing a different hat.
+
+  `error_ratio` is computed by *multiplying* by the distinct count rather than
+  dividing by `flat_guess`. Dividing by a value you already rounded to three
+  decimals propagates the rounding error into the ratio. Round once, at the end,
+  on each column independently — never round an intermediate you are about to
+  divide by.
+
+grading:
+  # Order is the claim: the first row is the worst underestimate.
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 4
+      message: >-
+        Four rows — one per language. If you got 20, you are missing the GROUP BY;
+        if you got 1, you aggregated the whole table.
+    - type: syntax
+      pattern: "\\bgroup\\s+by\\b"
+      message: This is a per-language report, so it needs a GROUP BY.

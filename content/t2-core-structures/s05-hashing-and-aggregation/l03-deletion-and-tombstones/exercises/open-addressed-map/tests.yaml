@@ -1,0 +1,85 @@
+- id: basics
+  label: Stores, fetches, overwrites and reports its size
+  code: |
+    m = OpenAddressedMap(capacity=8)
+    m.put("arrowkit", 190)
+    m.put("bitmask", 61)
+    m.put("arrowkit", 200)
+    assert m.get("arrowkit") == 200
+    assert m.get("bitmask") == 61
+    assert m.get("absent", "MISSING") == "MISSING"
+    assert len(m) == 2
+- id: delete-removes
+  label: A deleted key is gone and the size drops
+  code: |
+    m = OpenAddressedMap(capacity=8)
+    m.put(1, "one")
+    assert m.delete(1) is True
+    assert m.get(1, "MISSING") == "MISSING"
+    assert len(m) == 0
+    assert m.delete(1) is False
+    assert m.delete(999) is False
+- id: neighbour-survives-delete
+  label: Deleting a key does not hide the key that probed past it
+  code: |
+    # hash(1) == 1 and hash(9) == 1 in an 8-slot table: 9 lands one slot along.
+    m = OpenAddressedMap(capacity=8)
+    m.put(1, "one")
+    m.put(9, "nine")
+    m.delete(1)
+    assert m.get(9) == "nine", "9 was still in the table but became unreachable"
+    assert len(m) == 1
+- id: reinsert-after-delete
+  label: A deleted key can be inserted again
+  code: |
+    m = OpenAddressedMap(capacity=8)
+    m.put(1, "one")
+    m.put(9, "nine")
+    m.delete(1)
+    m.put(1, "one again")
+    assert m.get(1) == "one again"
+    assert m.get(9) == "nine"
+    assert len(m) == 2
+- id: no-duplicates-through-tombstones
+  label: Updating a key across a tombstone does not create a second copy
+  hidden: true
+  code: |
+    m = OpenAddressedMap(capacity=8)
+    m.put(1, "one")
+    m.put(9, "nine")
+    m.put(17, "seventeen")     # 17 % 8 == 1 as well: slots 1, 2, 3
+    m.delete(1)                # tombstone at slot 1
+    m.put(17, "updated")       # must find 17 at slot 3, not squat the tombstone
+    assert len(m) == 2
+    assert m.get(17) == "updated"
+    assert m.get(9) == "nine"
+    # And the update must not have left a stale copy behind.
+    live = [k for k in m.keys if k is not EMPTY and k is not DELETED]
+    assert live.count(17) == 1, "17 is in the table twice"
+- id: grows-and-keeps-everything
+  label: Survives a resize with every key intact
+  hidden: true
+  code: |
+    m = OpenAddressedMap(capacity=8)
+    for i in range(300):
+        m.put(i, i * i)
+    assert len(m) == 300
+    assert all(m.get(i) == i * i for i in range(300))
+    for i in range(0, 300, 2):
+        assert m.delete(i) is True
+    assert len(m) == 150
+    assert all(m.get(i, "gone") == "gone" for i in range(0, 300, 2))
+    assert all(m.get(i) == i * i for i in range(1, 300, 2))
+- id: churn-does-not-fill-the-table
+  label: A long put/delete workload never runs out of slots
+  hidden: true
+  code: |
+    # Live size stays at 1, but a table that never sweeps its tombstones
+    # fills up with them and raises "table full".
+    m = OpenAddressedMap(capacity=8)
+    for i in range(2000):
+        m.put(i, i)
+        m.delete(i)
+        assert len(m) == 0
+    m.put("last", 1)
+    assert m.get("last") == 1

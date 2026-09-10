@@ -1,0 +1,64 @@
+id: master-case
+kind: python
+title: Classify a recurrence without touching a logarithm
+difficulty: 2
+pattern: recurrence-analysis
+topics: [asymptotics, divide-and-conquer]
+timeLimitMs: 10000
+prompt: |
+  Write `master_case(a, b, k)`, which reports which case of the Master Theorem
+  applies to
+
+  $$T(n) = a\,T(n/b) + \Theta(n^k)$$
+
+  for integers $a \ge 1$, $b \ge 2$, $k \ge 0$. Return the integer `1`, `2` or
+  `3`:
+
+  - `1` — the leaves dominate, $T(n) = \Theta(n^{\log_b a})$
+  - `2` — every level contributes equally, $T(n) = \Theta(n^k \log n)$
+  - `3` — the root dominates, $T(n) = \Theta(n^k)$
+
+  ```
+  master_case(2, 2, 1)   # 2  -- mergesort
+  master_case(3, 2, 1)   # 1  -- Karatsuba
+  master_case(2, 2, 2)   # 3  -- T(n) = 2T(n/2) + n^2
+  ```
+
+  The textbook phrasing compares $\log_b a$ against $k$. Do not implement it that
+  way. Two of the hidden tests use values where `math.log(a, b)` lands on the
+  wrong side of an exact integer, and a float comparison reports the wrong case.
+hints:
+  - "The textbook condition compares log-base-b of a against k. That is a comparison between two numbers you can also write without a logarithm. Raise both sides to the power b."
+  - "log-base-b of a versus k is the same question as a versus b to the power k, which is `b ** k` — exact integer arithmetic for the sizes this function will ever see."
+  - "Three branches: `a > b ** k` is case 1, `a == b ** k` is case 2, anything else is case 3. Compute `b ** k` once."
+solutionWalkthrough: |
+  ```python
+  def master_case(a, b, k):
+      watershed = b ** k
+      if a > watershed:
+          return 1
+      if a == watershed:
+          return 2
+      return 3
+  ```
+
+  Apply $b^{(\cdot)}$ to both sides of $\log_b a \lessgtr k$ and the logarithm
+  disappears: $b^{\log_b a} = a$ on the left, $b^k$ on the right. Exponentiation
+  is monotonic, so the direction of every comparison survives. The transformation
+  is free and it converts a question about floats into a question about integers.
+
+  The reason to bother is in the hidden tests. `math.log(243, 3)` evaluates to
+  `4.999999999999999` and `math.log(125, 5)` to `3.0000000000000004`; both
+  recurrences are case 2 and a float comparison calls one of them case 3 and the
+  other case 1. Neither is a large or unusual input — they are $3^5$ and $5^3$.
+
+  The general rule this is an instance of: **when a comparison is exact in one
+  representation and approximate in another, do the comparison in the exact one.**
+  You saw the same move in Stage 1 with money as integer cents. Here the cost of
+  getting it wrong is not a rounding error in a total, it is naming the wrong
+  growth class for an algorithm.
+
+  What this function deliberately does not do: handle $f(n)$ that is not a
+  polynomial. `master_case(2, 2, 1)` cannot tell you about
+  $T(n) = 2T(n/2) + n/\log n$, because that $f$ has no integer $k$. The signature
+  encodes the theorem's own limits.

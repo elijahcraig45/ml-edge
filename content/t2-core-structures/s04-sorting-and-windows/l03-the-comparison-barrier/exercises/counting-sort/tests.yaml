@@ -1,0 +1,39 @@
+- id: orders-by-key
+  label: Orders the pairs by key
+  code: |
+    got = counting_sort(
+        [(3, "chunker"), (1, "bitmask"), (1, "arrowkit"), (0, "memoize")], 4
+    )
+    assert got == [(0, "memoize"), (1, "bitmask"), (1, "arrowkit"), (3, "chunker")]
+- id: empty-and-single
+  label: Empty and single-element inputs
+  code: |
+    assert counting_sort([], 5) == []
+    assert counting_sort([(2, "probe")], 5) == [(2, "probe")]
+- id: gaps-in-key-range
+  label: Unused keys in the middle of the range are skipped
+  code: |
+    got = counting_sort([(4, "d"), (0, "a"), (4, "e")], 5)
+    assert got == [(0, "a"), (4, "d"), (4, "e")]
+- id: k-larger-than-max-key
+  label: k may be larger than any key actually present
+  code: |
+    got = counting_sort([(1, "b"), (0, "a")], 100)
+    assert got == [(0, "a"), (1, "b")]
+- id: stable-on-ties
+  label: Equal keys keep their input order
+  hidden: true
+  code: |
+    rows = [(2, "e"), (1, "a"), (2, "f"), (1, "b"), (2, "g"), (1, "c")]
+    got = counting_sort(rows, 3)
+    assert got == [(1, "a"), (1, "b"), (1, "c"), (2, "e"), (2, "f"), (2, "g")], got
+- id: does-not-mutate
+  label: Returns a new list and leaves the input alone
+  hidden: true
+  code: |
+    rows = [(2, "x"), (0, "y"), (1, "z")]
+    original = list(rows)
+    out = counting_sort(rows, 3)
+    assert rows == original, "the caller's list must not be reordered"
+    assert out is not rows
+    assert len(out) == 3 and None not in out

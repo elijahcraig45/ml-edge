@@ -1,0 +1,75 @@
+id: cooldown-profit
+kind: python
+title: Trading with a cooldown — derive the state
+difficulty: 3
+pattern: state-design
+topics: [dynamic-programming, state-design]
+timeLimitMs: 15000
+prompt: |
+  A package's daily download count is also its price on an internal market. You
+  may buy and sell as often as you like, but:
+
+  - you hold at most one share at a time, so you must sell before buying again;
+  - **the day after you sell, you may not buy.** One day of cooldown, every
+    time.
+
+  Return the maximum profit. You start and must end holding nothing.
+
+  ```
+  max_profit_with_cooldown([1, 2, 3, 0, 2])   # 3
+  max_profit_with_cooldown([1, 4, 2, 7])      # 6
+  max_profit_with_cooldown([5, 4, 3])         # 0
+  max_profit_with_cooldown([])                # 0
+  ```
+
+  The second example is the one that matters. Without the cooldown you would buy
+  at 1, sell at 4, buy at 2, sell at 7, for 8. The cooldown blocks the buy on
+  the day after the sale, so the best you can do is hold from 1 all the way to
+  7, for 6. A solution that gets 8 there has not modelled the rule.
+
+  The starter has the two-mode version — holding or not holding — which is the
+  right shape for the problem *without* a cooldown. Run step 4 of the lesson's
+  procedure on it: find two histories that share the state `(day, not holding)`
+  and whose futures differ, and let that tell you what coordinate is missing.
+hints:
+  - "Take the state `(day 3, not holding)`. One history sold on day 2; another has been idle since the start. Are the same moves legal tomorrow? That is the sufficiency test failing, and the answer names the missing coordinate."
+  - "Three modes, not two: holding a share, having just sold today, and free to act. Buying is only legal from the free mode. Selling moves you from holding into just-sold, and just-sold becomes free the next day."
+  - "Carry three running values across the days. `hold = max(hold, free - price)`, `sold = hold_yesterday + price`, `free = max(free, sold_yesterday)`. Compute all three from yesterday's values before overwriting any of them, or day i will read day i's own numbers."
+solutionWalkthrough: |
+  ```python
+  def max_profit_with_cooldown(prices):
+      if not prices:
+          return 0
+      NEG = float("-inf")
+      hold = -prices[0]   # bought on day 0
+      sold = NEG          # cannot have sold on day 0
+      free = 0            # did nothing
+      for price in prices[1:]:
+          prev_hold, prev_sold, prev_free = hold, sold, free
+          hold = max(prev_hold, prev_free - price)
+          sold = prev_hold + price
+          free = max(prev_free, prev_sold)
+      return max(sold, free, 0)
+  ```
+
+  The whole exercise is step 4 of the procedure. With two modes, the state
+  `(day, not holding)` merges two histories that are not interchangeable: one
+  sold yesterday and is barred from buying today, the other is free. Same state,
+  different legal futures — so the state is insufficient, and the fix is to
+  split "not holding" into "sold today" and "free".
+
+  Note what the third mode is *not*. It is not a counter of how many cooldown
+  days remain, and it is not the day you last sold. Both would work and both are
+  bigger than they need to be: the cooldown lasts exactly one day, so the only
+  thing the future needs is a single bit of history. Step 3 of the procedure —
+  cross out what the future does not need — is what keeps the state at three
+  values instead of $O(n)$.
+
+  The `prev_*` snapshot is not a style choice. Every one of the three updates
+  reads yesterday's values, and two of them are being overwritten in the same
+  block. Assign in place and `free` will read a `sold` that already belongs to
+  today, which silently removes the cooldown you just added.
+
+  Three values carried across one pass: $\Theta(n)$ time, $\Theta(1)$ space. The
+  three-row table version is the same algorithm with the rows kept, and Lesson 6
+  is about when you want them.

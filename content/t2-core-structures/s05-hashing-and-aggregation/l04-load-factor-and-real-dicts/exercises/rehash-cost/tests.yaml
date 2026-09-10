@@ -1,0 +1,31 @@
+- id: no-resize-yet
+  label: A table that never fills past two-thirds is never rehashed
+  code: |
+    assert rehash_cost(0) == (8, 0)
+    assert rehash_cost(5) == (8, 0)
+- id: first-resize
+  label: The sixth insert triggers the first rehash and copies five entries
+  code: |
+    assert rehash_cost(6) == (16, 5)
+- id: thousand-doubling
+  label: A thousand insertions with doubling
+  code: |
+    assert rehash_cost(1000) == (2048, 1356)
+- id: tripling
+  label: A larger growth factor copies less
+  code: |
+    assert rehash_cost(1000, 8, 3) == (1944, 645)
+- id: presizing-eliminates-copying
+  label: Starting big enough removes every copy
+  hidden: true
+  code: |
+    assert rehash_cost(1000, 2048, 2) == (2048, 0)
+    assert rehash_cost(1000, 8, 2)[1] > 0
+- id: growth-bound-holds
+  label: Total copying stays under g/(g-1) times n for every growth factor
+  hidden: true
+  code: |
+    for growth in (1.5, 2, 3, 4):
+        capacity, copied = rehash_cost(5000, 8, growth)
+        assert copied < (growth / (growth - 1)) * 5000, (growth, copied)
+    assert rehash_cost(1000, 8, 1.5) == (1531, 2031)

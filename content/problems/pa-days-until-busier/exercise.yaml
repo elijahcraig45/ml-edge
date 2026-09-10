@@ -1,0 +1,70 @@
+id: pa-days-until-busier
+kind: python
+title: How long until a busier day
+difficulty: 3
+pattern: monotonic-stack
+stage: s03-linear-structures
+topics:
+  - arrays
+  - stacks
+timeLimitMs: 20000
+prompt: |
+  For each day in a download series, report how many days you have to wait
+  before a **strictly busier** day arrives. Put `0` where no later day beats it.
+  Return one number per day, in order.
+
+  ```
+  days_until_busier([3, 1, 4, 1, 5])   # [2, 1, 2, 1, 0]
+  days_until_busier([5, 4, 3])         # [0, 0, 0]
+  ```
+
+  **This one has a complexity budget.** Scanning forward from each day is
+  correct and will be rejected: the checker runs 12,000 days of steadily
+  declining traffic, which is the worst case for that approach.
+hints:
+  - "A day whose answer is still unknown is a day waiting for something bigger. Several days can be waiting at once — and notice which order they get satisfied in when a big day finally shows up."
+  - "Keep a stack of day indices whose answers are still open. When today's count exceeds the count at the top of the stack, today is that day's answer, so pop it and record the distance. Repeat until the top is not beaten."
+  - "The stack's counts stay in non-increasing order from bottom to top, which is why popping can stop as soon as one comparison fails. Anything still on the stack at the end never got beaten and keeps its 0."
+solutionWalkthrough: |
+  ```python
+  def days_until_busier(daily):
+      answer = [0] * len(daily)
+      pending = []
+      for i, count in enumerate(daily):
+          while pending and daily[pending[-1]] < count:
+              earlier = pending.pop()
+              answer[earlier] = i - earlier
+          pending.append(i)
+      return answer
+  ```
+
+  The stack holds exactly the days whose answers are open, and their counts are
+  non-increasing from bottom to top. That ordering is what makes the `while`
+  safe to stop early: if today does not beat the top, it beats nothing deeper.
+
+  Every index is pushed once and popped at most once, so the total work is O(n)
+  despite the nested loop. That is the standard trap in reading this code —
+  counting loops instead of counting pops.
+
+  It is O(n) memory in the worst case, when the series only ever falls and
+  nothing is resolved until the end. A brute-force scan uses no extra memory at
+  all, so on a short series it is the better answer; the stack earns its keep
+  once n gets large or the data trends downwards, which is precisely when the
+  scan degenerates.
+
+  Strict versus non-strict matters here. Using `<=` in the pop condition would
+  answer "a day at least as busy", and a plateau of equal days would all point
+  at each other's neighbour instead of waiting for a genuine increase.
+complexityBudget:
+  setup: |
+    data = [12000 - i for i in range(12000)]
+  call: |
+    days_until_busier(data)
+  # Measured on CPython 3.13: the stack solution takes ~0.6ms, the forward scan
+  # ~1260ms on this declining series. 100ms is far above one and 12x below the
+  # other.
+  maxMs: 100
+  message: >-
+    Correct, but too slow: this scanned forward from every day, so a series that
+    keeps declining forces a full scan each time and the work grows with the
+    square of the length. Keep a stack of days still waiting for an answer.

@@ -1,0 +1,66 @@
+id: nth-from-end
+kind: python
+title: The nth node from the end, in one pass
+difficulty: 3
+pattern: two-pointer
+topics: [linked-lists, pointers]
+timeLimitMs: 10000
+forbid:
+  - ".append("
+  - "list("
+prompt: |
+  Return the value of the node `n` places from the end of a singly linked
+  list. `n = 1` is the tail, `n = 2` is the node before it, and so on. Return
+  `None` if `n` is out of range or not at least 1.
+
+  ```
+  nth_from_end(build([1, 2, 3, 4, 5]), 1)   # 5
+  nth_from_end(build([1, 2, 3, 4, 5]), 3)   # 3
+  nth_from_end(build([1, 2, 3]), 4)         # None
+  ```
+
+  **One pass.** You may not walk the chain to measure its length and then walk
+  it again, and you may not copy it into a Python list. A singly linked node
+  knows nothing about what is behind it, and the whole exercise is about what
+  you can still do with that constraint.
+
+  `Node` and `build` are provided. Fill in `nth_from_end`.
+hints:
+  - "You cannot count backwards from a tail you have not reached. But if two pointers are a fixed distance apart, then when the front one reaches the end, the back one is that fixed distance from the end."
+  - "Advance a lead pointer n nodes first. If it falls off the chain during that, n was larger than the length — say so and stop."
+  - "Then move both pointers one step at a time until the lead is None. The trailing pointer is now sitting on the answer."
+solutionWalkthrough: |
+  ```python
+  def nth_from_end(head, n):
+      if n < 1:
+          return None
+      lead = head
+      for _ in range(n):
+          if lead is None:
+              return None       # the chain is shorter than n
+          lead = lead.next
+      trail = head
+      while lead is not None:
+          lead = lead.next
+          trail = trail.next
+      return None if trail is None else trail.value
+  ```
+
+  The gap between `lead` and `trail` is fixed at `n` and never changes after the
+  first loop. So the condition "lead has run off the end" and the condition
+  "trail is n from the end" are the same condition, observed from two places.
+  That is the entire trick, and it generalises: any time you want a position
+  relative to an end you cannot see yet, offset a second cursor and let the end
+  come to you.
+
+  The `n < 1` guard is not defensive padding. Without it, `range(0)` leaves
+  `lead` on the head, the second loop walks both to the end, and `trail` lands
+  one past the tail — so a buggy version returns `None` by accident for `n = 0`
+  on some chains and the head's value on others. Deciding what `n = 0` means is
+  part of the problem.
+
+  **Why this is the linked-list version of a two-pointer scan.** On a Python
+  list the same question is `values[-n]`, one address computation, no traversal
+  at all. The chain has to walk because position is not computable from an
+  address — it is only discoverable by following links. Everything a linked
+  list makes cheap, it makes cheap by giving that up.

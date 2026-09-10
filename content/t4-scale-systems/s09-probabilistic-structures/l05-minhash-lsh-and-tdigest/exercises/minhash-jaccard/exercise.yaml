@@ -1,0 +1,64 @@
+id: minhash-jaccard
+kind: python
+title: Estimate Jaccard with MinHash
+difficulty: 3
+pattern: similarity-sketch
+topics: [minhash, hashing, similarity]
+timeLimitMs: 30000
+prompt: |
+  Two functions.
+
+  `minhash_signature(items, num_hashes)` — for each hash index
+  `i` in `range(num_hashes)`, the minimum of `sig_hash(item, i)` over all items.
+  A list of `num_hashes` values.
+
+  `estimate_jaccard(sig_a, sig_b)` — the fraction of positions where the two
+  signatures hold the same value.
+
+  ```
+  a = minhash_signature({1, 2, 3, 4}, 256)
+  b = minhash_signature({3, 4, 5, 6}, 256)
+  estimate_jaccard(a, b)     # near 1/3
+  ```
+
+  Why this works: exactly one element of $A \cup B$ has the smallest hash, every
+  element is equally likely to be it, and both sets report it only when it lies
+  in $A \cap B$. So each position is a coin flip that comes up heads with
+  probability $J(A, B)$.
+
+  One hidden test checks that your estimate is a **multiple of
+  1/num_hashes**. Computing the exact Jaccard instead returns 0.3333… and
+  fails it — which is the point: the estimate is a count of agreements, not a
+  ratio of set sizes.
+hints:
+  - "Two nested loops, but they nest the way you might not expect: the outer loop is over hash functions, and the inner minimum is over items."
+  - "`[min(sig_hash(item, i) for item in items) for i in range(num_hashes)]` is the whole signature."
+  - "For the estimate, `zip(sig_a, sig_b)` pairs the positions up. Count the pairs that are equal and divide by the signature length."
+solutionWalkthrough: |
+  ```python
+  def minhash_signature(items, num_hashes):
+      return [min(sig_hash(item, i) for item in items) for i in range(num_hashes)]
+
+  def estimate_jaccard(sig_a, sig_b):
+      matches = sum(1 for a, b in zip(sig_a, sig_b) if a == b)
+      return matches / len(sig_a)
+  ```
+
+  The signature is a fixed size no matter how large the set is. A set of ten
+  elements and a set of ten million both become 256 numbers, and comparing them
+  costs 256 integer comparisons either way. That is the trade: you gave up the
+  ability to ask anything else about the set, and bought a comparison whose cost
+  does not depend on the data.
+
+  The accuracy follows from the estimate being a mean of `num_hashes`
+  independent Bernoulli trials, so its standard error is $\sqrt{J(1-J)/m}$.
+  At $J = 0.5$ and $m = 256$ that is 3.1%; getting to 1% needs about 2,500
+  hashes. The square-root wall again, and the reason production signatures are
+  usually 128 or 256 values rather than thousands.
+
+  Two things this implementation is not. It is not the cheapest: computing 256
+  SHA-256 hashes per element is heavy, and real systems use one hash plus a
+  permutation family, or **bottom-k** sketching, which keeps the $k$ smallest
+  values under a *single* hash and estimates from those. And it is not yet
+  scalable to many documents — comparing every pair of signatures is still
+  quadratic. That is what LSH banding is for.

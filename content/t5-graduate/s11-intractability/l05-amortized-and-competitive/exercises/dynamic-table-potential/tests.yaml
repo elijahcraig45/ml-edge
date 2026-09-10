@@ -1,0 +1,95 @@
+- id: push-costs
+  label: The doubling schedule produces the expected spikes
+  code: |
+    costs = [c for c, _, _ in table_costs(["push"] * 16)]
+    assert costs == [1, 2, 3, 1, 5, 1, 1, 1, 9, 1, 1, 1, 1, 1, 1, 1], costs
+    assert sum(costs) == 31
+
+- id: capacities
+  label: num and size are reported after the operation
+  code: |
+    rows = table_costs(["push"] * 6)
+    assert rows == [(1, 1, 1), (2, 2, 2), (3, 3, 4), (1, 4, 4), (5, 5, 8), (1, 6, 8)], rows
+
+- id: potential-values
+  label: The potential function has the right two branches
+  code: |
+    assert potential(0, 0) == 0.0
+    assert potential(4, 4) == 4.0
+    assert potential(2, 4) == 0.0
+    assert potential(1, 4) == 1.0
+    assert potential(1, 8) == 3.0
+    assert potential(5, 8) == 2.0
+
+- id: amortized-bound
+  label: No operation has amortized cost above 3, on any sequence
+  code: |
+    import random
+    SEQUENCES = [
+        ["push"] * 16,
+        ["push"] * 8 + ["pop"] * 8,
+        ["push"] * 20 + ["pop"] * 15 + ["push"] * 10,
+        ["pop"] * 5 + ["push"] * 5 + ["pop"] * 5,
+        ["push", "pop"] * 20,
+    ]
+    random.seed(0)
+    for _ in range(60):
+        SEQUENCES.append([random.choice(["push", "pop"])
+                          for _ in range(random.randint(0, 60))])
+    for ops in SEQUENCES:
+        prev = potential(0, 0)
+        assert prev == 0.0, "the potential must start at zero"
+        for (cost, num, size), op in zip(table_costs(ops), ops):
+            phi = potential(num, size)
+            assert phi >= -1e-9, ("negative potential", op, num, size, phi)
+            amortized = cost + phi - prev
+            assert amortized <= 3 + 1e-9, \
+                ("amortized cost above 3", op, cost, prev, phi, amortized)
+            prev = phi
+
+- id: total-is-linear
+  label: Total actual cost stays under 3 per operation
+  code: |
+    import random
+    random.seed(1)
+    for _ in range(40):
+        ops = [random.choice(["push", "pop"]) for _ in range(random.randint(1, 80))]
+        total = sum(c for c, _, _ in table_costs(ops))
+        assert total <= 3 * len(ops), (len(ops), total)
+
+- id: shrink-schedule
+  label: Popping shrinks at a quarter full, not at a half
+  hidden: true
+  code: |
+    rows = table_costs(["push"] * 8 + ["pop"] * 8)
+    costs = [c for c, _, _ in rows]
+    assert costs == [1, 2, 3, 1, 5, 1, 1, 1, 1, 1, 1, 1, 1, 3, 2, 1], costs
+    sizes = [s for _, _, s in rows]
+    # capacity 8 survives until only two items remain
+    assert sizes[7] == 8 and sizes[12] == 8 and sizes[13] == 4, sizes
+
+- id: pop-empty
+  label: Popping an empty table costs 1 and changes nothing
+  hidden: true
+  code: |
+    assert table_costs(["pop", "pop"]) == [(1, 0, 0), (1, 0, 0)]
+    assert table_costs([]) == []
+
+- id: alternating-at-the-boundary
+  label: Push/pop at the doubling boundary does not resize every time
+  hidden: true
+  code: |
+    ops = ["push"] * 4 + ["push", "pop"] * 10
+    costs = [c for c, _, _ in table_costs(ops)]
+    # after the fourth push the table is full at capacity 4; the fifth push
+    # doubles to 8 and nothing resizes again, because 4 * 4 > 8.
+    assert costs[4] == 5, costs
+    assert all(c == 1 for c in costs[5:]), costs
+
+- id: last-pop-keeps-capacity
+  label: The table is not shrunk to nothing by its final pop
+  hidden: true
+  code: |
+    rows = table_costs(["push"] * 4 + ["pop"] * 4)
+    assert rows[-1][1] == 0
+    assert rows[-1][2] > 0, "num > 0 guards the shrink; capacity 0 is not reachable by popping"

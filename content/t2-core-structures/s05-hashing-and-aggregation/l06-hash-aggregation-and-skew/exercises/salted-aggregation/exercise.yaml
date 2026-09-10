@@ -1,0 +1,125 @@
+id: salted-aggregation
+kind: sql
+title: Split the hot key with a salt
+difficulty: 4
+datasetId: package-registry
+pattern: aggregation-skew
+topics: [aggregation, skew]
+timeLimitMs: 20000
+prompt: |
+  The last exercise found a skew ratio above 5: package 1 holds a quarter of all
+  download events, so a distributed `GROUP BY package_id` waits on one task.
+  Rewrite the aggregation in **two phases** so that no single key is confined to
+  one partition — and get exactly the same numbers.
+
+  Return `package_id` and `downloads` (the event count), ordered by
+  `package_id`.
+
+  The rewrite, in shape:
+
+  1. **Phase 1** — group by `(package_id, salt)`, where the salt spreads rows
+     within a package across several partial groups. Alias that column `salt`.
+     `event_no % 8` is a fine salt: it varies inside a package and does not
+     depend on anything you are aggregating.
+  2. **Phase 2** — group the phase-1 output by `package_id` alone and combine
+     the partial counts.
+
+  The events CTE, as before:
+
+  ```sql
+  WITH events AS (
+    SELECT d.package_id, d.day, e.i AS event_no
+    FROM downloads d, range(d.count) e(i)
+  )
+  ```
+
+  The grader checks two things: that your result is **identical** to the naive
+  single-phase aggregation, row for row, and that you actually wrote two
+  aggregation phases. The starter is the naive version — it returns the right
+  answer and will be rejected for being one phase.
+hints:
+  - "Phase 1 needs a second grouping column that varies within a package. It must not be derived from the aggregate you are computing, and it must be reproducible — a row number, a modulus of some other column, a hash."
+  - "`SELECT package_id, event_no % 8 AS salt, count(*) AS partial_count FROM events GROUP BY package_id, salt` is phase 1. It produces 20 x 8 = 160 rows."
+  - "Phase 2 aggregates phase 1: `SELECT package_id, sum(partial_count) AS downloads FROM partial GROUP BY package_id`. Note it is `sum` of the partial counts, not `count` — counting the partial rows would give you 8 for every package."
+solutionWalkthrough: |
+  ```sql
+  WITH events AS (
+    SELECT d.package_id, d.day, e.i AS event_no
+    FROM downloads d, range(d.count) e(i)
+  ),
+  partial AS (
+    SELECT package_id, event_no % 8 AS salt, count(*) AS partial_count
+    FROM events
+    GROUP BY package_id, salt
+  )
+  SELECT package_id, sum(partial_count) AS downloads
+  FROM partial
+  GROUP BY package_id
+  ORDER BY package_id;
+  ```
+
+  Package 1's 92,000 events become eight partial groups of about 11,500. Those
+  eight groups hash to up to eight different partitions, so eight tasks share
+  the work that one task was doing. Phase 2 then aggregates 160 rows, which
+  costs nothing.
+
+  **Why it is exact and not an approximation.** `count` and `sum` are
+  *decomposable*: the sum over a set equals the sum of the sums over any
+  partition of that set. Splitting by salt is a partition, so recombining
+  reproduces the original value bit for bit — which the grader asserts by
+  comparing your rows against the single-phase query in both directions.
+  `min` and `max` decompose the same way; `avg` does if you carry sum and count
+  separately; `median` and `count(distinct)` do not decompose at all, and for
+  those a salt changes the answer.
+
+  **`sum(partial_count)`, not `count(*)`.** Phase 2 is combining pre-aggregated
+  values, not counting rows. `count(*)` in phase 2 returns 8 for every package —
+  the number of salts — which is a wrong answer that looks like a plausible one.
+
+  **Choosing the salt.** Eight is a judgement call: enough to break the hot key
+  across partitions, small enough that the intermediate result stays trivial.
+  The cost is that phase 1 emits (groups x salts) rows instead of (groups). Here
+  that is 160 against 20, which is free. With ten million distinct keys and 32
+  salts it is 320 million rows, and you have made a healthy query slow to fix a
+  problem it never had. Production rewrites therefore salt *conditionally* —
+
+  ```sql
+  CASE WHEN package_id IN (1, 2) THEN event_no % 8 ELSE 0 END AS salt
+  ```
+
+  — so the two hot keys get spread and the long tail keeps its single group.
+  That needs the diagnosis from the previous exercise first, which is the real
+  reason the two exercises are in this order.
+
+grading:
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 20
+      message: One row per package — 20 in all.
+    - type: syntax
+      pattern: "\\bsalt\\b"
+      message: >-
+        Phase 1 has to group by a salt column, aliased `salt`. Without a second
+        grouping column there is only one phase and the hot key still lands in
+        one partition.
+    - type: syntax
+      pattern: "group\\s+by[\\s\\S]*group\\s+by"
+      message: >-
+        Two GROUP BY clauses are needed: one over (package_id, salt) and one over
+        package_id alone.
+    - type: predicate
+      sql: >-
+        SELECT (SELECT count(*) FROM (
+          (SELECT package_id, downloads FROM __learner
+           EXCEPT ALL
+           SELECT package_id, sum(count) FROM downloads GROUP BY package_id)
+          UNION ALL
+          (SELECT package_id, sum(count) FROM downloads GROUP BY package_id
+           EXCEPT ALL
+           SELECT package_id, downloads FROM __learner)
+        )) = 0
+      message: >-
+        The salted rewrite must return exactly what the naive aggregation
+        returns. If your numbers differ, phase 2 is probably counting the
+        partial rows instead of summing the partial counts.

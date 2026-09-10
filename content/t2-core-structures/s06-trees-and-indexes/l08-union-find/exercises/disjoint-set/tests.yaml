@@ -1,0 +1,59 @@
+- id: basic-merge
+  label: Merging reports success once and connects both elements
+  code: |
+    ds = DisjointSet(5)
+    assert ds.union(0, 1) is True
+    assert ds.union(1, 0) is False
+    assert ds.connected(0, 1) is True
+    assert ds.connected(0, 2) is False
+- id: count
+  label: The set count drops only on a successful union
+  code: |
+    ds = DisjointSet(5)
+    assert ds.count == 5
+    ds.union(0, 1)
+    ds.union(2, 3)
+    assert ds.count == 3
+    ds.union(0, 1)
+    assert ds.count == 3
+- id: transitive
+  label: Connectivity is transitive across separate unions
+  code: |
+    ds = DisjointSet(6)
+    ds.union(0, 1)
+    ds.union(2, 3)
+    ds.union(1, 2)
+    assert ds.connected(0, 3) is True
+    assert ds.connected(0, 5) is False
+    assert ds.count == 3
+- id: self-union
+  label: Uniting an element with itself changes nothing
+  code: |
+    ds = DisjointSet(3)
+    assert ds.union(1, 1) is False
+    assert ds.count == 3
+- id: find-is-stable
+  label: find returns the same root for every member of a set
+  hidden: true
+  code: |
+    ds = DisjointSet(10)
+    for a, b in [(0, 1), (1, 2), (3, 4), (2, 3)]:
+        ds.union(a, b)
+    roots = {ds.find(x) for x in range(5)}
+    assert len(roots) == 1, "one set, so one root"
+    assert ds.find(0) == ds.find(4)
+    assert {ds.find(x) for x in range(5, 10)} == {5, 6, 7, 8, 9}
+    assert ds.count == 6
+- id: everything-merged
+  label: Merging every element leaves exactly one set
+  hidden: true
+  code: |
+    ds = DisjointSet(200)
+    merged = 0
+    for i in range(199):
+        if ds.union(i, i + 1):
+            merged += 1
+    assert merged == 199
+    assert ds.count == 1
+    assert ds.connected(0, 199) is True
+    assert ds.find(0) == ds.find(137)

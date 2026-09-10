@@ -1,0 +1,84 @@
+id: owner-and-contributor
+kind: sql
+title: Both an owner and a contributor
+difficulty: 3
+datasetId: package-registry
+pattern: set-operations
+topics: [set-operations, intersect]
+timeLimitMs: 15000
+prompt: |
+  Return the `handle` of every maintainer who is an **owner** of at least one
+  package *and* a **contributor** on at least one other, sorted by `handle`.
+
+  The starter writes the two conditions on one row — `pm.role = 'owner' AND
+  pm.role = 'contributor'` — and returns nothing, because no single link row is
+  both. The two facts live in two different rows, and the question is about the
+  intersection of two *sets of maintainers*.
+
+  Use `INTERSECT`. It is the SQL spelling of Python's `set_a & set_b`, and it
+  deduplicates on both sides for free.
+hints:
+  - "Write the two halves as two separate queries first, and check each one on its own: everyone who owns something, and everyone who contributes to something."
+  - "You now have two result sets with the same single column. `INTERSECT` keeps the rows that appear in both."
+  - "`INTERSECT` removes duplicates, so neither half needs a DISTINCT. One `ORDER BY handle` at the very end applies to the combined result — it cannot go inside either half."
+solutionWalkthrough: |
+  ```sql
+  SELECT m.handle
+  FROM maintainers m
+  JOIN package_maintainers pm ON pm.maintainer_id = m.id
+  WHERE pm.role = 'owner'
+
+  INTERSECT
+
+  SELECT m.handle
+  FROM maintainers m
+  JOIN package_maintainers pm ON pm.maintainer_id = m.id
+  WHERE pm.role = 'contributor'
+
+  ORDER BY handle;
+  ```
+
+  Five handles: ada, barbara, donald, grace, linus.
+
+  **Why the starter returns zero.** `WHERE` filters one row at a time, and a
+  single row in `package_maintainers` carries exactly one role. `role = 'owner'
+  AND role = 'contributor'` is a contradiction, not a conjunction of two facts
+  about a person. Recognising when a condition is about a *row* versus about a
+  *set of rows* is the whole skill here — the same distinction that made
+  "never an owner" an anti-join rather than a `<>`.
+
+  **What the set operators are.** Each one has an exact Python twin:
+
+  | SQL | Python | Duplicates |
+  | --- | --- | --- |
+  | `UNION` | `a \| b` | removed |
+  | `UNION ALL` | `list_a + list_b` | kept |
+  | `INTERSECT` | `a & b` | removed |
+  | `EXCEPT` | `a - b` | removed |
+
+  The three named operators deduplicate; only `UNION ALL` does not, which is
+  why it is also the cheapest — no sort, no hash table, just concatenation. If
+  you know the two halves are disjoint, `UNION ALL` is both faster and more
+  honest about what you meant.
+
+  **The `ORDER BY` belongs to the whole expression.** Putting it inside the
+  first branch is a syntax error in most engines and meaningless in the rest:
+  the branches are inputs to a set operation, and a set has no order until you
+  impose one on the result. Note that the sort key is the bare column name
+  `handle`, not `m.handle` — the table aliases stop existing once the branches
+  are combined.
+
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 5
+      message: >-
+        Expected 5 rows. Ten maintainers exist: five are both owner and
+        contributor, three are only owners, and two are only contributors.
+    - type: syntax
+      pattern: "\\bintersect\\b"
+      message: >-
+        This exercise is about set operators — use INTERSECT rather than a
+        self-join or a pair of EXISTS clauses.

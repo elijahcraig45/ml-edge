@@ -1,0 +1,80 @@
+id: pa-merge-sorted-changelogs
+kind: python
+title: Merge two sorted changelogs
+difficulty: 3
+pattern: linked-list
+stage: s03-linear-structures
+topics:
+  - pointers
+  - merging
+timeLimitMs: 15000
+prompt: |
+  Two mirrors each hand you a changelog as a singly linked list, already sorted
+  ascending by release number. Splice them into one sorted chain and return its
+  head. The starter defines the node type:
+
+  ```python
+  class Node:
+      def __init__(self, value, next_node=None):
+          self.value = value
+          self.next = next_node
+  ```
+
+  Relink the nodes you were given; do not allocate new ones, and do not collect
+  the values into a list. `sorted(` and `.sort(` are rejected.
+
+  ```
+  a = Node(1, Node(4))
+  b = Node(2, Node(3))
+  merge_changelogs(a, b)   # chain reads 1 -> 2 -> 3 -> 4
+  ```
+
+  Equal values from the two chains may appear in either order. Either input may
+  be `None`.
+hints:
+  - "Both chains are already sorted, so the smallest release overall is at one of the two heads. Take it, advance that chain, and the same statement is true again."
+  - "The awkward part is attaching the first node, because there is no tail to attach it to yet. Allocate one throwaway node before the loop and build behind it."
+  - "Keep `tail` pointing at the last node of the result. Each step, compare `a.value` and `b.value`, set `tail.next` to the smaller node, advance that chain and `tail`. When one chain runs out, `tail.next` is the whole of the other."
+solutionWalkthrough: |
+  ```python
+  class Node:
+      def __init__(self, value, next_node=None):
+          self.value = value
+          self.next = next_node
+
+
+  def merge_changelogs(a, b):
+      dummy = Node(None)
+      tail = dummy
+      while a is not None and b is not None:
+          if a.value <= b.value:
+              tail.next = a
+              a = a.next
+          else:
+              tail.next = b
+              b = b.next
+          tail = tail.next
+      tail.next = a if a is not None else b
+      return dummy.next
+  ```
+
+  The dummy head is the point of the exercise. Without it, the first iteration
+  is a special case — there is no `tail` yet — and that special case has to be
+  repeated in every function that builds a list this way. One throwaway node
+  removes it entirely, and `dummy.next` is the real head at the end.
+
+  The other move is `tail.next = a if a is not None else b`. When one chain is
+  exhausted the rest of the other is already sorted and already linked, so
+  attaching it is a single assignment rather than a second loop.
+
+  `<=` rather than `<` keeps the merge stable: equal releases from `a` come out
+  before equal releases from `b`. The problem does not require it, but the same
+  comparison inside merge sort does, and stability is the property people
+  accidentally give up.
+
+  O(n + m) time, O(1) extra space. Collecting values into a Python list and
+  sorting is O((n+m) log(n+m)) and throws away the fact that the inputs were
+  sorted at all — the single most common way this gets answered badly.
+forbid:
+  - "sorted("
+  - ".sort("

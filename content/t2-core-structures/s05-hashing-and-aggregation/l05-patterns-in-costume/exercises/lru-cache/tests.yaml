@@ -1,0 +1,89 @@
+- id: store-and-fetch
+  label: Stores values and reports misses
+  code: |
+    c = LRUCache(2)
+    c.put("a", 1)
+    c.put("b", 2)
+    assert c.get("a") == 1
+    assert c.get("b") == 2
+    assert c.get("zzz") is None
+    assert c.get("zzz", "MISS") == "MISS"
+    assert len(c) == 2
+- id: evicts-least-recent
+  label: A third insert evicts the oldest entry
+  code: |
+    c = LRUCache(2)
+    c.put("a", 1)
+    c.put("b", 2)
+    c.put("c", 3)
+    assert c.get("a", "GONE") == "GONE"
+    assert c.get("b") == 2 and c.get("c") == 3
+    assert len(c) == 2
+- id: get-refreshes
+  label: Reading an entry protects it from the next eviction
+  code: |
+    c = LRUCache(2)
+    c.put("a", 1)
+    c.put("b", 2)
+    c.get("a")            # "a" is now the most recently used
+    c.put("c", 3)         # so "b" is the victim
+    assert c.get("a") == 1
+    assert c.get("b", "GONE") == "GONE"
+- id: update-existing
+  label: Re-putting a key updates it in place and refreshes it
+  code: |
+    c = LRUCache(2)
+    c.put("a", 1)
+    c.put("b", 2)
+    c.put("a", 99)        # update, not insert: nothing is evicted
+    assert len(c) == 2
+    assert c.get("a") == 99
+    c.put("c", 3)         # "b" is now the least recently used
+    assert c.get("b", "GONE") == "GONE"
+    assert c.get("a") == 99
+- id: capacity-one
+  label: A cache of size one holds only the newest key
+  hidden: true
+  code: |
+    c = LRUCache(1)
+    c.put("a", 1)
+    c.put("b", 2)
+    assert len(c) == 1
+    assert c.get("a", "GONE") == "GONE"
+    assert c.get("b") == 2
+    c.put("b", 3)
+    assert len(c) == 1 and c.get("b") == 3
+- id: long-sequence
+  label: Matches a reference LRU over a long mixed workload
+  hidden: true
+  code: |
+    class Reference:
+        def __init__(self, capacity):
+            self.capacity = capacity
+            self.order = []       # least recent first
+            self.data = {}
+        def get(self, key, default=None):
+            if key not in self.data:
+                return default
+            self.order.remove(key)
+            self.order.append(key)
+            return self.data[key]
+        def put(self, key, value):
+            if key in self.data:
+                self.order.remove(key)
+            elif len(self.data) >= self.capacity:
+                del self.data[self.order.pop(0)]
+            self.data[key] = value
+            self.order.append(key)
+
+    import random
+    random.seed(23)
+    c, ref = LRUCache(8), Reference(8)
+    for step in range(4000):
+        key = random.randint(0, 20)
+        if step % 3 == 0:
+            assert c.get(key, "MISS") == ref.get(key, "MISS"), (step, key)
+        else:
+            c.put(key, step)
+            ref.put(key, step)
+        assert len(c) == len(ref.data), step

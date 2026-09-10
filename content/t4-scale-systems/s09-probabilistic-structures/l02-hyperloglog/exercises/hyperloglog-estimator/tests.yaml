@@ -1,0 +1,44 @@
+- id: empty-stream
+  label: An empty stream estimates zero
+  code: |
+    assert estimate_cardinality([], 1024) == 0.0
+- id: small-cardinality
+  label: 100 distinct items, 4096 registers, within 10%
+  code: |
+    est = estimate_cardinality([f"user-{i}" for i in range(100)], 4096)
+    assert abs(est - 100) / 100 < 0.10, f"estimate {est} is more than 10% from 100"
+- id: mid-cardinality
+  label: 10000 distinct items, 1024 registers, within 8%
+  code: |
+    est = estimate_cardinality((f"user-{i}" for i in range(10_000)), 1024)
+    assert abs(est - 10_000) / 10_000 < 0.08, f"estimate {est} is more than 8% from 10000"
+- id: large-cardinality
+  label: 100000 distinct items, 1024 registers, still within 8%
+  code: |
+    est = estimate_cardinality((f"user-{i}" for i in range(100_000)), 1024)
+    assert abs(est - 100_000) / 100_000 < 0.08, f"estimate {est} is more than 8% from 100000"
+- id: duplicates-are-free
+  label: Repeating every item changes nothing
+  hidden: true
+  code: |
+    # max() of a value with itself is that value, so a duplicate cannot move a
+    # register. This must be exactly equal, not approximately.
+    once = estimate_cardinality([f"u-{i}" for i in range(5_000)], 1024)
+    many = estimate_cardinality([f"u-{i}" for i in range(5_000) for _ in range(5)], 1024)
+    assert once == many, f"{once} != {many} — duplicates moved the estimate"
+- id: it-is-an-estimate
+  label: The answer is an estimate, not the exact count
+  hidden: true
+  code: |
+    # An exact set would return 100000.0 here. A sketch cannot.
+    est = estimate_cardinality((f"user-{i}" for i in range(100_000)), 1024)
+    assert abs(est - 100_000) > 0.5, "returned the exact count — that is not a sketch"
+- id: consumes-an-iterator-once
+  label: Works on a one-pass iterator
+  hidden: true
+  code: |
+    # A single pass with fixed state is the whole point; anything that needs to
+    # re-read the stream is a different structure.
+    stream = iter(f"user-{i}" for i in range(20_000))
+    est = estimate_cardinality(stream, 1024)
+    assert abs(est - 20_000) / 20_000 < 0.08, f"estimate {est} is more than 8% from 20000"

@@ -1,0 +1,90 @@
+id: maintainer-adjacency
+kind: sql
+title: The shared-maintainer graph as an adjacency list
+difficulty: 3
+datasetId: package-registry
+pattern: graph-representation
+topics: [graphs, joins]
+timeLimitMs: 15000
+prompt: |
+  `package_maintainers` is a bipartite edge list. Project it onto packages —
+  two packages are adjacent when at least one person maintains both — and
+  return that projection as an adjacency list.
+
+  Three columns:
+
+  - `name` — the package
+  - `degree` — how many distinct packages it is adjacent to
+  - `neighbours` — those package names, comma-and-space separated
+    (`'a, b, c'`), in alphabetical order
+
+  Order by `degree` descending, then `name` ascending. Every one of the 20
+  packages appears.
+
+  A package is **not** its own neighbour, and the same pair must not be counted
+  twice just because two people maintain both packages.
+hints:
+  - "Start from the self-join: `package_maintainers a JOIN package_maintainers b ON a.maintainer_id = b.maintainer_id`. Look hard at what that produces when `a` and `b` are the same row."
+  - "You need two guards. One keeps a package from being adjacent to itself; the other collapses a pair that shares more than one maintainer down to a single edge. `DISTINCT` handles the second."
+  - "Once the edge set is clean, the adjacency list is `GROUP BY src` — `count(*)` for the degree and `string_agg(name, ', ' ORDER BY name)` for the neighbour list. GROUP BY is the `for each node` loop."
+solutionWalkthrough: |
+  ```sql
+  WITH edges AS (
+    SELECT DISTINCT a.package_id AS src, b.package_id AS dst
+    FROM package_maintainers a
+    JOIN package_maintainers b ON a.maintainer_id = b.maintainer_id
+    WHERE a.package_id <> b.package_id
+  )
+  SELECT
+    p.name                                   AS name,
+    count(*)                                 AS degree,
+    string_agg(q.name, ', ' ORDER BY q.name) AS neighbours
+  FROM edges e
+  JOIN packages p ON p.id = e.src
+  JOIN packages q ON q.id = e.dst
+  GROUP BY p.name
+  ORDER BY degree DESC, name;
+  ```
+
+  Two lines are doing the real work and both are easy to leave out.
+
+  `WHERE a.package_id <> b.package_id` removes the self-loops. A self-join on a
+  key always matches every row with itself, so without this line every package
+  is its own neighbour and every degree is exactly one too high — which looks
+  plausible enough to ship.
+
+  `DISTINCT` collapses parallel edges. In this dataset no pair shares two
+  maintainers, so the numbers happen to agree either way; on real registry data
+  they would not, and a degree that counts *maintainers in common* rather than
+  *neighbours* is a different statistic wearing the same column name. Making the
+  edge set distinct before aggregating is what keeps the two apart.
+
+  The alternative shape is `GROUP BY` over the join directly, with
+  `count(DISTINCT q.name)`. It gives the same numbers here and it hides the
+  edge set, which is exactly the thing you want to be able to look at. Naming
+  the projection in a CTE means the next query — reachability, components,
+  shortest paths — starts from `edges` instead of rebuilding the join.
+
+  Look at the answer: `bitmask`, `hashring`, `keyspace`, `probe` and
+  `radixsort` each have four neighbours, and they are each other. That 5-clique
+  comes from `linus` and `edsger` maintaining overlapping sets of Rust
+  packages. Projections turn one prolific maintainer into a dense blob, which is
+  why the degree distribution of a projected graph tells you more about the
+  maintainers than about the packages.
+
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 20
+      message: >-
+        Every package should appear exactly once — 20 rows. Fewer means some
+        packages were dropped by the join; more means the grouping is not one
+        row per package.
+    - type: predicate
+      sql: "SELECT max(degree) = 5 AND min(degree) = 1 FROM __learner"
+      message: >-
+        Degrees should run from 1 (dagrun, orderby) to 5 (chunker, keyspace). If
+        your maximum is 6, the self-join is matching each package with itself —
+        add the guard that stops a package being its own neighbour.

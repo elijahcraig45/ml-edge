@@ -1,0 +1,37 @@
+id: s07-graphs
+tier: t3-algorithms
+order: 7
+title: "Graphs: Relationships as First-Class Data"
+status: published
+thesis: >-
+  A graph is not a special kind of data. It is the data you already have,
+  read as edges — and the same traversal you write with a queue in Python is
+  the one the database writes as a recursive CTE.
+summary: >-
+  Seven lessons on the structure that shows up the moment you stop looking at
+  rows and start looking at what connects them. You will build the four
+  representations real libraries use, including CSR; write BFS, DFS,
+  topological sort, Dijkstra with the lazy heap that Python forces on you,
+  Bellman-Ford, Kruskal with an inline union-find, and backtracking framed as
+  DFS over a graph you never materialise. Alongside every one of them runs the
+  SQL twin: `WITH RECURSIVE` is breadth-first search, `UNION` versus
+  `UNION ALL` *is* the visited set, and the reason SQL can express
+  Bellman-Ford but not Dijkstra is a fact about fixpoint evaluation you can
+  state precisely by the end of the stage.
+outcomes:
+  - Choose between an adjacency list, an adjacency matrix, an edge list and CSR from the density and the access pattern.
+  - Write BFS and DFS from memory, and say exactly which line makes the traversal terminate.
+  - Produce a topological order with Kahn's algorithm or DFS post-order, and detect the cycle that makes the question unanswerable.
+  - Implement Dijkstra with a lazy-deletion heap, and explain why a negative edge breaks it.
+  - Reach for Bellman-Ford, A*, or Floyd-Warshall by naming the property of the input that rules the others out.
+  - Build a minimum spanning tree with Kruskal over a union-find you wrote yourself, and check bipartiteness by two-colouring.
+  - Recognise a backtracking problem as a DFS over an implicit state graph, and name its state, frontier, feasibility test and pruning rule.
+  - Write a recursive CTE as a breadth-first traversal, use UNION as the visited set, and say why Dijkstra has no set-at-a-time form.
+lessons:
+  - l01-representing-a-graph
+  - l02-traversal-and-the-visited-set
+  - l03-topological-order
+  - l04-dijkstra-and-the-lazy-heap
+  - l05-beyond-dijkstra
+  - l06-spanning-trees-and-structure
+  - l07-backtracking-as-dfs

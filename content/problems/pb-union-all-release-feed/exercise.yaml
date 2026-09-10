@@ -1,0 +1,78 @@
+id: pb-union-all-release-feed
+kind: sql
+title: UNION deletes events you needed
+difficulty: 2
+pattern: set-operations
+stage: s03-linear-structures
+topics: [union-all, duplicates]
+datasetId: package-registry
+timeLimitMs: 15000
+prompt: |
+  Build a registry activity feed: one row for every package creation and one row
+  for every version publication.
+
+  Two columns, `name` and `event_day`. There are 20 packages and 26 versions, so
+  the feed has **46** rows. Order does not matter.
+
+  Write it with `UNION` and you get 28. Most packages published their first
+  version on the day they were created, and those are two distinct events that
+  happen to produce identical rows — which `UNION` deduplicates away, quietly,
+  with no error and no warning.
+hints:
+  - "Count what you get and compare it against 20 + 26. Any shortfall is rows that were silently merged, not rows that were filtered."
+  - "`UNION` is defined as a set union: it removes duplicate rows across the whole result. `UNION ALL` is concatenation and removes nothing."
+  - "Default to `UNION ALL` and add the deduplication only when you can say what a duplicate means. Here, two events on the same day for the same package are two real events."
+solutionWalkthrough: |
+  ```sql
+  SELECT name, created_at AS event_day
+  FROM packages
+  UNION ALL
+  SELECT p.name, v.published_at
+  FROM versions v
+  JOIN packages p ON p.id = v.package_id;
+  ```
+
+  46 rows. `arrowkit` contributes 4 of them: one creation and three releases,
+  and the creation shares a date with version 0.9.0.
+
+  `UNION` is not "put these together"; it is "put these together and then run a
+  `DISTINCT` over everything". That second half is a full sort or hash of the
+  combined result, so `UNION` is also the slower of the two — you are paying for
+  a deduplication you did not ask for, and here it corrupts the answer as well.
+
+  The dedup happens across *all* selected columns, which is why the bug depends
+  on what you happen to project. Add an `event_type` column — `'created'` versus
+  `'released'` — and `UNION` returns all 46 rows, because the extra column makes
+  every pair distinct. The query is then accidentally correct, and stays correct
+  only until someone drops the column from the SELECT list. That is the worst
+  kind of bug: fixed by coincidence, broken again by a cosmetic edit.
+
+  Reach for `UNION` when deduplication is the *point* — combining two lists of
+  identifiers where "appears in both" should collapse to one entry. Reach for
+  `UNION ALL` for everything else, particularly for event streams and fact tables
+  where two identical rows mean two things happened.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 46
+      message: >-
+        Expected 46 events: 20 package creations plus 26 version publications.
+        28 rows is what `UNION` leaves after deduplicating the creations that
+        share a date with a release.
+    - type: syntax
+      pattern: "union\\s+all"
+      negate: false
+      message: >-
+        Two events on the same day are two events. Concatenate with `UNION ALL`
+        rather than taking a set union.
+    - type: predicate
+      sql: "SELECT count(DISTINCT name) = 20 FROM __learner"
+      message: Every package should appear at least once — it has a creation date.
+    - type: predicate
+      sql: "SELECT count(*) = 4 FROM __learner WHERE name = 'arrowkit'"
+      message: >-
+        `arrowkit` has one creation and three releases. Three rows means its
+        creation was merged with version 0.9.0, published the same day.

@@ -1,0 +1,68 @@
+- id: interleaved
+  label: Merges two interleaving chains
+  code: |
+    def to_list(head):
+        out = []
+        while head is not None:
+            out.append(head.value)
+            head = head.next
+        return out
+    a = Node(1, Node(4))
+    b = Node(2, Node(3))
+    assert to_list(merge_changelogs(a, b)) == [1, 2, 3, 4]
+- id: disjoint
+  label: One chain entirely before the other
+  code: |
+    def to_list(head):
+        out = []
+        while head is not None:
+            out.append(head.value)
+            head = head.next
+        return out
+    a = Node(1, Node(2))
+    b = Node(8, Node(9))
+    assert to_list(merge_changelogs(a, b)) == [1, 2, 8, 9]
+    a = Node(8, Node(9))
+    b = Node(1, Node(2))
+    assert to_list(merge_changelogs(a, b)) == [1, 2, 8, 9]
+- id: one-empty
+  label: An empty chain merges to the other one
+  code: |
+    def to_list(head):
+        out = []
+        while head is not None:
+            out.append(head.value)
+            head = head.next
+        return out
+    assert to_list(merge_changelogs(None, Node(5))) == [5]
+    assert to_list(merge_changelogs(Node(5), None)) == [5]
+- id: both-empty
+  label: Two empty chains merge to nothing
+  code: |
+    assert merge_changelogs(None, None) is None
+- id: nodes-are-reused
+  label: The result is built from the original nodes
+  hidden: true
+  code: |
+    a1 = Node(1)
+    b1 = Node(2)
+    result = merge_changelogs(a1, b1)
+    assert result is a1
+    assert result.next is b1
+    assert result.next.next is None
+- id: duplicates-and-unequal-lengths
+  label: Repeated values, and one chain much longer than the other
+  hidden: true
+  code: |
+    def to_list(head):
+        out = []
+        while head is not None:
+            out.append(head.value)
+            head = head.next
+        return out
+    a = Node(2, Node(2, Node(2)))
+    b = Node(2, Node(2))
+    assert to_list(merge_changelogs(a, b)) == [2, 2, 2, 2, 2]
+    a = Node(0)
+    b = Node(1, Node(2, Node(3, Node(4))))
+    assert to_list(merge_changelogs(a, b)) == [0, 1, 2, 3, 4]

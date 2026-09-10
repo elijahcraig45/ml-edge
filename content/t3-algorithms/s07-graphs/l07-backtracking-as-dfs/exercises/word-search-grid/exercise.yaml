@@ -1,0 +1,84 @@
+id: word-search-grid
+kind: python
+title: Word search, and the visited set that gets undone
+difficulty: 4
+pattern: backtracking
+topics: [backtracking, dfs, grids]
+timeLimitMs: 15000
+prompt: |
+  `board` is a list of lists of single characters. Return `True` if `word` can
+  be spelled by walking from cell to cell, moving only up, down, left or right,
+  **without using any cell twice in the same word**.
+
+  ```
+  board = [list("ABCE"), list("SFCS"), list("ADEE")]
+  exists(board, "ABCCED")   # True
+  exists(board, "SEE")      # True
+  exists(board, "ABCB")     # False — the second B would reuse the first cell
+  ```
+
+  You may mark cells in `board` while searching, but **the board must be exactly
+  as you found it when the function returns** — a hidden test checks that. A
+  cell excluded from one path has to be available to a different one.
+
+  An empty word is `True`. An empty board with a non-empty word is `False`.
+hints:
+  - "The recursive call needs three things to know where it is: a row, a column, and how much of the word has already been matched. Everything else is derivable."
+  - "One function handles the bounds check, the letter check and the goal check at the top — `if i == len(word): return True`, then reject anything off-grid or holding the wrong letter. That way the four recursive calls need no guards of their own."
+  - "The visited set here is per-path, not permanent. Overwrite the cell before the four recursive calls and put the original letter back afterwards. Failing to restore it is the difference between `ABC` being findable on `[['A','A','B'],['X','X','C']]` and not."
+solutionWalkthrough: |
+  ```python
+  def exists(board, word):
+      if not word:
+          return True
+      if not board or not board[0]:
+          return False
+      rows, cols = len(board), len(board[0])
+
+      def visit(r, c, i):
+          if i == len(word):
+              return True
+          if not (0 <= r < rows and 0 <= c < cols) or board[r][c] != word[i]:
+              return False
+          board[r][c] = None                        # on the current path
+          found = (visit(r + 1, c, i + 1) or visit(r - 1, c, i + 1)
+                   or visit(r, c + 1, i + 1) or visit(r, c - 1, i + 1))
+          board[r][c] = word[i]                     # undo
+          return found
+
+      return any(visit(r, c, 0) for r in range(rows) for c in range(cols))
+  ```
+
+  **`board[r][c] = None` is the visited set, and the restore is what makes it
+  correct.** This is the one thing that separates a backtracking search from the
+  graph traversals earlier in this stage. There, a node marked visited stays
+  visited forever, because you only want to reach it once *in total*. Here the
+  question is whether a cell is on the **current path**, so it is unmarked as
+  the recursion unwinds. Skip the restore and the search still terminates and
+  still returns `True` for some words — it just silently loses the ones whose
+  route crosses a cell that an earlier, failed attempt burned.
+
+  If lesson 2's three-colour cycle detection felt like an odd distinction, this
+  is the same one: grey (on the current path) versus black (finished). Marking
+  and unmarking is grey. Marking and leaving it is black.
+
+  **`None` rather than `'#'`** as the marker means the code cannot be defeated by
+  a board that legitimately contains `'#'`. Any sentinel that cannot equal a
+  character works; `None` is the one you cannot accidentally collide with. The
+  alternative — a separate `set()` of `(r, c)` pairs, added and discarded — is
+  equally correct, does not touch the caller's data, and costs a tuple
+  allocation per step. Choose the set when mutating the input is unacceptable;
+  choose the in-place mark when it is not, and restore it.
+
+  **Putting all the checks at the top of `visit`** rather than before each of the
+  four calls is what keeps the function short. The bounds test, the letter test
+  and the goal test are one block; the recursion is one expression. Guarding at
+  the call sites means writing the same three conditions four times.
+
+  **The complexity is $O(R \cdot C \cdot 4^{L})$** in the worst case, where $L$
+  is the word length: a start from every cell, and four directions at each of
+  $L$ steps. In practice the letter test prunes almost immediately, which is why
+  this runs instantly on inputs the bound says are hopeless. Two cheap
+  improvements when it does not: check that the board contains enough of each
+  letter before starting, and search for the reversed word when the last letter
+  is rarer than the first.

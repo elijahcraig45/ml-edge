@@ -1,0 +1,67 @@
+id: longest-cluster
+kind: python
+title: Measure the longest cluster
+difficulty: 3
+pattern: hash-table
+topics: [hashing, arrays]
+timeLimitMs: 10000
+prompt: |
+  You are handed the raw slot array of an open-addressed table. `None` means the
+  slot is empty; anything else is an occupied slot. Return the length of the
+  **longest run of consecutive occupied slots**, remembering that the table is
+  circular — slot 0 follows the last slot.
+
+  ```
+  longest_cluster([None, "a", "b", None, "c", None])   # 2
+  longest_cluster([None, None, None])                  # 0
+  longest_cluster(["a", "b", "c"])                     # 3
+  ```
+
+  This number is the diagnostic for primary clustering. The average probe count
+  tells you the table is slow; the longest cluster tells you *why*, because a
+  key whose home slot lands at the start of a run of 400 pays 400 probes no
+  matter how good the hash function is.
+
+  The wrap-around is the whole exercise. A run that starts near the end of the
+  array and continues past index 0 is one run, and a scan that stops at the last
+  index reports it as two.
+hints:
+  - "Handle the circle by walking further than the array is long, rather than by writing a special case for the last index."
+  - "Iterate `i` from 0 to 2n and read `slots[i % n]`. A run that wraps appears intact in that doubled walk."
+  - "One case still needs care: if there is no empty slot at all, the doubled walk reports 2n. Check for a completely full table before you start and return n."
+solutionWalkthrough: |
+  ```python
+  def longest_cluster(slots):
+      n = len(slots)
+      if n == 0:
+          return 0
+      if all(slot is not None for slot in slots):
+          return n
+
+      longest = current = 0
+      for i in range(2 * n):
+          if slots[i % n] is None:
+              current = 0
+          else:
+              current += 1
+              if current > longest:
+                  longest = current
+      return longest
+  ```
+
+  Walking the array twice is the standard way to turn a circular problem into a
+  linear one, and it is correct here for a reason worth stating: **once you know
+  at least one slot is empty, no cyclic run can be longer than `n - 1`**, so no
+  run counted in the doubled walk can be an artefact of the doubling. The
+  full-table check is not defensive padding — it is the one case where that
+  argument fails, and without it a full table reports `2n`.
+
+  The alternative is to find an empty slot first, rotate the scan to start
+  there, and walk once. Same work, one more index calculation, and it fails on
+  the same full-table input, so there is nothing to choose between them.
+
+  What the number is for: run it on a table at $\alpha = 0.9$ and it comes back
+  in the hundreds, while the average probe count is around 5. The average says
+  the table is fine. The maximum says one unlucky key in a thousand costs two
+  orders of magnitude more than the mean — which is exactly the shape of a
+  latency graph whose p50 is flat and whose p99 is on fire.

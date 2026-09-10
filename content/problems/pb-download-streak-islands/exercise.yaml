@@ -1,0 +1,120 @@
+id: pb-download-streak-islands
+kind: sql
+title: Busy streaks, not busy days
+difficulty: 5
+pattern: gaps-and-islands
+stage: s04-sorting-and-windows
+topics: [window-functions, islands]
+datasetId: package-registry
+timeLimitMs: 20000
+prompt: |
+  Call a day **busy** for a package when it recorded 1,000 or more downloads.
+  113 of the 200 rows qualify.
+
+  Collapse those days into maximal runs of consecutive calendar days. One row per
+  run:
+
+  - `package_id`
+  - `first_day`, `last_day` — the ends of the run
+  - `days` — how many days it spans
+
+  Twenty rows. Five packages never reach 1,000 and contribute nothing; nine are
+  busy on all ten days and contribute a single ten-day run; the remaining six
+  break into two runs each. Order does not matter.
+
+  `GROUP BY package_id` over the filtered days gives fifteen rows and merges
+  `joinplan`'s two separate four-day runs into one span of eight days that
+  includes two quiet days in the middle. The `min` and `max` are individually
+  correct and the answer is nonsense.
+hints:
+  - "Look at `joinplan` (package 10). Its busy days are the 1st-4th and the 6th-9th. A single min/max cannot tell that apart from the 1st-9th; you need something that notices the missing 5th."
+  - "Number the busy days of each package 1, 2, 3, ... in date order. For days that are consecutive, `day` and that number increase in lockstep — so their difference is constant, and it changes exactly when a gap appears."
+  - "`day - INTERVAL (row_number() OVER (PARTITION BY package_id ORDER BY day)) DAY` is constant within a run. Group by it along with `package_id`, then take `min(day)`, `max(day)` and `count(*)`."
+solutionWalkthrough: |
+  ```sql
+  WITH busy AS (
+    SELECT
+      package_id,
+      day,
+      row_number() OVER (PARTITION BY package_id ORDER BY day) AS seq
+    FROM downloads
+    WHERE count >= 1000
+  )
+  SELECT
+    package_id,
+    min(day) AS first_day,
+    max(day) AS last_day,
+    count(*) AS days
+  FROM busy
+  GROUP BY package_id, day - INTERVAL (seq) DAY;
+  ```
+
+  Twenty runs covering all 113 busy days. `joinplan` gives two four-day runs;
+  `orderby` gives one single day; `arrowkit` through `indexer` give one ten-day
+  run each.
+
+  The trick is worth understanding rather than memorising. Inside a run of
+  consecutive days, `day` increases by one per row and `seq` increases by one per
+  row, so `day - seq` does not change. The first day after a gap has a `day` that
+  jumped forward while `seq` only stepped by one, so `day - seq` jumps too — and
+  a new group begins. The subtracted value is meaningless on its own; it is a
+  *synthetic group key* whose only job is to be equal within a run and different
+  across runs.
+
+  Two things it depends on. The filter has to come first: `seq` must number only
+  the qualifying days, which is why `WHERE count >= 1000` sits inside the CTE
+  rather than outside. And the key must include `package_id` in the `GROUP BY`,
+  because two different packages can easily produce the same `day - seq` value.
+
+  The alternative technique — flag each row where the previous qualifying day is
+  not yesterday, then take a running sum of those flags as a session id — is
+  equivalent, needs two window passes instead of one, and generalises better: it
+  works when "consecutive" is defined by a gap threshold rather than by exact
+  adjacency, where the `row_number` subtraction has nothing to subtract.
+
+  Both are `O(n log n)`, dominated by the sort inside the window. The self-join
+  formulation of the same question — find rows whose predecessor is missing, then
+  match each to its successor — is quadratic and is the reason this pattern has a
+  name.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 20
+      message: >-
+        Expected 20 runs. Fifteen rows means each package was collapsed into a
+        single span regardless of the gaps inside it.
+    - type: syntax
+      pattern: "\\bover\\s*\\("
+      negate: false
+      message: >-
+        The run boundaries have to come from a window function — either the
+        `row_number` offset or a `lag` comparison.
+    - type: predicate
+      sql: "SELECT sum(days) = 113 FROM __learner"
+      message: >-
+        The runs must account for all 113 days with 1,000 or more downloads,
+        with no day counted twice.
+    - type: predicate
+      sql: "SELECT count(*) = 0 FROM __learner WHERE last_day - first_day + 1 <> days"
+      message: >-
+        A run's span must equal its day count. Any row where they differ contains
+        a gap and should have been split.
+    - type: predicate
+      sql: "SELECT count(*) = 2 FROM __learner WHERE package_id = 10"
+      message: >-
+        Package 10 is busy on the 1st-4th and the 6th-9th — two runs, not one
+        eight-day span and not four separate days.
+    - type: predicate
+      sql: "SELECT count(*) = 0 FROM __learner WHERE package_id > 15"
+      message: >-
+        Packages 16 to 20 never reach 1,000 downloads on any day, so they
+        contribute no runs at all.
+    - type: plan
+      contains: ["WINDOW"]
+      notContains: ["CROSS_PRODUCT"]
+      message: >-
+        Solve this with a window pass. Matching each run's start to its end with
+        an inequality self-join is quadratic and shows up as a cross product.

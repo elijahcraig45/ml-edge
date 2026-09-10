@@ -1,0 +1,79 @@
+id: greedy-set-cover
+kind: python
+title: Greedy set cover, and the instance that defeats it
+difficulty: 4
+pattern: approximation
+topics: [greedy, approximation, ratio]
+timeLimitMs: 20000
+prompt: |
+  **`greedy_set_cover(universe, sets)`** returns the list of set **indices**
+  greedy chooses, in the order it chooses them.
+
+  At each step, pick the set covering the most still-uncovered elements. Break
+  ties by choosing the **lowest index**. Stop when nothing is uncovered. If no
+  choice covers anything new and elements remain, no cover exists — return
+  `None`.
+
+  ```
+  greedy_set_cover([1, 2, 3], [[1, 2], [2, 3], [3]])   # [0, 1]
+  greedy_set_cover([1, 2], [[1]])                       # None
+  greedy_set_cover([], [[1]])                           # []
+  ```
+
+  `universe` may contain duplicates and the sets may overlap arbitrarily, be
+  empty, or repeat.
+
+  The tests compute the true optimum by brute force and check the
+  $(1 + \ln n)$ bound. They also run the instance from the lesson, where greedy
+  takes three sets and two suffice — the bound is not decorative, and greedy
+  really is beatable.
+hints:
+  - "Keep a `remaining` set. Each round, score every set by `len(remaining & set(s))` and take the best. Recompute the scores each round: a set's value drops as its elements get covered, so scores computed once and cached are wrong."
+  - "Ties go to the lowest index. Scanning `enumerate(sets)` in order and updating only on a **strictly** greater gain gives that for free."
+  - "A gain of 0 for every set means the remaining elements appear in no set at all. That is the `None` case, and it is different from having covered everything."
+solutionWalkthrough: |
+  ```python
+  def greedy_set_cover(universe, sets):
+      remaining = set(universe)
+      chosen = []
+      while remaining:
+          best, best_gain = None, 0
+          for i, s in enumerate(sets):
+              gain = len(remaining & set(s))
+              if gain > best_gain:
+                  best, best_gain = i, gain
+          if best is None:
+              return None
+          chosen.append(best)
+          remaining -= set(sets[best])
+      return chosen
+  ```
+
+  **Why `>` and not `>=`.** With `>=` the last set to tie wins, which is a valid
+  algorithm with the same ratio — but a different answer, and the tests pin the
+  answer. Tie-breaking is where "greedy" stops being a single algorithm and
+  becomes a family, so it has to be specified. Real implementations often break
+  ties by set *cost* or by cardinality, and the choice changes results on
+  practically every instance.
+
+  **The bound, in one line.** When greedy covers $g$ new elements, some optimal
+  set must have covered at least $|R|/k$ of the remaining $|R|$ (the $k$ optimal
+  sets together cover all of $R$), and greedy took at least as many. Charging
+  $1/g \le k/|R|$ to each newly covered element and summing as $|R|$ runs from
+  $n$ down to 1 gives $k \cdot H_n \le k(1 + \ln n)$.
+
+  **The instance that defeats it.** `G1` covers 8 of the 16 elements, tying with
+  `A` and `B`. With the lowest-index rule greedy takes `G1` — and what remains is
+  four elements from each half, which no single set covers. It then needs two
+  more sets. Doubling the construction turns 3 into 4, and generally greedy needs
+  $\log_2 n$ sets where 2 suffice. There is nothing pathological about the
+  instance: it is what "a set that is broad but shallow" looks like, and real
+  covering problems produce them constantly.
+
+  **The cost of recomputing.** This implementation is $O(k \cdot m \cdot |U|)$
+  where $k$ is the number of chosen sets. Rescoring every set every round is the
+  expensive part, and a priority queue with lazy revalidation — pop the best,
+  recompute its gain, push it back if it dropped, otherwise take it — gets you to
+  roughly $O((m + |U|) \log m)$ because a set's gain only ever decreases. That
+  monotonicity is submodularity, and it is the same property that gives greedy
+  its $1 - 1/e$ guarantee for maximisation.

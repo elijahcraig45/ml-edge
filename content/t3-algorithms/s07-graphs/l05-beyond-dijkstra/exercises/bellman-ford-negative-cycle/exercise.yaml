@@ -1,0 +1,87 @@
+id: bellman-ford-negative-cycle
+kind: python
+title: Bellman-Ford, including the answer that is "no answer"
+difficulty: 4
+pattern: bellman-ford
+topics: [graphs, shortest-path]
+timeLimitMs: 10000
+prompt: |
+  `nodes` is a list of node names and `edges` is a list of `(u, v, weight)`
+  triples. Weights may be negative.
+
+  Return a dict mapping every node **reachable from `source`** to its shortest
+  total weight. Unreachable nodes are omitted, and a `source` that is not in
+  `nodes` gives `{}`.
+
+  If a negative cycle is reachable from `source`, return `None` — not a number.
+  There is no shortest path through a negative cycle; going round once more is
+  always cheaper.
+
+  ```
+  nodes = ["s", "a", "b", "t"]
+  edges = [("s","a",2), ("s","b",5), ("b","a",-4), ("a","t",6)]
+  bellman_ford(nodes, edges, "s")   # {"s": 0, "a": 1, "b": 5, "t": 7}
+  ```
+
+  A negative cycle that `source` cannot reach is not your problem — report
+  distances as normal.
+
+  The starter relaxes every edge once. That is enough only when the edges happen
+  to be listed in a convenient order.
+hints:
+  - "One pass over the edges fixes a shortest path only if the edges happen to appear in path order. Reverse the list and one pass propagates exactly one hop. How many passes guarantee every shortest path is complete?"
+  - "A shortest path visits no node twice, so it has at most `len(nodes) - 1` edges, and each full pass extends every shortest path by at least one more edge. Run `len(nodes) - 1` passes."
+  - "After those passes, do one more. If any edge would still improve, the improvement must come from a path with more than V-1 edges — a repeated node with a negative total. Return None. Using `float('inf')` for unreached nodes makes the check fall out for free: `inf + w < inf` is False."
+solutionWalkthrough: |
+  ```python
+  def bellman_ford(nodes, edges, source):
+      inf = float("inf")
+      dist = {node: inf for node in nodes}
+      if source not in dist:
+          return {}
+      dist[source] = 0
+
+      for _ in range(len(nodes) - 1):
+          changed = False
+          for u, v, w in edges:
+              if dist[u] + w < dist[v]:
+                  dist[v] = dist[u] + w
+                  changed = True
+          if not changed:
+              break
+
+      for u, v, w in edges:
+          if dist[u] + w < dist[v]:
+              return None
+
+      return {node: d for node, d in dist.items() if d < inf}
+  ```
+
+  **`len(nodes) - 1` rounds, and the reason is a bound on path length.** Without
+  a negative cycle every shortest path is simple, so it uses at most $V - 1$
+  edges. Round $k$ guarantees correct distances for every node whose shortest
+  path uses at most $k$ edges — the induction is on the number of edges, not on
+  anything about the graph's shape. The hidden test with the edges listed
+  backwards is the one that catches a solution that stops early: there, each
+  round fixes exactly one hop.
+
+  **The `changed` flag is an early exit, not a shortcut.** If a full pass
+  improves nothing, no later pass can either — the state is a fixed point. On
+  well-ordered inputs this turns $V-1$ passes into two. Delete it and the answer
+  is unchanged.
+
+  **The extra pass is the contract.** Without it the function returns a number
+  for a graph where no number is correct. That is worse than an error, because
+  the caller has no way to tell. Note that `inf` does the work of restricting
+  the check to *reachable* cycles: an unreached `u` has `dist[u] = inf`, and
+  `inf + w < inf` is `False`, so a negative cycle in a disconnected corner never
+  fires.
+
+  **Why not Dijkstra with an offset?** Adding a constant to every weight to make
+  them non-negative adds that constant once *per edge on the path*, so it
+  penalises longer paths and can change which path is shortest. The correct
+  reweighting is Johnson's algorithm, which computes a per-node potential
+  $h(v)$ — using a Bellman-Ford run — and reweights each edge as
+  $w'(u,v) = w(u,v) + h(u) - h(v)$. That telescopes along any path, so the
+  ordering of paths is preserved. You cannot skip the Bellman-Ford; you can only
+  amortise it over many Dijkstra runs.

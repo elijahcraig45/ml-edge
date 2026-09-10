@@ -1,0 +1,40 @@
+- id: small-graph
+  label: Builds the CSR pair for a four-node graph
+  code: |
+    indptr, indices = build_csr(4, [(0, 1), (0, 2), (1, 2), (2, 3), (3, 0)])
+    assert indptr == [0, 2, 3, 4, 5], indptr
+    assert indices == [1, 2, 2, 3, 0], indices
+- id: neighbours-slice
+  label: neighbours() reads a slice out of the arrays
+  code: |
+    indptr, indices = build_csr(4, [(0, 1), (0, 2), (1, 2), (2, 3), (3, 0)])
+    assert neighbours(indptr, indices, 0) == [1, 2]
+    assert neighbours(indptr, indices, 3) == [0]
+- id: sorted-runs
+  label: Each neighbour run is sorted even when the edges are not
+  code: |
+    indptr, indices = build_csr(3, [(0, 2), (0, 1), (0, 0)])
+    assert indices == [0, 1, 2], indices
+- id: isolated-nodes
+  label: Nodes with no out-edges get an empty slice
+  hidden: true
+  code: |
+    # Node 1 has no out-edges at all, so indptr[1] == indptr[2].
+    indptr, indices = build_csr(3, [(0, 1), (2, 0)])
+    assert indptr == [0, 1, 1, 2], indptr
+    assert neighbours(indptr, indices, 1) == []
+- id: empty-graph
+  label: A graph with no edges still produces a valid indptr
+  hidden: true
+  code: |
+    indptr, indices = build_csr(3, [])
+    assert indptr == [0, 0, 0, 0], indptr
+    assert indices == []
+    assert all(neighbours(indptr, indices, u) == [] for u in range(3))
+- id: parallel-edges-kept
+  label: A repeated edge appears twice — CSR stores a multigraph faithfully
+  hidden: true
+  code: |
+    indptr, indices = build_csr(2, [(0, 1), (0, 1)])
+    assert indptr == [0, 2, 2], indptr
+    assert indices == [1, 1], indices

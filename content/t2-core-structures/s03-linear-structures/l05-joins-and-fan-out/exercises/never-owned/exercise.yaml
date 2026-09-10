@@ -1,0 +1,80 @@
+id: never-owned
+kind: sql
+title: Maintainers who have never owned anything
+difficulty: 3
+datasetId: package-registry
+pattern: anti-join
+topics: [joins, anti-join]
+timeLimitMs: 15000
+prompt: |
+  Return the `handle` and `country` of every maintainer who has **never** held
+  the `owner` role on any package. Sort by `handle`.
+
+  The starter answers a question that sounds identical and is not: it finds
+  maintainers who hold a *non-owner* role somewhere. Someone who owns
+  `arrowkit` and contributes to `graphwalk` satisfies that and must not be in
+  your result.
+
+  This is an **anti-join**: keep the left row only when nothing on the right
+  matches it. The word "never" in a requirement is almost always an anti-join.
+hints:
+  - "A row-level filter cannot express \"never\". `WHERE pm.role <> 'owner'` is evaluated against one link row at a time, and the question is about all of a maintainer's link rows at once."
+  - "Flip it round: first describe the maintainers who ARE owners somewhere, then keep the ones that description does not cover."
+  - "`WHERE NOT EXISTS (SELECT 1 FROM package_maintainers pm WHERE pm.maintainer_id = m.id AND pm.role = 'owner')`. A LEFT JOIN to the owner rows with `WHERE pm.maintainer_id IS NULL` is the same anti-join written differently."
+solutionWalkthrough: |
+  ```sql
+  SELECT m.handle, m.country
+  FROM maintainers m
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM package_maintainers pm
+    WHERE pm.maintainer_id = m.id
+      AND pm.role = 'owner'
+  )
+  ORDER BY m.handle;
+  ```
+
+  Two rows: `katherine` and `margaret`. The starter returns seven, and five of
+  them own something.
+
+  The difference is the level the condition applies at. `WHERE pm.role <>
+  'owner'` asks a question about *one link row*. "Never an owner" asks a
+  question about *the whole set of a maintainer's link rows*, and there is no
+  row-level predicate that can express it — which is why anti-joins exist as a
+  separate operator rather than being sugar over a filter.
+
+  Two other spellings, both anti-joins underneath:
+
+  ```sql
+  -- LEFT JOIN + IS NULL: keep rows where the join found nothing.
+  SELECT m.handle, m.country
+  FROM maintainers m
+  LEFT JOIN package_maintainers pm
+    ON pm.maintainer_id = m.id AND pm.role = 'owner'
+  WHERE pm.maintainer_id IS NULL
+  ORDER BY m.handle;
+
+  -- NOT IN: correct here, and a trap in general.
+  SELECT handle, country FROM maintainers
+  WHERE id NOT IN (SELECT maintainer_id FROM package_maintainers WHERE role = 'owner')
+  ORDER BY handle;
+  ```
+
+  The `NOT IN` version works only because `maintainer_id` is never NULL in this
+  table. Let one NULL into that subquery and the result silently becomes empty
+  — the trap from the NULL lesson in Stage 1. `NOT EXISTS` has no such failure
+  mode, which is why it is the form to reach for by default.
+
+  Note the two NULL countries in the answer. An anti-join does not drop rows
+  with NULLs in unrelated columns; only the *join* column matters. Confusing
+  those two is a common way to lose rows.
+
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 2
+      message: >-
+        Expected 2 rows. Seven maintainers hold at least one non-owner role, but
+        five of them own something too — those five are not "never an owner".

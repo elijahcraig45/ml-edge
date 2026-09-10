@@ -1,0 +1,71 @@
+id: bst-delete
+kind: python
+title: Delete a node with two children
+difficulty: 3
+pattern: binary-search-tree
+topics: [trees, invariants]
+timeLimitMs: 10000
+prompt: |
+  Write `bst_delete(node, value)`, returning a new `(value, left, right)` tree
+  with `value` removed. If the value is not there, return the tree unchanged.
+
+  All three cases have to work:
+
+  - a leaf — it goes, and nothing was relying on it;
+  - one child — that child takes its place;
+  - **two children** — the value is replaced by the smallest value in the right
+    subtree, which is then deleted from the right subtree.
+
+  ```
+  #        50
+  #      /    \
+  #    30      70
+  #           /  \
+  #         60    80
+  bst_delete(tree, 50)     # root becomes 60; inorder stays 30, 60, 70, 80
+  ```
+
+  A hidden test deletes a node whose inorder successor **has a right child of
+  its own**. If your code unlinks the successor instead of deleting it
+  recursively, that child disappears and the test catches it.
+hints:
+  - "Start by finding the node: less than, greater than, equal. Only the equal branch is new work; the other two rebuild the node around a recursive call."
+  - "With one child (or none), return the other child directly — `None` included. That single line covers the leaf case too."
+  - "The successor is the leftmost node of the right subtree: walk left while a left child exists. Copy its value up, then call bst_delete on the right subtree to remove that value."
+solutionWalkthrough: |
+  ```python
+  def bst_delete(node, value):
+      if node is None:
+          return None
+      v, left, right = node
+      if value < v:
+          return (v, bst_delete(left, value), right)
+      if value > v:
+          return (v, left, bst_delete(right, value))
+      if left is None:
+          return right
+      if right is None:
+          return left
+      successor = right
+      while successor[1] is not None:
+          successor = successor[1]
+      return (successor[0], left, bst_delete(right, successor[0]))
+  ```
+
+  Two details carry the exercise.
+
+  `if left is None: return right` handles the leaf and the one-child case at
+  once, because `right` may itself be `None`. Splitting them into three
+  branches is a common way to write the same thing with one more chance to get
+  it wrong.
+
+  The last line calls `bst_delete` again rather than surgically detaching the
+  successor. That recursive call cannot loop forever: the successor is the
+  leftmost node of the right subtree, so it has no left child, so the call lands
+  in the one-child or no-child case immediately. Detaching it by hand looks
+  cheaper and drops the successor's right subtree — a bug that survives every
+  small test tree, because in a small tree the successor usually *is* a leaf.
+
+  The predecessor — largest value in the left subtree — works identically.
+  Real implementations often alternate between the two, because always taking
+  the successor slowly drains the right subtree and skews the tree left.

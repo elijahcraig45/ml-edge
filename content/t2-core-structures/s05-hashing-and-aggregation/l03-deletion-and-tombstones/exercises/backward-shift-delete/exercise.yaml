@@ -1,0 +1,95 @@
+id: backward-shift-delete
+kind: python
+title: Delete without tombstones
+difficulty: 5
+pattern: hash-table
+topics: [hashing, data-structures]
+timeLimitMs: 20000
+prompt: |
+  Same table, different contract. `slots` is a linearly probed open-addressed
+  table holding non-negative integer keys, with `None` for an empty slot and
+  `key % len(slots)` as the home slot. Delete `key` and **repair the run**, so
+  that the table is left in exactly the state it would have been in if that key
+  had never been inserted. Return `True` if the key was there, `False`
+  otherwise. Mutate `slots` in place.
+
+  No third slot state. No tombstones. When you are finished, every slot is
+  either empty or holds a key that a lookup can still reach.
+
+  ```
+  slots = [None, 1, 9, None]     # 1 and 9 both home to slot 1
+  delete_and_repair(slots, 1)    # True
+  slots                          # [None, 9, None, None]
+  ```
+
+  This is Knuth's Algorithm R, and it is what Rust's `hashbrown` does instead of
+  tombstoning. The interesting part is deciding which entries may move back and
+  which must stay: an entry whose home slot lies *after* the hole never passed
+  through the hole on its way in, so moving it there would put it before its own
+  home and make it permanently unfindable.
+hints:
+  - "After you blank the slot, walk forward from the hole. You stop at the first genuinely empty slot — everything past that belongs to a different run and cannot be affected."
+  - "For each occupied slot `probe` you meet, with home slot `home`: it may move back into `hole` only if a lookup starting at `home` would pass through `hole` before reaching `probe`. Write that as a comparison of two cyclic distances measured from `home`."
+  - "`(hole - home) % n <= (probe - home) % n`. When it holds, move the entry, set `hole = probe`, and keep walking. When it does not, leave the entry alone and move on to the next slot — `hole` stays where it is."
+solutionWalkthrough: |
+  ```python
+  def delete_and_repair(slots, key):
+      n = len(slots)
+      if n == 0:
+          return False
+
+      hole = -1
+      index = key % n
+      for _ in range(n):
+          if slots[index] is None:
+              break
+          if slots[index] == key:
+              hole = index
+              break
+          index = (index + 1) % n
+      if hole < 0:
+          return False
+
+      slots[hole] = None
+      probe = hole
+      for _ in range(n):
+          probe = (probe + 1) % n
+          entry = slots[probe]
+          if entry is None:
+              return True
+          home = entry % n
+          if (hole - home) % n <= (probe - home) % n:
+              slots[hole] = entry
+              slots[probe] = None
+              hole = probe
+      return True
+  ```
+
+  The whole algorithm is that one inequality, so it is worth spelling out.
+  Measure both positions as distances *from the entry's own home slot*, going
+  forward around the table. `(probe - home) % n` is how far the entry currently
+  sits from home — the number of probes a lookup spends to reach it.
+  `(hole - home) % n` is how far the hole is. If the hole is closer, a lookup
+  starting at `home` reaches the hole first, so the entry is safe there and
+  moving it shortens its probe path. If the hole is *further*, the lookup would
+  hit the empty hole and stop before ever reaching the entry — moving it there
+  is exactly the data loss this lesson is about.
+
+  Measuring from `home` rather than from the hole is what makes wrap-around
+  free. The hidden test covers it: a table `[7, None, None, 3]` where 7 homes
+  to slot 3 and wrapped around to slot 0. Deleting 3 has to pull 7 backwards
+  *across the end of the array*, and an implementation that compares raw
+  indices instead of cyclic distances leaves 7 stranded at slot 0 where no
+  lookup will ever find it.
+
+  Note that `hole` only advances when a move happens. An entry that must stay
+  put does not become the new hole; the search continues past it with the
+  original hole still open, because a later entry may still be movable into it.
+
+  **When to prefer this to tombstones.** It keeps the table permanently clean,
+  so probe lengths depend only on the live load factor and there is never a
+  pause for a tombstone sweep — attractive for a latency-sensitive service.
+  What it costs is a delete that is $O(\text{run length})$ instead of $O(1)$,
+  and a hard requirement that the probe sequence be linear. With quadratic or
+  double hashing the entries that probed through a slot are not the ones next
+  to it, the walk has nothing to walk, and tombstones are your only option.

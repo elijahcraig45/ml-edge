@@ -1,0 +1,45 @@
+- id: small-tree
+  label: Emits root, then each subtree left to right
+  code: |
+    plan = {"op": "A", "rows": 0, "children": [
+        {"op": "B", "rows": 0, "children": [{"op": "C", "rows": 0, "children": []}]},
+        {"op": "D", "rows": 0, "children": []},
+    ]}
+    assert preorder_ops(plan) == ["A", "B", "C", "D"], preorder_ops(plan)
+- id: single-node
+  label: A lone leaf yields one name
+  code: |
+    assert preorder_ops({"op": "SEQ_SCAN", "rows": 5, "children": []}) == ["SEQ_SCAN"]
+- id: sibling-order
+  label: Siblings come out in declaration order, not reversed
+  code: |
+    plan = {"op": "R", "rows": 0, "children": [
+        {"op": "X", "rows": 0, "children": [{"op": "x1", "rows": 0, "children": []}]},
+        {"op": "Y", "rows": 0, "children": [{"op": "y1", "rows": 0, "children": []}]},
+        {"op": "Z", "rows": 0, "children": [{"op": "z1", "rows": 0, "children": []}]},
+    ]}
+    assert preorder_ops(plan) == ["R", "X", "x1", "Y", "y1", "Z", "z1"], preorder_ops(plan)
+- id: deep-chain
+  label: Survives a chain of 20,000 nodes
+  hidden: true
+  code: |
+    node = {"op": "SEQ_SCAN", "rows": 1, "children": []}
+    for _ in range(20000):
+        node = {"op": "PROJECTION", "rows": 1, "children": [node]}
+    result = preorder_ops(node)
+    assert len(result) == 20001, len(result)
+    assert result[0] == "PROJECTION" and result[-1] == "SEQ_SCAN"
+- id: deep-and-branching
+  label: Order is still correct when the tree is both deep and wide
+  hidden: true
+  code: |
+    node = {"op": "leaf", "rows": 0, "children": []}
+    for i in range(3000):
+        node = {"op": "n%d" % i, "rows": 0, "children": [
+            node, {"op": "side%d" % i, "rows": 0, "children": []},
+        ]}
+    result = preorder_ops(node)
+    assert len(result) == 6001, len(result)
+    assert result[0] == "n2999"
+    assert result[3000] == "leaf", result[2998:3002]
+    assert result[-1] == "side2999", result[-3:]

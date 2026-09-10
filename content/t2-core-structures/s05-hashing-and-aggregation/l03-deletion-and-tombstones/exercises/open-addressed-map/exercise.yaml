@@ -1,0 +1,116 @@
+id: open-addressed-map
+kind: python
+title: An open-addressed map that can actually delete
+difficulty: 5
+pattern: hash-table
+topics: [hashing, data-structures]
+timeLimitMs: 30000
+prompt: |
+  Finish `OpenAddressedMap`: one array, linear probing, and deletion that does
+  not lose data.
+
+  ```
+  m = OpenAddressedMap(capacity=8)
+  m.put(1, "one")
+  m.put(9, "nine")     # 9 % 8 == 1, so it probes to the next slot
+  m.delete(1)
+  m.get(9)             # "nine"  -- and this is the whole exercise
+  ```
+
+  The starter has two bugs, both of them the ones people actually write.
+
+  1. `delete` writes `EMPTY` into the slot. That truncates the probe run of
+     every key that had to pass through it, so `get(9)` returns the default
+     while 9 is still sitting in the array.
+  2. `put` claims the first free slot it sees. Once tombstones exist that is
+     wrong: the key may already be further along the run, and writing early
+     gives you two entries for one key.
+
+  You are given `EMPTY` and `DELETED` sentinels, a `_probe` generator that
+  yields the probe sequence, and a `_rehash` that rebuilds the table. Fix
+  `put` and `delete`, and make the resize condition count tombstones — a
+  workload that puts and deletes forever must not fill the table with
+  tombstones and die.
+
+  **No dicts or sets.** That means no `{}`, `dict(`, `set(`, `Counter` or
+  `defaultdict`. Two parallel lists is the representation.
+hints:
+  - "Start with `delete`. What third thing can a slot say, besides 'nothing here' and 'here is a key', that keeps a probe run intact while freeing the space?"
+  - "`put` needs to remember the index of the first tombstone it walks over, and then keep going. It only writes when the scan reaches a genuine EMPTY (use the remembered tombstone if there was one) or finds the key already present (overwrite in place)."
+  - "The resize check in the starter reads `(self.live + 1) * 3 > len(self.keys) * 2`. Tombstones cost probes exactly like live entries do, so they belong in that sum — and reusing a tombstone should decrement the counter."
+solutionWalkthrough: |
+  ```python
+  def put(self, key, value):
+      if (self.live + self.tombstones + 1) * 3 > len(self.keys) * 2:
+          self._rehash()
+
+      reusable = -1
+      for index in self._probe(key):
+          slot = self.keys[index]
+          if slot is DELETED:
+              if reusable < 0:
+                  reusable = index          # remember, but keep going
+          elif slot is EMPTY:
+              if reusable < 0:
+                  self.keys[index] = key
+                  self.values[index] = value
+              else:
+                  self.keys[reusable] = key
+                  self.values[reusable] = value
+                  self.tombstones -= 1
+              self.live += 1
+              return
+          elif slot == key:
+              self.values[index] = value    # already present: overwrite
+              return
+      raise RuntimeError("table full")
+
+  def delete(self, key):
+      for index in self._probe(key):
+          slot = self.keys[index]
+          if slot is EMPTY:
+              return False
+          if slot is not DELETED and slot == key:
+              self.keys[index] = DELETED
+              self.values[index] = None
+              self.live -= 1
+              self.tombstones += 1
+              return True
+      return False
+  ```
+
+  Three decisions, each of which is a bug if you get it wrong.
+
+  **`reusable` is remembered, not taken.** The loop cannot stop at a tombstone
+  because a tombstone carries no information about what lies beyond it. Only
+  `EMPTY` proves the key is absent. The hidden test that catches this inserts
+  1, 9 and 17 into an 8-slot table — all three home to slot 1 — deletes 1, then
+  re-puts 17. A `put` that squats the tombstone leaves 17 in slots 1 *and* 3,
+  and every subsequent lookup finds the stale one.
+
+  **`self.tombstones` is in the resize condition.** Without it, the churn test
+  fails: two thousand put-and-delete pairs turn every slot into a tombstone
+  while `len(m)` reads 0, and the next `put` raises "table full" on an empty
+  map. Counting tombstones makes `_rehash` fire, and note what `_rehash` then
+  does — it sizes the new table from `self.live`, so a table that is logically
+  empty rebuilds at capacity 8. Rehashing into the same size looks like a
+  no-op and is the entire cure.
+
+  **`slot is not DELETED and slot == key`.** The identity check has to come
+  first. `DELETED` is a bare `object()`, and comparing it to a key with `==`
+  is harmless here — but if a learner's key type has an `__eq__` that inspects
+  attributes, comparing it against a sentinel is how you get an
+  `AttributeError` from inside a hash table.
+
+  What you would change for production: this probes linearly, so it inherits
+  the clustering from Lesson 2 — fine below $\alpha = 0.66$, which the resize
+  rule enforces. And it never shrinks. A map that grows to a million entries
+  and then has 999,999 deleted keeps the million-slot array forever, because
+  `_rehash` only runs from `put`. Real implementations either shrink on delete
+  below a low-water mark, or accept the memory and document it.
+forbid:
+  - "dict("
+  - "{}"
+  - "set("
+  - defaultdict
+  - Counter

@@ -1,0 +1,32 @@
+- id: basic
+  label: Finds a two-bar block that beats every single bar
+  code: |
+    assert widest_block([2, 1, 5, 6, 2, 3]) == 10
+- id: single-bar
+  label: One bar is its own rectangle
+  code: |
+    assert widest_block([4]) == 4
+- id: empty
+  label: No bars, no area
+  code: |
+    assert widest_block([]) == 0
+- id: flat
+  label: Equal bars form one wide rectangle
+  code: |
+    assert widest_block([3, 3, 3, 3]) == 12
+- id: rising-and-falling
+  label: Series that never turn still get flushed at the end
+  hidden: true
+  code: |
+    assert widest_block([1, 2, 3]) == 4
+    assert widest_block([3, 2, 1]) == 4
+    assert widest_block([2, 4]) == 4
+- id: zero-height-bars
+  label: Zero-height bars split the chart, and the input is untouched
+  hidden: true
+  code: |
+    assert widest_block([0, 0, 0]) == 0
+    assert widest_block([5, 0, 5]) == 5
+    original = [2, 1, 2]
+    widest_block(original)
+    assert original == [2, 1, 2], "the input must not be modified"

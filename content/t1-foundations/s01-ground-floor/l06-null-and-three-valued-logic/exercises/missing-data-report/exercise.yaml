@@ -1,0 +1,57 @@
+id: missing-data-report
+kind: sql
+title: A missing-data report
+difficulty: 3
+datasetId: package-registry
+timeLimitMs: 15000
+prompt: |
+  Build a one-row data-quality summary of the `packages` table.
+
+  Return exactly four columns, with these names:
+
+  - `total_rows` — every row in the table
+  - `licenses_known` — rows where `license` is present
+  - `licenses_missing` — rows where `license` is absent
+  - `distinct_licenses` — how many different licenses are actually declared
+
+  One row out. No `WHERE` clause — the whole point is to characterise the table,
+  not to filter it.
+hints:
+  - "Three of these are variations on `count`. The difference between counting rows and counting a column's values is exactly the missing-data rate."
+  - "`count(*)` counts rows. `count(license)` counts non-NULL licenses. Their difference is the number missing."
+  - "For the missing count you can subtract, or use `count(*) FILTER (WHERE license IS NULL)`. Both are correct; subtraction is shorter and makes the relationship obvious."
+solutionWalkthrough: |
+  ```sql
+  SELECT
+    count(*)                        AS total_rows,
+    count(license)                  AS licenses_known,
+    count(*) - count(license)       AS licenses_missing,
+    count(DISTINCT license)         AS distinct_licenses
+  FROM packages;
+  ```
+
+  Every column here is a different question, and the differences are the point:
+
+  `count(*)` is about rows. `count(license)` is about values, and skips NULLs —
+  so the subtraction is a direct measurement of missing data, not an estimate.
+  `count(DISTINCT license)` skips NULLs *as well as* duplicates, which is why
+  "no license" never appears as one of the distinct licenses.
+
+  Reach for this shape whenever you meet an unfamiliar table. Before you trust
+  any average or any filter on a column, find out how much of it is actually
+  there — because `AVG` over a column that is 30% NULL is an average of a subset
+  you have not looked at.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 1
+      message: This is a summary of the whole table, so it should return exactly one row.
+    - type: syntax
+      pattern: "\\bwhere\\b"
+      negate: true
+      message: >-
+        No WHERE clause here — you are describing the whole table, including the
+        rows with missing licenses.

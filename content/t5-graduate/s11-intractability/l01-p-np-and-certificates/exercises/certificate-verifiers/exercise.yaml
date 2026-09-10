@@ -1,0 +1,83 @@
+id: certificate-verifiers
+kind: python
+title: Write the verifier, not the solver
+difficulty: 3
+pattern: verification
+topics: [np, certificates]
+timeLimitMs: 12000
+prompt: |
+  Membership in NP is a claim about *checking*, so write the checkers.
+
+  **`verify_cover(n, edges, k, certificate)`** — vertices are `0 .. n-1`,
+  `edges` is a list of `(u, v)` pairs, `certificate` is any iterable of
+  vertices. Return `True` when the certificate names a set of **at most `k`
+  distinct** vertices, all in range, that touches every edge.
+
+  **`verify_tour(distances, budget, tour)`** — `distances` is an `n × n` matrix
+  of numbers, `tour` is a list of city indices. Return `True` when `tour` visits
+  every one of the `n` cities exactly once and the closed cycle
+  `tour[0] → tour[1] → ... → tour[-1] → tour[0]` has total length at most
+  `budget`.
+
+  ```
+  verify_cover(4, [(0,1),(1,2),(2,3),(3,0)], 2, [0, 2])       # True
+  verify_cover(4, [(0,1),(1,2),(2,3),(3,0)], 2, [0, 1])       # False
+  verify_tour([[0,1],[1,0]], 2, [0, 1])                        # True
+  verify_tour([[0,1],[1,0]], 2, [0, 0])                        # False
+  ```
+
+  Both must reject junk rather than raise. A certificate containing a vertex
+  outside `range(n)`, a tour of the wrong length, or a tour that repeats a city
+  is a `False`, not a `KeyError`. A verifier that can be crashed by a bad
+  certificate is not a verifier — an adversary supplying certificates would use
+  the crash.
+
+  Duplicates in a cover certificate are allowed and do not count twice:
+  `[0, 0, 2]` names two distinct vertices, so it passes `k = 2`.
+hints:
+  - "Every check is a `for` loop over the input with no search inside it. If you find yourself enumerating subsets, you are writing the solver."
+  - "For the cover: convert the certificate to a set first, then three conditions — size, range, and every edge touched. For the tour: `sorted(tour) == list(range(n))` is the permutation test, and it rejects wrong lengths and repeats in one line."
+  - "The closed cycle has n edges, not n-1. `tour[(i + 1) % n]` gives you the wrap-around without a special case."
+solutionWalkthrough: |
+  ```python
+  def verify_cover(n, edges, k, certificate):
+      chosen = set(certificate)
+      if len(chosen) > k:
+          return False
+      if any(not isinstance(v, int) or v < 0 or v >= n for v in chosen):
+          return False
+      return all(u in chosen or v in chosen for u, v in edges)
+
+  def verify_tour(distances, budget, tour):
+      n = len(distances)
+      if sorted(tour) != list(range(n)):
+          return False
+      total = sum(distances[tour[i]][tour[(i + 1) % n]] for i in range(n))
+      return total <= budget
+  ```
+
+  **What makes these verifiers and not solvers.** Neither function contains a
+  search. `verify_cover` is $O(|E| + |C|)$ and `verify_tour` is $O(n \log n)$
+  for the sort plus $O(n)$ for the walk. Finding a cover of size $k$ or a tour
+  under budget has no known polynomial algorithm. That gap — and only that
+  gap — is what "in NP" names.
+
+  **Why `sorted(tour) == list(range(n))` is the right permutation test.** It
+  rejects three different failures at once: wrong length, an out-of-range city,
+  and a repeated city. Checking `len(set(tour)) == n` misses the out-of-range
+  case; checking `len(tour) == n` misses repeats. Doing it in one comparison
+  also means there is no ordering of the checks that leaves a hole.
+
+  **The trade-off.** Sorting costs $O(n \log n)$ where a `seen` array would give
+  $O(n)$. For a verifier that is the right call: the whole point is that
+  verification is *cheap relative to search*, and $\log n$ never threatens that.
+  If you were verifying millions of tours inside an inner loop — which is what a
+  branch-and-bound solver does — you would switch to the array and reuse it
+  across calls.
+
+  **Where the wrap-around matters.** A tour is a cycle, so it has $n$ edges. The
+  most common bug here is summing $n - 1$ of them, which makes every tour look
+  cheaper than it is and turns the verifier into one that accepts certificates
+  it should reject. That is the failure mode that actually matters: a verifier
+  that is too *lenient* breaks the definition of NP, because no-instances then
+  have accepted certificates.

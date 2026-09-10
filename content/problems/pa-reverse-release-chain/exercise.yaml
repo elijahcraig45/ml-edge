@@ -1,0 +1,70 @@
+id: pa-reverse-release-chain
+kind: python
+title: Reverse a chain of releases
+difficulty: 2
+pattern: linked-list
+stage: s03-linear-structures
+topics:
+  - pointers
+timeLimitMs: 10000
+prompt: |
+  Releases are stored as a singly linked list, newest first. The starter defines
+  the node type:
+
+  ```python
+  class Node:
+      def __init__(self, value, next_node=None):
+          self.value = value
+          self.next = next_node
+  ```
+
+  Reverse the chain and return the new head. Reuse the existing nodes — do not
+  build new ones, and do not move the values between nodes.
+
+  ```
+  head = Node("3.0", Node("2.0", Node("1.0")))
+  reverse_chain(head)   # chain reads 1.0 -> 2.0 -> 3.0
+  reverse_chain(None)   # None
+  ```
+
+  Keep the `Node` class in your submission; the tests build chains with it.
+hints:
+  - "Reversing means every node's `next` points at what used to precede it. Walk forward and rewrite one link per step. What do you lose the instant you overwrite `node.next`?"
+  - "Three references: the node behind you, the node you are on, and the node ahead. Save the node ahead *before* you overwrite the link, or you have thrown away the rest of the chain."
+  - "`nxt = current.next`, then `current.next = previous`, then `previous = current`, then `current = nxt`. The loop ends when `current is None`, and `previous` is the new head."
+solutionWalkthrough: |
+  ```python
+  class Node:
+      def __init__(self, value, next_node=None):
+          self.value = value
+          self.next = next_node
+
+
+  def reverse_chain(head):
+      previous = None
+      current = head
+      while current is not None:
+          nxt = current.next
+          current.next = previous
+          previous = current
+          current = nxt
+      return previous
+  ```
+
+  The whole exercise is the order of those four assignments. Overwriting
+  `current.next` first severs the only reference to the rest of the chain —
+  there is no backward pointer to recover it from, which is exactly what
+  distinguishes a singly linked list from an array where you can just index
+  again.
+
+  Starting `previous` at `None` is not a formality either: the old head becomes
+  the new tail, and its `next` has to end up `None`. Start with anything else
+  and the reversed chain ends in a loop.
+
+  O(n) time, O(1) space. The recursive version is the same time and O(n) stack,
+  and on a chain of a million releases it raises `RecursionError` — the reason
+  production code that walks long lists is almost always iterative.
+
+  Copying the values into a Python list, reversing that, and writing them back
+  is also O(n) and doubles the memory. It is a reasonable answer if the nodes
+  carry identity you must not disturb; here they do not.

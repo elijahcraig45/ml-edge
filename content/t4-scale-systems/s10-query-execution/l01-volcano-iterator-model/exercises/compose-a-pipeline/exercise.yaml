@@ -1,0 +1,72 @@
+id: compose-a-pipeline
+kind: python
+title: Compose a plan that never materialises
+difficulty: 3
+pattern: iterator-pipeline
+topics: [generators, query-execution]
+timeLimitMs: 10000
+prompt: |
+  The four operators are given to you. Write the plan.
+
+  `plan(rows, language, n)` must answer this query:
+
+  ```sql
+  SELECT name, created_at
+  FROM rows
+  WHERE language = <language>
+  LIMIT <n>
+  ```
+
+  Return an **iterator**, not a list, built by composing `scan`, `filter_op`,
+  `project` and `limit`. Nothing may be materialised: `rows` is a stream that
+  may be far longer than `n`, and the amount your plan reads from it must
+  depend on `n`, not on how long the stream is.
+
+  ```
+  list(plan(iter(PACKAGES), "python", 2))
+  # [{"name": "arrowkit", "created_at": "2019-03-11"},
+  #  {"name": "chunker",  "created_at": "2018-01-24"}]
+  ```
+
+  Column order matters: `name` then `created_at`.
+hints:
+  - "Every operator here takes its child as its first argument and returns an iterator. Write the query from the inside out — the innermost call is the leaf of the plan tree."
+  - "`limit` is the root, so it goes on the outside: `limit(project(filter_op(scan(rows), pred), cols), n)`."
+  - "If your function builds a list anywhere, or ends with a list comprehension over the whole stream, it has already read everything before `limit` gets a chance to stop it. Return the composed generator itself."
+solutionWalkthrough: |
+  ```python
+  def plan(rows, language, n):
+      return limit(
+          project(
+              filter_op(scan(rows), lambda row: row["language"] == language),
+              ["name", "created_at"],
+          ),
+          n,
+      )
+  ```
+
+  Read it inside out and you have the plan tree, leaf first: scan, then filter,
+  then projection, then limit at the root. Read it outside in and you have the
+  control flow: `limit` is what the caller talks to, and it is what decides
+  when the scan stops.
+
+  The tempting wrong answer is one line shorter:
+
+  ```python
+  return [{"name": r["name"], "created_at": r["created_at"]}
+          for r in rows if r["language"] == language][:n]
+  ```
+
+  It returns the same rows. It also reads every row in `rows` before slicing,
+  so its cost is set by the size of the input rather than by `n` — and it hands
+  back a list, which means an operator stacked above it would receive something
+  that has already finished. In a plan tree that is not an operator; it is a
+  temporary table.
+
+  The order of composition is also a correctness question, not only a
+  performance one. Put `limit` *below* `filter_op` and you get "the first `n`
+  rows, of which keep the Python ones" — which is a different query, and one
+  that usually returns fewer than `n` rows. This is the same clause-ordering
+  trap as `LIMIT` before `ORDER BY`.
+forbid:
+  - sorted(

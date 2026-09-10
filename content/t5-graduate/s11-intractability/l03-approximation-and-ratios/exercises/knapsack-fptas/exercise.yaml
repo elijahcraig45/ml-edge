@@ -1,0 +1,126 @@
+id: knapsack-fptas
+kind: python
+title: An FPTAS for knapsack
+difficulty: 5
+pattern: approximation
+topics: [dynamic-programming, approximation, fptas]
+timeLimitMs: 25000
+prompt: |
+  **`knapsack_fptas(values, weights, capacity, epsilon)`** returns the total
+  **true** value of a subset whose weight fits in `capacity`, guaranteed to be at
+  least $(1 - \varepsilon)$ times the optimum.
+
+  The starter enumerates every subset. It is correct and it is
+  $\Theta(2^n)$, and the complexity budget rejects it — the exercise is to
+  replace exhaustive search with a scaled dynamic program.
+
+  **The construction.**
+
+  1. Ignore items that do not fit on their own.
+  2. Let $v_{\max}$ be the largest remaining value and set
+     $K = \varepsilon\, v_{\max} / n$.
+  3. Round: $v_i' = \lfloor v_i / K \rfloor$.
+  4. Run the *value-indexed* DP over the rounded values: for each achievable
+     rounded total $t$, keep the **least weight** that achieves it.
+  5. Return the **true** value of the best entry whose weight fits.
+
+  Step 5 is the one that is easy to get wrong. The DP is indexed by rounded
+  value, but the answer you return must be the real total, or the guarantee is
+  measured against the wrong number. Carry the true value alongside the weight.
+
+  ```
+  knapsack_fptas([60, 100, 120], [10, 20, 30], 50, 0.5)   # 220
+  knapsack_fptas([5], [10], 3, 0.5)                        # 0   (does not fit)
+  knapsack_fptas([], [], 10, 0.5)                          # 0
+  ```
+
+  Items whose rounded value is 0 may be dropped: each is worth less than $K$,
+  and the error analysis already budgets $nK = \varepsilon v_{\max}$ for exactly
+  this.
+hints:
+  - "The table is indexed by rounded value, not by weight. Its length is sum of the rounded values plus one, which is at most n²/ε — that is the whole reason the algorithm is polynomial in 1/ε."
+  - "Two parallel arrays: `least_weight[t]` and `true_value[t]`. Update them together, and only when the new weight is strictly smaller. Iterate t downwards so each item is used at most once — the same reason the 0/1 knapsack DP goes backwards."
+  - "Scan t from the top down at the end and return the first entry whose least weight fits in the capacity. That is the highest achievable rounded value, and its recorded true value is the answer."
+complexityBudget:
+  setup: |
+    import random
+    random.seed(11)
+    n = 22
+    values = [random.randint(500, 5000) for _ in range(n)]
+    weights = [random.randint(1, 40) for _ in range(n)]
+    data = (values, weights, 200, 0.25)
+  call: knapsack_fptas(data[0], data[1], data[2], data[3])
+  maxOps: 400000
+  message: >-
+    Too much work for 22 items. Subset enumeration is 2^22 ≈ 4.2 million
+    iterations; the scaled DP on this instance runs in about 58,000 line events,
+    roughly seven times under the budget. If you are still looping over masks,
+    the DP has not replaced the search.
+solutionWalkthrough: |
+  ```python
+  def knapsack_fptas(values, weights, capacity, epsilon):
+      n = len(values)
+      usable = [i for i in range(n) if weights[i] <= capacity]
+      if not usable:
+          return 0
+      vmax = max(values[i] for i in usable)
+      if vmax == 0:
+          return 0
+
+      scale = epsilon * vmax / n
+      scaled = {i: int(values[i] / scale) for i in usable}
+      total = sum(scaled.values())
+
+      INF = float("inf")
+      least_weight = [INF] * (total + 1)
+      true_value = [0] * (total + 1)
+      least_weight[0] = 0
+
+      for i in usable:
+          s = scaled[i]
+          if s == 0:
+              continue
+          w, v = weights[i], values[i]
+          for t in range(total, s - 1, -1):
+              if least_weight[t - s] + w < least_weight[t]:
+                  least_weight[t] = least_weight[t - s] + w
+                  true_value[t] = true_value[t - s] + v
+
+      for t in range(total, -1, -1):
+          if least_weight[t] <= capacity:
+              return true_value[t]
+      return 0
+  ```
+
+  **Why index by value rather than by weight.** The familiar knapsack DP indexes
+  by capacity and runs in $O(n \cdot C)$, which is pseudo-polynomial in the
+  *capacity*. Rounding the capacity would break feasibility — an over-weight
+  answer is not a worse answer, it is an invalid one. Rounding *values* only
+  costs accuracy, and accuracy is the thing you were willing to trade. That
+  choice is the whole design.
+
+  **Where the guarantee comes from.** Let $O$ be an optimal set. Each item's
+  floor loses less than $K$, and $|O| \le n$, so
+  $\sum_{i \in O} v_i' \cdot K > \mathrm{OPT} - nK = \mathrm{OPT} - \varepsilon
+  v_{\max}$. The DP finds a set at least as good in scaled terms, and
+  $v_{\max} \le \mathrm{OPT}$ because the single best fitting item is feasible.
+  So the answer is at least $(1 - \varepsilon)\mathrm{OPT}$.
+
+  **The running time.** $\mathrm{total} \le n \lfloor v_{\max}/K \rfloor
+  = n^2/\varepsilon$, and each of the $n$ items sweeps the table once, giving
+  $O(n^3/\varepsilon)$. Polynomial in $n$ *and* in $1/\varepsilon$ — an FPTAS,
+  not merely a PTAS. On the budget instance, $n = 22$ and
+  $\varepsilon = 0.25$ give a table of about 1,900 entries and roughly 58,000
+  line events, against 4.2 million subsets for the starter.
+
+  **The trade-off, stated plainly.** You gave up exactness and bought a
+  polynomial. Turn $\varepsilon$ down and the table grows as $1/\varepsilon$;
+  at $\varepsilon = 10^{-6}$ the DP is exact for all practical purposes and also
+  enormous. The knob is real and continuous, which is what distinguishes an
+  approximation *scheme* from a single approximation algorithm.
+
+  **When not to use it.** If the values are small integers, the plain DP is
+  exact and faster. If $n$ is under about 30, meet-in-the-middle enumeration
+  ($O(2^{n/2})$) is exact and fast. The FPTAS earns its place when $n$ is large
+  *and* the values are large — which is precisely when the pseudo-polynomial DP
+  fails.

@@ -1,0 +1,62 @@
+id: pa-longest-consecutive-build
+kind: python
+title: Longest unbroken run of build numbers
+difficulty: 4
+pattern: hash-set-lookup
+stage: s01-ground-floor
+topics:
+  - hashing
+  - arrays
+timeLimitMs: 15000
+prompt: |
+  A CI server reports the build numbers it still has logs for, in no particular
+  order and possibly with repeats. Return the length of the longest run of
+  consecutive build numbers it can reconstruct.
+
+  ```
+  longest_build_run([102, 4, 101, 3, 2, 103])   # 3   -> 101, 102, 103
+  longest_build_run([7, 7, 7])                  # 1
+  longest_build_run([])                         # 0
+  ```
+
+  Sorting makes this easy and is not the exercise: `sorted(` and `.sort(` are
+  rejected. Aim for work proportional to the number of builds.
+hints:
+  - "Runs overlap, so if you walk outwards from every number you re-walk the same run once per member of it. What distinguishes the one number in a run that is worth walking from?"
+  - "Put every build in a set. A number starts a run only when the number one below it is absent — and only from those starting points do you count upwards."
+  - "`for n in builds_set: if n - 1 not in builds_set:` then walk `n + 1, n + 2, ...` while each is present. Every number is visited at most twice overall, which is what keeps this linear."
+solutionWalkthrough: |
+  ```python
+  def longest_build_run(builds):
+      present = set(builds)
+      best = 0
+      for build in present:
+          if build - 1 in present:
+              continue
+          length = 1
+          nxt = build + 1
+          while nxt in present:
+              length += 1
+              nxt += 1
+          if length > best:
+              best = length
+      return best
+  ```
+
+  The `if build - 1 in present: continue` line is the entire algorithm. Without
+  it the inner `while` re-walks a run of length L once for each of its L
+  members, and a single long run makes the function quadratic. With it, the
+  `while` body executes exactly once per number across the whole function, so
+  the total is O(n) even though the code contains a loop inside a loop — the
+  clearest case there is that nesting alone does not tell you the complexity.
+
+  Sorting is O(n log n) and, honestly, fine: for a few million builds the
+  difference is small and the sorted version is easier to get right. The hash
+  version wins when n is large, when the values are sparse and huge, or when the
+  input arrives as a stream you cannot afford to buffer and sort.
+
+  It also assumes hashing is O(1). Under adversarial input that assumption is
+  what breaks first — sorting has no such failure mode.
+forbid:
+  - "sorted("
+  - ".sort("

@@ -1,0 +1,71 @@
+id: oldest-first
+kind: python
+title: The prepend that quietly costs you a second
+difficulty: 3
+pattern: amortized-analysis
+topics: [arrays, complexity]
+timeLimitMs: 30000
+prompt: |
+  A release feed hands you records newest-first. You want them oldest-first.
+
+  ```
+  oldest_first(["v3", "v2", "v1"])   # ["v1", "v2", "v3"]
+  ```
+
+  `records` may be any iterable — a list, or a generator you can only walk
+  once. Do not modify the caller's list.
+
+  **This one has a complexity budget.** The starter is already correct; it
+  builds the answer by inserting each record at index 0. That is the natural
+  way to write it and it is quadratic, because inserting at the front of a
+  contiguous block shifts every element that is already there. The budget runs
+  your function on 100,000 records and rejects the quadratic version.
+hints:
+  - "`insert(0, x)` has to move every existing element one slot to the right before it can write the new one. Do that n times and you have moved n²/2 elements."
+  - "Appending is the cheap end of a contiguous array — amortized O(1). Build the list in the wrong order first, then put it right."
+  - "`list.reverse()` reverses in place in one linear pass and returns None. Reverse a copy you built yourself, not the argument."
+solutionWalkthrough: |
+  ```python
+  def oldest_first(records):
+      out = []
+      for record in records:
+          out.append(record)
+      out.reverse()
+      return out
+  ```
+
+  Two linear passes beat one quadratic one, and it is not close: on 100,000
+  records the append-then-reverse version runs in about 1 ms here and the
+  `insert(0, x)` version in about 1,500 ms. Same answer, same asymptotic
+  *output*, 1,400x the wall clock.
+
+  The reason is entirely about layout. A Python list is one contiguous block of
+  pointers. Appending writes into a slot that is already allocated most of the
+  time, so it is O(1) amortized. Inserting at the front has to `memmove` the
+  whole block up by one before there is a slot to write into. `memmove` is a
+  very fast linear operation, which is exactly what makes this bug survive code
+  review: on 1,000 records nobody notices, and the cost grows with the square.
+
+  `list(records)` would also work and is shorter. The explicit loop is written
+  out here because it makes the append visible — and because the moment
+  `records` is a generator that you want to consume in bounded memory, the loop
+  is the version you can modify and the constructor is not.
+
+  When you genuinely need cheap insertion at *both* ends, the answer is not a
+  cleverer list — it is a different structure. That is Lesson 3.
+
+# The starter is correct, so only a budget can reject it.
+#
+# Measured on CPython 3.13: append-then-reverse ~1.1 ms, insert(0, x) ~1,505 ms
+# on this input. 150 ms sits about 130x above the fast solution and 10x below
+# the quadratic one, which leaves room for a slow runner and for Pyodide.
+complexityBudget:
+  setup: |
+    data = ["v%d" % i for i in range(100000)]
+  call: |
+    oldest_first(data)
+  maxMs: 150
+  message: >-
+    Correct, but quadratic: inserting at index 0 shifts every element already
+    in the list, so 100,000 records move about 5 billion pointers. Append to
+    the end instead and reverse once at the finish.

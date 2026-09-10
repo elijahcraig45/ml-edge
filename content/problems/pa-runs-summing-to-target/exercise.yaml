@@ -1,0 +1,56 @@
+id: pa-runs-summing-to-target
+kind: python
+title: How many stretches hit the number exactly
+difficulty: 4
+pattern: prefix-sum
+stage: s01-ground-floor
+topics:
+  - arrays
+  - hashing
+timeLimitMs: 15000
+prompt: |
+  `deltas` is a list of daily changes in a package's install count; a value can
+  be negative when installs are rolled back. Count how many contiguous stretches
+  of days have a net change of exactly `target`. Stretches of different lengths
+  that cover the same days both count.
+
+  ```
+  runs_summing_to([1, 2, 3], 3)        # 2   -> [1,2] and [3]
+  runs_summing_to([1, -1, 1, -1], 0)   # 4
+  runs_summing_to([], 0)               # 0
+  ```
+
+  The empty stretch does not count. Because values can be negative, a sliding
+  window will not work here — the total does not move in one direction as the
+  window grows.
+hints:
+  - "A stretch is the difference between two running totals. Rewrite the condition `sum(days i..j) == target` in terms of the running total up to `j` and the running total up to `i - 1`."
+  - "Walk the list keeping the running total. At each day, the number of stretches ending here equals the number of earlier running totals equal to `running - target` — so keep a dict counting how often each running total has occurred."
+  - "Seed the dict with `{0: 1}` before the loop. That one entry represents the empty prefix and is what lets a stretch starting at day 0 be counted; without it, every answer is short by the stretches that begin at the very start."
+solutionWalkthrough: |
+  ```python
+  def runs_summing_to(deltas, target):
+      seen = {0: 1}
+      running = 0
+      found = 0
+      for delta in deltas:
+          running += delta
+          found += seen.get(running - target, 0)
+          seen[running] = seen.get(running, 0) + 1
+      return found
+  ```
+
+  The identity underneath is `sum(i..j) = prefix[j] - prefix[i-1]`, so asking
+  "which stretches ending at `j` hit the target" becomes "how many earlier
+  prefixes equal `prefix[j] - target`". Counting occurrences rather than storing
+  a set is what makes repeated prefix values — inevitable with negatives —
+  contribute the right number of stretches instead of one.
+
+  Order inside the loop matters. Recording `running` before doing the lookup
+  would let a day match itself whenever `target` is 0, inflating every answer by
+  the length of the list.
+
+  This is O(n) time and O(n) memory, against O(n²) for checking every stretch.
+  The memory is the price of negatives: with only non-negative values, a sliding
+  window answers the same question in constant space, because then a window's
+  total really does grow when you extend it.

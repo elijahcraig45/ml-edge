@@ -1,0 +1,41 @@
+- id: three-sessions
+  label: Splits an event stream at the gaps
+  code: |
+    assert sessionize([0, 5, 9, 40, 41, 43, 100, 101], 10) == [
+        [0, 5, 9], [40, 41, 43], [100, 101]
+    ]
+- id: one-session
+  label: A generous gap keeps everything together
+  code: |
+    assert sessionize([0, 5, 9, 40], 100) == [[0, 5, 9, 40]]
+- id: empty-and-single
+  label: Empty and single-event inputs
+  code: |
+    assert sessionize([], 10) == []
+    assert sessionize([7], 10) == [[7]]
+- id: every-event-alone
+  label: A tiny gap puts every event in its own session
+  code: |
+    assert sessionize([0, 5, 10], 1) == [[0], [5], [10]]
+- id: boundary-is-inclusive
+  label: A gap of exactly max_gap does not break the session
+  hidden: true
+  code: |
+    # 10 - 0 == 10, which is not MORE than 10, so these stay together.
+    assert sessionize([0, 10, 20, 31], 10) == [[0, 10, 20], [31]]
+- id: repeats-and-zero-gap
+  label: Repeated timestamps, and max_gap of zero
+  hidden: true
+  code: |
+    assert sessionize([4, 4, 4], 0) == [[4, 4, 4]]
+    assert sessionize([4, 4, 5, 5], 0) == [[4, 4], [5, 5]]
+    assert sessionize([1, 1, 9, 9, 9], 3) == [[1, 1], [9, 9, 9]]
+- id: covers-every-event
+  label: Every event appears exactly once, in order
+  hidden: true
+  code: |
+    events = [0, 1, 2, 30, 31, 60, 90, 91, 92]
+    out = sessionize(events, 5)
+    flat = [t for session in out for t in session]
+    assert flat == events
+    assert all(len(session) > 0 for session in out)

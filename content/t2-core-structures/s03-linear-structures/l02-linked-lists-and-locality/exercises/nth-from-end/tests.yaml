@@ -1,0 +1,36 @@
+- id: tail
+  label: n = 1 is the tail
+  code: |
+    assert nth_from_end(build([1, 2, 3, 4, 5]), 1) == 5
+- id: middle
+  label: n = 3 counts back three from the tail
+  code: |
+    assert nth_from_end(build([1, 2, 3, 4, 5]), 3) == 3
+- id: head
+  label: n equal to the length is the head
+  code: |
+    assert nth_from_end(build([1, 2, 3, 4, 5]), 5) == 1
+- id: too-far
+  label: Asking past the head returns None
+  code: |
+    assert nth_from_end(build([1, 2, 3]), 4) is None
+- id: empty-chain
+  label: An empty chain returns None for any n
+  code: |
+    assert nth_from_end(build([]), 1) is None
+    assert nth_from_end(build([]), 3) is None
+- id: n-zero
+  label: n = 0 and negative n return None
+  hidden: true
+  code: |
+    # There is no zeroth node from the end. A lead pointer advanced 0 times
+    # sits on the head, and the loop then walks it to the tail and off the
+    # end — returning the head's value if you are not careful.
+    assert nth_from_end(build([1, 2, 3]), 0) is None
+    assert nth_from_end(build([1, 2, 3]), -2) is None
+- id: single-node
+  label: A one-node chain, both in range and out
+  hidden: true
+  code: |
+    assert nth_from_end(build(["only"]), 1) == "only"
+    assert nth_from_end(build(["only"]), 2) is None

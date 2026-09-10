@@ -1,0 +1,106 @@
+id: pb-moving-average-3day
+kind: sql
+title: A moving average needs an explicit frame
+difficulty: 4
+pattern: window-functions
+stage: s04-sorting-and-windows
+topics: [frames, moving-average]
+datasetId: package-registry
+timeLimitMs: 20000
+prompt: |
+  Smooth each package's download series with a three-day trailing average.
+
+  Five columns, 200 rows:
+
+  - `package_id`, `day`, `count`
+  - `ma3` — the mean of this day and the two before it, within the same package,
+    rounded to two decimal places
+  - `window_days` — how many rows that average was actually taken over: 1 on the
+    first day, 2 on the second, 3 from then on
+
+  Order does not matter.
+
+  Write `avg(count) OVER (PARTITION BY package_id ORDER BY day)` and you get a
+  *cumulative* average, not a moving one. Adding `ORDER BY` to a window silently
+  installs a default frame of `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT
+  ROW`, so the window grows to ten rows by the end instead of staying at three.
+hints:
+  - "Check `window_days` at the end of a package's series. If it reads 10, the frame is growing; a trailing average keeps it at 3."
+  - "An `OVER` clause with an `ORDER BY` and no frame clause is not unframed — it has a default frame, and the default runs all the way back to the start of the partition."
+  - "`ROWS BETWEEN 2 PRECEDING AND CURRENT ROW` fixes the frame at three rows. Use the identical frame for `count(*)` so `window_days` reports what the average actually saw."
+solutionWalkthrough: |
+  ```sql
+  SELECT
+    package_id,
+    day,
+    count,
+    round(avg(count) OVER w, 2) AS ma3,
+    count(*) OVER w             AS window_days
+  FROM downloads
+  WINDOW w AS (
+    PARTITION BY package_id
+    ORDER BY day
+    ROWS BETWEEN 2 PRECEDING AND CURRENT ROW
+  );
+  ```
+
+  For `arrowkit`: 9280 alone, then 9320 over two days, then 9213.33 over three —
+  (9280 + 9360 + 9000) / 3 — and three rows for the rest of the series. Forty
+  rows across the table have a `window_days` below 3, which is the two-day
+  warm-up every trailing window has and which no frame clause can eliminate.
+
+  Three things are being decided by that one clause. **Whether** there is a
+  frame: an `OVER` with an `ORDER BY` always has one, and the default is
+  cumulative. **How wide** it is: `2 PRECEDING` plus the current row is three.
+  And **what the offset counts**: `ROWS` counts physical rows, `RANGE` counts
+  values of the `ORDER BY` key.
+
+  That last one is the difference that bites. Here the key is `day` and each
+  package has exactly one row per day with no gaps, so `ROWS BETWEEN 2 PRECEDING`
+  and `RANGE BETWEEN INTERVAL 2 DAY PRECEDING` agree exactly. Delete one day for
+  one package and they diverge immediately: `ROWS` would reach back three
+  *observations* — spanning four calendar days — while `RANGE` would still cover
+  three calendar days and average over two rows. For a time series with gaps,
+  `RANGE` with an interval is almost always the one that matches what a human
+  means by "three-day average".
+
+  The warm-up rows are a product decision, not a SQL one. If a partial average is
+  misleading in your context, null them out explicitly with
+  `CASE WHEN count(*) OVER w = 3 THEN ...` — which is also why it is worth
+  emitting `window_days` at all. An average whose denominator is invisible is an
+  average nobody can audit.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 200
+      message: Expected every row of `downloads`, smoothed in place.
+    - type: syntax
+      pattern: "rows\\s+between"
+      negate: false
+      message: >-
+        The frame has to be stated explicitly. Without a `ROWS BETWEEN` clause
+        the window defaults to everything from the start of the partition.
+    - type: predicate
+      sql: "SELECT max(window_days) = 3 AND min(window_days) = 1 FROM __learner"
+      message: >-
+        The frame must never hold more than three rows. A maximum of 10 is the
+        default cumulative frame.
+    - type: predicate
+      sql: "SELECT count(*) = 40 FROM __learner WHERE window_days < 3"
+      message: >-
+        Forty rows sit in the warm-up — the first two days of each of the twenty
+        packages.
+    - type: predicate
+      sql: "SELECT ma3 = 9213.33 FROM __learner WHERE package_id = 1 AND day = DATE '2024-03-03'"
+      message: >-
+        On 2024-03-03 package 1 averages (9280 + 9360 + 9000) / 3 = 9213.33.
+        Check the rounding and the frame width.
+    - type: plan
+      contains: ["WINDOW"]
+      notContains: ["CROSS_PRODUCT"]
+      message: >-
+        Use a window function rather than a self-join with an inequality
+        condition; the plan should show WINDOW and no cross product.

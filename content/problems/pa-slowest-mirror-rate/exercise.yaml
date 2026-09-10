@@ -1,0 +1,83 @@
+id: pa-slowest-mirror-rate
+kind: python
+title: Slowest mirror that still finishes
+difficulty: 3
+pattern: binary-search
+stage: s04-sorting-and-windows
+topics:
+  - arrays
+timeLimitMs: 20000
+prompt: |
+  A mirror has `sizes` — a queue of package sizes in megabytes — and `hours`
+  hours to serve them. Within one hour it works on **one package only**, moving
+  at most `rate` megabytes; if the package finishes early the rest of the hour
+  is wasted. So a package of size `s` occupies `ceil(s / rate)` whole hours.
+
+  Return the smallest whole-number `rate` that clears the queue in time. If
+  there are more packages than hours the queue cannot be cleared no matter how
+  fast the mirror is, so return `None`. An empty queue needs no bandwidth at
+  all: return `0`.
+
+  ```
+  slowest_rate([3, 6, 7, 11], 8)   # 4
+  slowest_rate([3, 6, 7, 11], 4)   # 11
+  slowest_rate([3], 0)             # None
+  ```
+
+  **This one has a complexity budget.** Trying rates one at a time is correct
+  and will be rejected: the checker uses 2,000 packages of up to 40,000 MB.
+hints:
+  - "You cannot compute the rate directly, but given a rate you can total up the hours in one pass. Now ask what happens to that total as the rate goes up."
+  - "Hours needed never increases as the rate increases, so the rates that finish in time form a contiguous upper range. Binary search that range for its lower edge."
+  - "Search between 1 and `max(sizes)`, because no rate above the largest package helps. For a candidate rate, `sum(-(-s // rate) for s in sizes)` is the hours it needs — that is ceiling division without floating point."
+solutionWalkthrough: |
+  ```python
+  def slowest_rate(sizes, hours):
+      if not sizes:
+          return 0
+      if hours < len(sizes):
+          return None
+
+      def hours_needed(rate):
+          return sum(-(-size // rate) for size in sizes)
+
+      lo, hi = 1, max(sizes)
+      while lo < hi:
+          mid = (lo + hi) // 2
+          if hours_needed(mid) <= hours:
+              hi = mid
+          else:
+              lo = mid + 1
+      return lo
+  ```
+
+  Nothing here is sorted, and binary search still applies — because what makes
+  it work is not order in an array but a monotonic predicate. "Finishes within
+  `hours`" is false for every rate below the answer and true for every rate at
+  or above it, so the range is one boundary and you can halve it.
+
+  Getting the search space right is the other half. `max(sizes)` is a real upper
+  bound: at that rate every package takes exactly one hour, and `hours >=
+  len(sizes)` was already checked, so it always succeeds. Guessing a larger
+  bound only costs iterations; guessing a smaller one returns a wrong answer.
+
+  `-(-size // rate)` is ceiling division on integers. `math.ceil(size / rate)`
+  looks clearer and converts through a float first, so it starts returning wrong
+  answers once sizes exceed 2^53 — the kind of bug that shows up only in
+  production data.
+
+  The cost is O(n log(max size)). The linear walk is O(n · answer), which is
+  fine when rates are small and catastrophic when they are not; the log is what
+  makes the algorithm indifferent to how big the numbers get.
+complexityBudget:
+  setup: |
+    data = [(i * 7919) % 40000 + 1 for i in range(2000)]
+  call: |
+    slowest_rate(data, 3000)
+  # Measured on CPython 3.13: the binary search takes ~0.8ms, trying every rate
+  # from 1 upward ~1100ms. 100ms is 120x above one and 11x below the other.
+  maxMs: 100
+  message: >-
+    Correct, but too slow: this tried every rate in turn, so the work grows with
+    the size of the answer. Hours-needed only falls as the rate rises, so binary
+    search the rate between 1 and max(sizes).

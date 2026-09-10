@@ -1,0 +1,107 @@
+id: sat-to-clique
+kind: python
+title: "Karp reduction: 3SAT to clique"
+difficulty: 5
+pattern: reduction
+topics: [np-hard, reduction, graphs]
+timeLimitMs: 20000
+prompt: |
+  Submit a reduction as code. The tests run it across a corpus of satisfiable
+  and unsatisfiable formulas and check that the answer survives the mapping —
+  which is the definition of a Karp reduction, executed rather than asserted.
+
+  **Instance formats.**
+
+  A 3-CNF formula is a list of clauses; a clause is a 3-tuple of literals; a
+  literal is a non-zero integer, positive for a variable and negative for its
+  negation. `[(1, -2, 3), (-1, 2, 3)]` is $(x_1 \lor \lnot x_2 \lor x_3) \land
+  (\lnot x_1 \lor x_2 \lor x_3)$.
+
+  A clique instance is `(num_vertices, edges, k)` where vertices are
+  `0 .. num_vertices-1` and `edges` is a set of `(u, v)` pairs with `u < v`.
+
+  **Write two functions.**
+
+  `sat_to_clique(clauses)` returns the clique instance. Use the standard
+  construction, which the tests pin:
+
+  - vertex `3*i + a` is literal `a` of clause `i`, so `num_vertices` is `3*m`
+  - an edge joins two vertices when they are in **different** clauses and their
+    literals are **not** complementary
+  - `k` is `m`, the number of clauses
+
+  `assignment_to_clique(clauses, assignment)` is the certificate transformer.
+  `assignment` maps each variable number to `True`/`False` and satisfies the
+  formula. Return the set of vertex ids forming a clique of size `m` in the
+  graph your mapper produced.
+
+  ```
+  sat_to_clique([(1, -2, 3), (-1, 2, 3)])
+  # (6, {(0,4), (0,5), (1,3), (1,5), (2,3), (2,4), (2,5)}, 2)
+
+  assignment_to_clique([(1, -2, 3), (-1, 2, 3)], {1: True, 2: True, 3: False})
+  # {0, 4}   (literal x1 of clause 0, literal x2 of clause 1)
+  ```
+
+  A clause may repeat a literal — `(1, 1, 1)` is legal — and may contain both a
+  literal and its negation, which makes it trivially satisfied. Neither case
+  needs special handling if the construction is written from the rule.
+hints:
+  - "The mapper never looks at whether the formula is satisfiable. If your code branches on the answer, it is not a reduction — it is a solver with a disguise."
+  - "Four nested loops: clause i, clause j > i, literal position a, literal position b. Emit the edge unless clauses[i][a] == -clauses[j][b]. Because j > i, the pair 3*i+a < 3*j+b already holds, so no min/max is needed."
+  - "For the certificate: walk the clauses in order and, in each, take the first literal that the assignment makes true. One vertex per clause gives exactly m vertices, and consistency of the assignment guarantees they are pairwise non-complementary — so they are pairwise adjacent."
+solutionWalkthrough: |
+  ```python
+  def sat_to_clique(clauses):
+      m = len(clauses)
+      edges = set()
+      for i in range(m):
+          for j in range(i + 1, m):
+              for a in range(3):
+                  for b in range(3):
+                      if clauses[i][a] != -clauses[j][b]:
+                          edges.add((3 * i + a, 3 * j + b))
+      return 3 * m, edges, m
+
+  def assignment_to_clique(clauses, assignment):
+      chosen = set()
+      for i, clause in enumerate(clauses):
+          for a, lit in enumerate(clause):
+              value = assignment[abs(lit)] if lit > 0 else not assignment[abs(lit)]
+              if value:
+                  chosen.add(3 * i + a)
+                  break
+      return chosen
+  ```
+
+  **The two obligations, separately.**
+
+  *Satisfiable formula gives an $m$-clique.* Take a satisfying assignment. In
+  each clause pick one literal it makes true. Two such vertices are in different
+  clauses, and they cannot be complementary — a single assignment cannot make
+  both $x$ and $\lnot x$ true — so every pair is joined. That is a clique of
+  size $m$, and it is exactly what `assignment_to_clique` builds.
+
+  *An $m$-clique gives a satisfying assignment.* Vertices inside a clause are
+  never adjacent, so an $m$-clique holds exactly one vertex per clause. Set each
+  chosen literal to true; no two of them conflict, because complementary pairs
+  are non-adjacent. Every clause now has a true literal.
+
+  **Where the running time is.** $O(9m^2)$ edges in the worst case, computed
+  with no search — quadratic in the input, which is what "polynomial-time
+  computable" demands. The mapper is also *oblivious*: it never evaluates the
+  formula. That obliviousness is the property that makes the reduction a proof
+  rather than a restatement.
+
+  **Why `k = m` and not something else.** The whole construction is arranged so
+  that the target size forces a choice from every clause. Setting $k$ smaller
+  would let a clique skip clauses; setting it larger makes every instance a
+  no-instance. There is exactly one value of $k$ for which the equivalence
+  holds, and finding it is usually the hard part of designing a reduction.
+
+  **The trap the corpus catches.** Emitting edges for vertices in the *same*
+  clause looks harmless — they are different literals, after all. It is fatal:
+  a clause like `(1, 2, 3)` would then contain a 3-clique on its own, and a
+  formula with two clauses would have a 2-clique regardless of satisfiability.
+  Every unsatisfiable instance in the corpus turns into a yes-instance and the
+  no-direction of the iff collapses.

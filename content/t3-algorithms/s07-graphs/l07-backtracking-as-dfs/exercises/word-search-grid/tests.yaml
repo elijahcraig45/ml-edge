@@ -1,0 +1,48 @@
+- id: found
+  label: Finds a word that snakes through the grid
+  code: |
+    board = [list("ABCE"), list("SFCS"), list("ADEE")]
+    assert exists(board, "ABCCED") is True
+- id: short-word
+  label: Finds a short word
+  code: |
+    board = [list("ABCE"), list("SFCS"), list("ADEE")]
+    assert exists(board, "SEE") is True
+- id: no-cell-reuse
+  label: A cell cannot be used twice in one word
+  code: |
+    board = [list("ABCE"), list("SFCS"), list("ADEE")]
+    assert exists(board, "ABCB") is False
+- id: absent
+  label: A word that is not there
+  code: |
+    board = [list("AB"), list("CD")]
+    assert exists(board, "ABCD") is False
+- id: board-restored
+  label: The board is left exactly as it was found
+  hidden: true
+  code: |
+    board = [list("ABCE"), list("SFCS"), list("ADEE")]
+    before = [row[:] for row in board]
+    exists(board, "ABCCED")
+    exists(board, "ZZZZ")
+    assert board == before, "every mark must be undone on the way out"
+- id: reuse-across-attempts
+  label: A cell rejected on one path is available on another
+  hidden: true
+  code: |
+    # The only route to the second "A" runs back through the row above, so a
+    # solution that never unmarks will not find this.
+    board = [list("AAB"), list("XXC")]
+    assert exists(board, "ABC") is True
+- id: single-cell
+  label: A one-letter word on a one-cell board
+  hidden: true
+  code: |
+    assert exists([["A"]], "A") is True
+    assert exists([["A"]], "B") is False
+- id: longer-than-grid
+  label: A word longer than the number of cells cannot fit
+  hidden: true
+  code: |
+    assert exists([list("AB")], "ABAB") is False

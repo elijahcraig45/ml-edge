@@ -1,0 +1,74 @@
+id: partition-in-place
+kind: python
+title: Partition in place, and keep the invariant true
+difficulty: 3
+pattern: partitioning
+topics: [sorting, invariants]
+timeLimitMs: 10000
+forbid:
+  - "sorted("
+  - ".sort("
+prompt: |
+  Implement `partition(values, lo, hi)`.
+
+  Use `values[hi]` as the pivot. Rearrange `values[lo..hi]` **in place** so that
+  when you are done there is an index `k` with:
+
+  - `values[k]` is the pivot value;
+  - every element in `values[lo..k-1]` is `<=` the pivot;
+  - every element in `values[k+1..hi]` — everything right of `k`, up to and
+    including `hi` — is `>=` the pivot.
+
+  Return `k`. Elements outside `lo..hi` must not move, and the multiset of
+  values in `lo..hi` must not change: you are rearranging, not rebuilding.
+
+  ```
+  data = [9, 3, 7, 1, 8, 2, 5]
+  partition(data, 0, 6)     # 3
+  data                      # e.g. [3, 1, 2, 5, 8, 7, 9] — left <= 5, right >= 5
+  ```
+
+  Neither side needs to be sorted. That is the point: partitioning buys one
+  boundary, not order. `sorted` and `.sort` are unavailable.
+hints:
+  - "You are allowed one scan of `values[lo..hi-1]`. The only state you need is where the boundary between the two regions currently is."
+  - "Carry an index `boundary`, starting at `lo`, with the meaning: everything in `values[lo..boundary-1]` is already known to be <= the pivot. When you meet an element that is <= the pivot, it belongs on the left of that boundary."
+  - "Swap the element you found with `values[boundary]`, then advance `boundary`. After the loop, swap the pivot at `hi` into position `boundary` and return `boundary`."
+solutionWalkthrough: |
+  ```python
+  def partition(values, lo, hi):
+      pivot = values[hi]
+      boundary = lo
+      for i in range(lo, hi):
+          if values[i] <= pivot:
+              values[boundary], values[i] = values[i], values[boundary]
+              boundary += 1
+      values[boundary], values[hi] = values[hi], values[boundary]
+      return boundary
+  ```
+
+  This is the Lomuto scheme. The invariant, true at the top of every iteration,
+  is the whole proof: `values[lo..boundary-1]` are all `<=` pivot and
+  `values[boundary..i-1]` are all `>` pivot. Each iteration either leaves both
+  regions valid (the element is `>` pivot, so the second region grows) or
+  swaps a small element into the boundary slot and moves the boundary right.
+  When the loop ends, `i` has reached `hi`, so the two regions cover everything
+  except the pivot itself — and the final swap drops the pivot exactly between
+  them.
+
+  Two things people get wrong.
+
+  **Swapping with `values[i]` rather than assigning.** Overwriting
+  `values[boundary] = values[i]` loses whatever was at `boundary`. The swap is
+  what keeps the multiset intact, and the element being displaced is known to be
+  `>` pivot, so it lands in the correct region.
+
+  **Range going to `hi` instead of `hi - 1`.** Including the pivot in the scan
+  makes it swap with itself and shifts the boundary one too far.
+
+  On an array where every element is equal, `<=` is always true, the boundary
+  runs all the way to `hi`, and the pivot ends up at the far right — the
+  degenerate split that costs quicksort a full $\Theta(n^2)$. Real
+  implementations answer this with three-way partitioning (less than, equal to,
+  greater than), which handles duplicate-heavy data in linear time per level.
+  That is a different algorithm; this one is the one you have to know first.

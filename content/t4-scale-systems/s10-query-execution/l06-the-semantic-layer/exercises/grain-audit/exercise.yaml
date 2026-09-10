@@ -1,0 +1,87 @@
+id: grain-audit
+kind: sql
+title: Prove the fan-out, package by package
+difficulty: 4
+datasetId: package-registry
+topics: [semantic-layer, joins, testing]
+timeLimitMs: 15000
+prompt: |
+  Write the audit query you would run before believing a dashboard.
+
+  For every package where routing the `total_downloads` metric through
+  `package_maintainers` changes its value, return:
+
+  - `name` — the package name
+  - `true_total` — `sum(count)` from `downloads` alone
+  - `joined_total` — `sum(count)` after joining `downloads` to
+    `package_maintainers` on `package_id`
+
+  Only the packages where the two disagree. Ordered by `name`.
+
+  The starter computes both numbers for every package. Your job is to turn it
+  into a *test*: a query whose output is the list of things that are wrong, and
+  which is empty when nothing is.
+hints:
+  - "You need two aggregates at different grains, so compute each one on its own and bring them together — a CTE per total keeps the two grains from contaminating each other."
+  - "Compute `true_total` from `downloads` grouped by `package_id`. Compute `joined_total` from `downloads` joined to `package_maintainers`, also grouped by `package_id`. Neither CTE should mention the other."
+  - "Then join both CTEs to `packages` for the name and keep only the rows where the two totals differ. Five packages have more than one maintainer, so five rows come back."
+solutionWalkthrough: |
+  ```sql
+  WITH truth AS (
+    SELECT package_id, sum(count) AS true_total
+    FROM downloads
+    GROUP BY package_id
+  ),
+  fanned AS (
+    SELECT d.package_id, sum(d.count) AS joined_total
+    FROM downloads d
+    JOIN package_maintainers pm ON pm.package_id = d.package_id
+    GROUP BY d.package_id
+  )
+  SELECT p.name, t.true_total, f.joined_total
+  FROM packages p
+  JOIN truth  t ON t.package_id = p.id
+  JOIN fanned f ON f.package_id = p.id
+  WHERE t.true_total <> f.joined_total
+  ORDER BY p.name;
+  ```
+
+  Five packages, and the inflation factor is exactly each one's maintainer
+  count: `chunker` has three maintainers and its total triples.
+
+  **Why two separate CTEs.** Each aggregate is computed at its own grain and
+  neither can contaminate the other. Try to get both numbers out of one query —
+  one join, two aggregates — and you are computing both from the fanned-out row
+  set, which is the bug you are trying to detect. A test that inherits the bug
+  it is testing for is worse than no test, because it is now evidence.
+
+  **Why `<>` and not a ratio or a tolerance.** These are integer sums of integer
+  facts. If the join preserves the grain, they are equal; there is no
+  "acceptably close". Reaching for a tolerance on a test like this is how a
+  small fan-out becomes permanent.
+
+  **What to do with it.** This is the shape of an assertion query: it returns
+  the offending rows, so an empty result is a pass and a non-empty result is a
+  report you can act on. Wire it into the metric layer's test suite, and it
+  fails the day someone adds a second maintainer to a package that had one —
+  which is the day the number silently changes and nobody notices.
+
+  The version of this test that scales is even cheaper: compare `count(*)`
+  before and after the join, as in the lesson. It does not need a measure at
+  all, so one assertion covers every metric routed through that join path.
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 5
+      message: >-
+        Expected 5 rows. Five packages have more than one maintainer, and only
+        those can have their total inflated by the join. Twenty rows means the
+        comparison filter is missing.
+    - type: predicate
+      sql: "SELECT joined_total = 3 * true_total FROM __learner WHERE name = 'chunker'"
+      message: >-
+        chunker has three maintainers, so its joined total should be exactly
+        three times its true total. If it is not, one of the two totals is being
+        computed from the wrong row set.

@@ -1,0 +1,64 @@
+id: bloom-filter
+kind: python
+title: Build a Bloom filter
+difficulty: 3
+pattern: probabilistic-membership
+topics: [bloom-filter, hashing, bit-manipulation]
+timeLimitMs: 20000
+prompt: |
+  Finish the `BloomFilter` class. `base_hashes` is given and must not change —
+  it turns any item into two 64-bit values, which is all you need.
+
+  Three methods:
+
+  - `positions(item)` — the `num_hashes` array indices this item touches. Use
+    the Kirsch–Mitzenmacher trick: index $i$ is $(h_1 + i \cdot h_2) \bmod m$.
+  - `add(item)` — set every one of those positions to 1.
+  - `__contains__(item)` — return `True` only if **all** of them are already 1.
+
+  ```
+  bf = BloomFilter(4000, 5)
+  bf.add("arrowkit")
+  "arrowkit" in bf     # True
+  "dagrun" in bf       # almost certainly False
+  ```
+
+  The hidden tests check both halves of the contract: a saturated filter must
+  still never produce a false negative, and it must produce false positives.
+  A dictionary of the items you inserted would pass the first and fail the
+  second.
+hints:
+  - "The filter stores no items. `self.bits` is the entire state, and `positions` is the only thing that connects an item to it."
+  - "`positions` is a list comprehension over `range(self.num_hashes)`: `(h1 + i * h2) % self.num_bits`. Everything else follows from it."
+  - "`add` writes `self.bits[p] = 1` for each position. `__contains__` is `all(self.bits[p] for p in self.positions(item))` — note `all`, not `any`."
+solutionWalkthrough: |
+  ```python
+  def positions(self, item):
+      h1, h2 = base_hashes(item)
+      return [(h1 + i * h2) % self.num_bits for i in range(self.num_hashes)]
+
+  def add(self, item):
+      for pos in self.positions(item):
+          self.bits[pos] = 1
+
+  def __contains__(self, item):
+      return all(self.bits[pos] for pos in self.positions(item))
+  ```
+
+  Two details carry the whole structure.
+
+  **`all`, not `any`.** A single zero bit is a proof of absence — that item
+  could not have been inserted, because insertion would have set that bit. Every
+  bit being 1 is only evidence, not proof. Swapping `all` for `any` does not
+  make the filter "looser"; it destroys the one guarantee it has.
+
+  **`add` never writes a 0.** That is the entire no-false-negative argument, and
+  it is why there is no `remove` method to write. If you found yourself wanting
+  one, you wanted a counting Bloom filter: a `bytearray` of counters, `+= 1` on
+  insert and `-= 1` on delete, four bits per slot instead of one.
+
+  The alternative to all of this is a `set`, which is exact and costs the size
+  of the data. Here you pay about `num_bits / n` bits per item regardless of how
+  big the items are — so the filter wins by more the larger your items get, and
+  loses outright when the set is small enough to hold exactly. Below a few
+  thousand items, use a `set`.

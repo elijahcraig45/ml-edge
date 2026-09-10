@@ -1,0 +1,42 @@
+- id: worked-example
+  label: The example from the prompt
+  code: |
+    assert running_median([5, 15, 1, 3]) == [5.0, 10.0, 5.0, 4.0]
+- id: empty-and-single
+  label: Empty and one-element streams
+  code: |
+    assert running_median([]) == []
+    assert running_median([7]) == [7.0]
+- id: ascending
+  label: An ascending stream
+  code: |
+    assert running_median([1, 2, 3, 4]) == [1.0, 1.5, 2.0, 2.5]
+- id: descending
+  label: A descending stream
+  code: |
+    assert running_median([4, 3, 2, 1]) == [4.0, 3.5, 3.0, 2.5]
+- id: duplicates-and-negatives
+  label: Repeats and negative values
+  hidden: true
+  code: |
+    # A sign error in the max-heap negation survives symmetric data and dies here.
+    assert running_median([-5, -5, 100, -5]) == [-5.0, -5.0, -5.0, -5.0]
+    assert running_median([2, 2, 2, 8]) == [2.0, 2.0, 2.0, 2.0]
+- id: matches-brute-force
+  label: Agrees with a sorted-prefix median on 400 skewed values
+  hidden: true
+  code: |
+    values = [((i * 61) % 97) ** 2 for i in range(400)]
+    got = running_median(values)
+
+    expected = []
+    for i in range(len(values)):
+        ordered = sorted(values[: i + 1])
+        mid = len(ordered) // 2
+        if len(ordered) % 2:
+            expected.append(float(ordered[mid]))
+        else:
+            expected.append((ordered[mid - 1] + ordered[mid]) / 2)
+
+    assert len(got) == len(values)
+    assert all(abs(a - b) < 1e-9 for a, b in zip(got, expected))

@@ -1,0 +1,23 @@
+- id: float-error
+  label: Accepts 0.1 + 0.2 as within tolerance of 0.3
+  code: |
+    assert all_within([0.1 + 0.2, 0.3], 0.3, 1e-9) is True
+- id: rejects-far
+  label: Rejects a value outside the tolerance
+  code: |
+    assert all_within([0.3, 0.5], 0.3, 1e-9) is False
+- id: empty
+  label: An empty list is vacuously within tolerance
+  code: |
+    assert all_within([], 0.3, 1e-9) is True
+- id: symmetric
+  label: Works for values below the target as well as above
+  hidden: true
+  code: |
+    assert all_within([0.29999999999], 0.3, 1e-6) is True
+    assert all_within([0.2], 0.3, 1e-6) is False
+- id: boundary
+  label: A value exactly at the tolerance counts as within
+  hidden: true
+  code: |
+    assert all_within([1.5], 1.0, 0.5) is True

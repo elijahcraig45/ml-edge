@@ -1,0 +1,42 @@
+- id: classic
+  label: The textbook pair
+  code: |
+    assert longest_common_subsequence("AGGTAB", "GXTXAYB") == "GTAB"
+- id: package-names
+  label: Two package names
+  code: |
+    assert longest_common_subsequence("quickselect", "quicksort") == "quickst"
+    assert longest_common_subsequence("graphwalk", "treewalk") == "rwalk"
+- id: no-overlap
+  label: Nothing in common gives the empty string
+  code: |
+    assert longest_common_subsequence("abc", "def") == ""
+- id: empty-inputs
+  label: Empty inputs on either side
+  code: |
+    assert longest_common_subsequence("", "abc") == ""
+    assert longest_common_subsequence("abc", "") == ""
+    assert longest_common_subsequence("", "") == ""
+- id: tie-break
+  label: Ties resolve upwards, as specified
+  code: |
+    assert longest_common_subsequence("aabbcc", "abcabc") == "aabc"
+    assert longest_common_subsequence("ab", "ba") == "a"
+- id: identical
+  label: Identical strings are their own subsequence
+  hidden: true
+  code: |
+    assert longest_common_subsequence("radixsort", "radixsort") == "radixsort"
+- id: is-a-real-subsequence
+  label: The result is genuinely a subsequence of both inputs
+  hidden: true
+  code: |
+    def is_subsequence(small, big):
+        it = iter(big)
+        return all(ch in it for ch in small)
+
+    for x, y in [("arrowkit", "radixsort"), ("nullsafe", "hashring"),
+                 ("aabbcc", "abcabc"), ("bitmask", "bitmask")]:
+        got = longest_common_subsequence(x, y)
+        assert isinstance(got, str), f"expected a string, got {type(got).__name__}"
+        assert is_subsequence(got, x) and is_subsequence(got, y), (x, y, got)

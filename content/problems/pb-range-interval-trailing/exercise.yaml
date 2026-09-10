@@ -1,0 +1,105 @@
+id: pb-range-interval-trailing
+kind: sql
+title: A three-day window measured in days, not rows
+difficulty: 5
+pattern: window-functions
+stage: s04-sorting-and-windows
+topics: [frames, time-series]
+datasetId: package-registry
+timeLimitMs: 20000
+prompt: |
+  Attach a registry-wide **rolling three-day total** to every row of `downloads`
+  — this row's day plus the two calendar days before it, summed across every
+  package.
+
+  Four columns, 200 rows: `package_id`, `day`, `count`, `trailing_3day`. Order
+  does not matter.
+
+  Twenty rows share each day, so the answer takes exactly ten distinct values.
+  The first day's is 36,620 (one day only), the third day's is 109,380 (three
+  days), and by 2024-03-10 it has settled around 109,100.
+
+  `ROWS BETWEEN 2 PRECEDING AND CURRENT ROW` is the reflex and it is wrong twice
+  over here: it sums three *rows* — three packages on the same day, most likely —
+  rather than three days, and which three depends on an ordering nothing in the
+  query pins down.
+hints:
+  - "Work out how many rows a real three-day window contains in this table. Sixty, not three. Any frame that produces three rows is counting the wrong thing."
+  - "Frame offsets under `RANGE` are expressed in the units of the `ORDER BY` key. The key here is a DATE, so the offset is an interval."
+  - "`RANGE BETWEEN INTERVAL 2 DAY PRECEDING AND CURRENT ROW`. `CURRENT ROW` under `RANGE` means the end of the peer group, so all twenty rows of a day agree."
+solutionWalkthrough: |
+  ```sql
+  SELECT
+    package_id,
+    day,
+    count,
+    sum(count) OVER (
+      ORDER BY day
+      RANGE BETWEEN INTERVAL 2 DAY PRECEDING AND CURRENT ROW
+    ) AS trailing_3day
+  FROM downloads;
+  ```
+
+  36,620 · 73,080 · 109,380 · 108,900 · 108,860 · 108,820 · 109,220 · 109,180 ·
+  109,140 · 109,100. The first two are the warm-up: there are not three days of
+  history yet, and `RANGE` reports what it can see rather than pretending.
+
+  This is the case that makes `RANGE` more than a footnote. The frame bound
+  `INTERVAL 2 DAY PRECEDING` is a statement about the *domain* — it means "no
+  more than two days older than me", and it stays true whether that is three
+  rows, sixty rows, or none. `ROWS 2 PRECEDING` is a statement about storage.
+  The two coincide only when the partition has exactly one row per unit of the
+  key, with no gaps and no duplicates, which is a property of the data that no
+  part of the query is checking.
+
+  Two things follow. First, on this table `ROWS` cannot even be salvaged by
+  adding a tiebreaker: sixty rows fall inside any real three-day window, so the
+  offset would have to be `59 PRECEDING`, a number derived from the package count
+  and therefore wrong the moment a package is added. Second, `RANGE` degrades
+  correctly when data is missing — skip a day and the window covers two days'
+  worth of rows and says so, whereas `ROWS` would silently reach further back in
+  time to make up the count.
+
+  The price is that `RANGE` with an offset requires exactly one `ORDER BY`
+  expression of a type that supports subtraction, and engines vary in what they
+  will accept. DuckDB, PostgreSQL and Snowflake all take an `INTERVAL` against a
+  `DATE` or `TIMESTAMP`; some engines want the key cast to a number of days
+  first. Check before you rely on it, and never work around a rejection by
+  switching to `ROWS` and hoping.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 200
+      message: >-
+        Every download row keeps its identity and gains one column; do not
+        collapse the table to one row per day.
+    - type: syntax
+      pattern: "range\\s+between"
+      negate: false
+      message: >-
+        The frame must be measured in days, which means `RANGE` with an interval
+        offset rather than `ROWS` with a row count.
+    - type: predicate
+      sql: "SELECT count(DISTINCT trailing_3day) = 10 FROM __learner"
+      message: >-
+        Ten distinct values, one per day. More than that means the twenty rows
+        sharing a day were treated as ordered relative to each other.
+    - type: predicate
+      sql: "SELECT count(*) = 0 FROM __learner l WHERE l.trailing_3day <> (SELECT sum(d.count) FROM downloads d WHERE d.day <= l.day AND d.day >= l.day - INTERVAL 2 DAY)"
+      message: >-
+        Each row's total should be the sum over its own day and the two calendar
+        days before it, across every package.
+    - type: predicate
+      sql: "SELECT max(trailing_3day) = 109380 AND min(trailing_3day) = 36620 FROM __learner"
+      message: >-
+        The largest window total is 109,380 (the first three days) and the
+        smallest is the 36,620 of day one, when there is no history to include.
+    - type: plan
+      contains: ["WINDOW"]
+      notContains: ["CROSS_PRODUCT"]
+      message: >-
+        A self-join on a date range is a filtered cross product. Express the
+        window as a frame so the engine can compute it in one ordered pass.

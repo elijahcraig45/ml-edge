@@ -1,0 +1,124 @@
+id: query-containment
+kind: python
+title: Deciding conjunctive query containment
+difficulty: 5
+pattern: search
+topics: [sql, np-complete, homomorphism]
+timeLimitMs: 20000
+prompt: |
+  Decide whether one conjunctive query is contained in another — the test an
+  optimiser has to pass before it is allowed to rewrite a query, and the reason
+  view-based rewriting is a search problem rather than a lookup.
+
+  **Representation.** A query is `(head, body)`.
+
+  - `head` is a tuple of variables — the output columns.
+  - `body` is a tuple of atoms; an atom is `(relation_name, terms)`.
+  - A **term** is a `str` (a variable) or an `int` (a constant).
+
+  So $Q(x, z) \;\text{:-}\; \mathrm{edge}(x, y), \mathrm{edge}(y, z)$ is
+
+  ```python
+  (("x", "z"), (("edge", ("x", "y")), ("edge", ("y", "z"))))
+  ```
+
+  **Write `contained_in(q1, q2)`**, returning `True` when $Q_1 \subseteq Q_2$ —
+  that is, when on *every* database every row $Q_1$ returns is also returned by
+  $Q_2$.
+
+  By the homomorphism theorem this holds exactly when there is a map $h$ from
+  $Q_2$'s variables to $Q_1$'s terms with
+
+  - $h(t) = t$ for every constant $t$,
+  - $h(\text{atom})$ is an atom of $Q_1$'s body, for every atom of $Q_2$'s body,
+  - $h(Q_2.\text{head}[i]) = Q_1.\text{head}[i]$ for every output position.
+
+  Note the direction: the map runs from the **containing** query into the
+  **contained** one. Queries with different numbers of output columns are never
+  comparable — return `False`.
+
+  ```
+  path2 = (("x", "z"), (("edge", ("x", "y")), ("edge", ("y", "z"))))
+  path3 = (("x", "z"), (("edge", ("x", "y")), ("edge", ("y", "z")), ("edge", ("z", "w"))))
+  one   = (("x", "z"), (("edge", ("x", "z")),))
+
+  contained_in(path3, path2)   # True  — path3 is path2 plus a constraint
+  contained_in(path2, path3)   # False — nowhere to send w
+  contained_in(path2, one)     # False — a 2-path need not be an edge
+  ```
+
+  There is no polynomial algorithm here and you are not expected to find one:
+  the problem is NP-complete. Backtracking over the assignments is the answer.
+hints:
+  - "Start from the head. Those positions are forced: q2's head variable at position i must map to q1's head term at position i. Bind them first, and fail immediately if one variable is asked to take two different values."
+  - "Then place q2's body atoms one at a time. For each atom, try every atom of q1's body with the same relation name and arity as its image, extend the partial map, and recurse. On failure, undo the bindings that atom added and try the next candidate."
+  - "A constant must map to itself: when a term of q2 is an int, the corresponding term of the candidate q1 atom must be the same int. Snapshot the mapping dict before each attempt and restore it on backtrack, or you will leak bindings from a failed branch into the next one."
+solutionWalkthrough: |
+  ```python
+  def contained_in(q1, q2):
+      head1, body1 = q1
+      head2, body2 = q2
+      if len(head1) != len(head2):
+          return False
+
+      candidates = {}
+      for rel, terms in body1:
+          candidates.setdefault((rel, len(terms)), []).append(terms)
+
+      mapping = {}
+
+      def bind(term, value):
+          if isinstance(term, str):
+              if term in mapping:
+                  return mapping[term] == value
+              mapping[term] = value
+              return True
+          return term == value
+
+      def place(i):
+          if i == len(body2):
+              return True
+          rel, terms = body2[i]
+          for cand in candidates.get((rel, len(terms)), []):
+              saved = dict(mapping)
+              if all(bind(t, c) for t, c in zip(terms, cand)) and place(i + 1):
+                  return True
+              mapping.clear()
+              mapping.update(saved)
+          return False
+
+      for t2, t1 in zip(head2, head1):
+          if not bind(t2, t1):
+              return False
+      return place(0)
+  ```
+
+  **Why the head is bound first.** Head positions admit exactly one value each,
+  so binding them costs nothing and prunes the body search hard. Doing it last
+  means exploring body placements that the head will reject anyway.
+
+  **Why `all(bind(...))` is safe despite short-circuiting.** `all` stops at the
+  first `False`, leaving some bindings from that candidate in place. That is
+  fine only because the `saved` snapshot is restored on the failure path. Delete
+  the snapshot and the function still passes small tests and quietly returns
+  wrong answers on larger ones — a bug that survives casual testing because a
+  leaked binding usually just makes a later branch fail, which looks like a
+  legitimate `False`.
+
+  **Complexity.** With $v$ variables in $Q_2$ and $|Q_1|$ atoms, the search is
+  $O(|Q_1|^{|Q_2|})$ in the worst case. Nobody knows better, and the lesson's
+  proof track shows why: CLIQUE reduces to this problem, with the clique pattern
+  playing the part of $Q_2$. Every improvement here would be an improvement on
+  clique.
+
+  **What makes it fast in practice.** Real queries have three to eight atoms and
+  the relation names differ, so `candidates` usually holds one or two atoms per
+  key and the branching factor collapses. The exponential is in the *query*
+  size, never the data size — combined complexity is intractable, data
+  complexity is not. That is the split that lets optimisers exist.
+
+  **Where you have already relied on this.** Every "this materialised view can
+  answer that query" decision is a containment test. So is subsumption in a
+  Datalog engine, and so is the rewrite rule that lets an optimiser drop a
+  self-join that cannot change the answer. The reason those features arrive
+  restricted to simple query shapes is that the general problem is this one.

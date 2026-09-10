@@ -1,0 +1,73 @@
+id: traversal-order
+kind: python
+title: All four traversals
+difficulty: 2
+pattern: tree-traversal
+topics: [trees, recursion]
+timeLimitMs: 10000
+prompt: |
+  A node is the tuple `(value, left, right)`; the empty tree is `None`.
+
+  Return a dict with the tree's four traversal orders:
+
+  ```
+  {"preorder": [...], "inorder": [...], "postorder": [...], "level": [...]}
+  ```
+
+  Each list holds **values**, not nodes.
+
+  ```
+  tree = ("b", ("a", None, None), ("c", None, None))
+  traversals(tree)["postorder"]    # ["a", "c", "b"]
+  traversals(None)["level"]        # []
+  ```
+
+  The three depth-first orders differ only by where you record the node. Level
+  order is the odd one out: it needs a queue, not recursion.
+hints:
+  - "Write one of the depth-first orders first and get it passing. The other two are the same function with the `append` moved."
+  - "For level order, keep a `collections.deque` of nodes still to visit, pop from the left, and push both children."
+  - "`None` is a valid tree. Every one of the four walks has to survive being handed it, which is easiest if the empty case is the first line of each function."
+solutionWalkthrough: |
+  ```python
+  from collections import deque
+
+  def traversals(root):
+      pre, ino, post = [], [], []
+
+      def walk(node):
+          if node is None:
+              return
+          value, left, right = node
+          pre.append(value)
+          walk(left)
+          ino.append(value)
+          walk(right)
+          post.append(value)
+
+      walk(root)
+
+      level = []
+      queue = deque([root] if root is not None else [])
+      while queue:
+          value, left, right = queue.popleft()
+          level.append(value)
+          if left is not None:
+              queue.append(left)
+          if right is not None:
+              queue.append(right)
+
+      return {"preorder": pre, "inorder": ino, "postorder": post, "level": level}
+  ```
+
+  Three walks collapsed into one is the point worth taking away. A node is
+  passed three times during a depth-first traversal — on the way in, between its
+  two children, and on the way out — and the three orders are three
+  different choices of which pass records the value. Writing them as three
+  separate functions hides that; writing them as one makes it obvious, and it
+  visits each node once instead of three times.
+
+  Level order cannot join the party, because it is not depth-first at all. The
+  alternative — recursing by depth, collecting nodes at depth 0, then depth 1,
+  and so on — walks the top of the tree once per level and costs $O(n h)$
+  instead of $O(n)$.

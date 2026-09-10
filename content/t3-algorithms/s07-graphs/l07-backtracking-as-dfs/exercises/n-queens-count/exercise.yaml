@@ -1,0 +1,81 @@
+id: n-queens-count
+kind: python
+title: N-queens, pruned
+difficulty: 4
+pattern: backtracking
+topics: [backtracking, dfs, sets]
+timeLimitMs: 15000
+prompt: |
+  Count the ways to place `n` queens on an `n × n` board so that no two attack
+  each other. Queens attack along rows, columns and both diagonals.
+
+  ```
+  count_queens(4)   # 2
+  count_queens(8)   # 92
+  ```
+
+  Place exactly one queen per row — that removes row conflicts by construction
+  and turns the problem into "choose a column for each row".
+
+  The check must happen **before** you recurse, not at the end. A version that
+  fills the whole board and then tests it explores 19 million states for
+  `n = 8`; the pruned version explores about 2,000, and the hidden test runs
+  `n = 9`.
+
+  Calling the function twice must give the same answer both times.
+hints:
+  - "A queen at (row, col) attacks a column and two diagonals. Every square on one diagonal shares the same value of `row - col`; every square on one anti-diagonal shares `row + col`. Three integers describe everything one queen forbids."
+  - "Keep three sets — occupied columns, occupied `row - col` values, occupied `row + col` values. Testing a candidate square is three membership checks, all constant time."
+  - "The pattern is add-three, recurse, remove-three. The `continue` that skips a conflicting column is the prune, and it has to come before the recursive call — that is what stops entire subtrees from ever existing."
+solutionWalkthrough: |
+  ```python
+  def count_queens(n):
+      cols, diag, anti = set(), set(), set()
+      total = 0
+
+      def place(row):
+          nonlocal total
+          if row == n:                                   # goal
+              total += 1
+              return
+          for col in range(n):
+              if col in cols or (row - col) in diag or (row + col) in anti:
+                  continue                               # prune
+              cols.add(col); diag.add(row - col); anti.add(row + col)
+              place(row + 1)
+              cols.remove(col); diag.remove(row - col); anti.remove(row + col)
+
+      place(0)
+      return total
+  ```
+
+  **One queen per row is a modelling decision, and it is most of the win.** The
+  raw problem is "choose $n$ squares from $n^2$", which is $\binom{64}{8} =
+  4.4$ billion states for a chessboard. Deciding that row $r$ holds exactly one
+  queen cuts that to $8^8 = 16.7$ million before any pruning at all. Reshaping
+  the state space is usually worth more than optimising the search over it.
+
+  **`row - col` and `row + col` are the diagonals**, and they are the reason the
+  feasibility test is $O(1)$ rather than $O(\text{queens placed})$. Squares on a
+  falling diagonal all have the same `row - col`; squares on a rising one all
+  have the same `row + col`. So "does this square conflict with anything placed?"
+  becomes three set lookups instead of a loop over the placed queens — the same
+  trade you made in lesson 2 when a list scan became a set membership, applied
+  inside a search tree.
+
+  **Three adds and three removes, in matching pairs.** Undo every mutation you
+  made, or a stale entry in `diag` will silently forbid a legal square in a
+  sibling branch. The hidden "call it twice" test exists because the classic
+  version of this bug is state that outlives the call — module-level sets, or a
+  default-argument list.
+
+  **What the pruning does and does not do.** With the check before the recursion,
+  `n = 8` visits 2,057 states instead of 19,173,961: a factor of 9,000. The
+  search is still exponential — there is no closed form for the number of
+  solutions and no polynomial algorithm known — so the honest description is
+  "exponential with a much smaller base", never "pruning makes it fast".
+
+  For larger boards the next step is bitmasks: replace the three sets with three
+  integers and the membership test with `~(cols | diag | anti) & full`, which
+  lets you iterate only over legal columns using `x & -x`. Same algorithm, same
+  state space, roughly an order of magnitude in constant factor.

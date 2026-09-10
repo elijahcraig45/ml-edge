@@ -1,0 +1,84 @@
+id: hash-sampled-total
+kind: sql
+title: Estimate a total from a hash sample
+difficulty: 3
+datasetId: package-registry
+pattern: streaming-sample
+topics: [sampling, aggregation]
+timeLimitMs: 15000
+prompt: |
+  `TABLESAMPLE` is random, so it gives a different answer every run — which is
+  correct behaviour and useless in a scheduled report. Production pipelines
+  sample **deterministically** instead: hash a stable row key and keep the rows
+  whose hash falls in a fixed slice. Same rows every time, still unbiased,
+  because a good hash spreads rows independently of their values.
+
+  Keep the rows of `downloads` where `hash(package_id, day) % 4 = 0` — a 1-in-4
+  sample — and return one row with four columns:
+
+  - `sampled_rows` — how many rows survived the filter
+  - `estimated_total` — the sample's summed `count`, scaled back up by 4
+  - `exact_total` — the true `sum("count")` over the whole table
+  - `pct_error` — $100 \times (\text{estimated} - \text{exact}) / \text{exact}$,
+    rounded to 2 decimals
+
+  Write `d."count"` — `count` is a column name here and also a function.
+
+  The scale-up factor is the part people get wrong. A sum over a $1/f$ sample
+  estimates $1/f$ of the total, so it must be multiplied by $f$. An average
+  needs no such correction; a sum and a count do.
+hints:
+  - "The filter is an ordinary WHERE clause: `WHERE hash(d.package_id, d.day) % 4 = 0`. Everything else is aggregation over what survives it."
+  - "`sum(d.\"count\")` inside the filtered query is the sample's mass. Multiply by 4 to estimate the population's."
+  - "For `exact_total` you need the unfiltered table, so it has to be a scalar subquery: `(SELECT sum(\"count\") FROM downloads)`. The same subquery appears in the pct_error denominator."
+solutionWalkthrough: |
+  ```sql
+  SELECT
+    count(*)                             AS sampled_rows,
+    4 * sum(d."count")                   AS estimated_total,
+    (SELECT sum("count") FROM downloads) AS exact_total,
+    round(100.0 * (4 * sum(d."count") - (SELECT sum("count") FROM downloads))
+                / (SELECT sum("count") FROM downloads), 2) AS pct_error
+  FROM downloads d
+  WHERE hash(d.package_id, d.day) % 4 = 0;
+  ```
+
+  50 of 200 rows survive — a clean quarter, by luck rather than by guarantee —
+  and the scaled estimate is 369,768 against a true 363,840. That is 1.63% high
+  from a quarter of the data.
+
+  Three properties are worth separating.
+
+  **Deterministic.** Run it tomorrow and you get the same 50 rows. A dashboard
+  built on `TABLESAMPLE` jitters between refreshes and every jitter looks like a
+  real movement to whoever is reading it.
+
+  **Stable under growth.** New rows join the sample only if their own hash lands
+  in the slice, so yesterday's sampled rows stay sampled. That makes the sample
+  usable as a persistent subset — the standard trick for "give the experiment to
+  1% of users, permanently and consistently".
+
+  **Unbiased only if the hash is unrelated to the value.** `hash(package_id,
+  day)` is fine. `package_id % 4 = 0` would not be: it selects five specific
+  packages, and in a Zipf-skewed table those five packages are not a quarter of
+  the downloads. That is the same failure as `TABLESAMPLE SYSTEM`, arrived at by
+  a different route — selecting on something correlated with the value.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: syntax
+      pattern: "hash\\s*\\("
+      message: >-
+        The sample has to come from hashing a row key. TABLESAMPLE would be
+        random per run, which is exactly what this exercise is avoiding.
+    - type: rowcount
+      equals: 1
+      message: This is a single summary row over the whole sample.
+    - type: predicate
+      sql: "SELECT sampled_rows = 50 AND abs(pct_error) < 5 FROM __learner"
+      message: >-
+        Expected 50 sampled rows and an error under 5%. If sampled_rows is 200
+        the WHERE clause is missing; if pct_error is near -75 you forgot to
+        scale the sampled sum back up by 4.

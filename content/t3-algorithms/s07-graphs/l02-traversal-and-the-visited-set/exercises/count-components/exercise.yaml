@@ -1,0 +1,95 @@
+id: count-components
+kind: python
+title: Connected components, in one pass
+difficulty: 2
+pattern: dfs
+topics: [graphs, sets]
+timeLimitMs: 25000
+prompt: |
+  `graph` maps each node to a list of its neighbours, and the edges are
+  symmetric — if `b` is in `graph[a]` then `a` is in `graph[b]`. Return the
+  number of **connected components**: groups of nodes that can reach each other
+  and cannot reach anything outside the group.
+
+  ```
+  count_components({1: [2], 2: [1], 3: [4], 4: [3]})   # 2
+  count_components({1: [], 2: [], 3: []})              # 3
+  ```
+
+  **This one has a complexity budget.** The starter is already correct — it
+  passes every test. It also runs a fresh traversal from every node, so on a
+  graph with four components of 1,500 nodes it walks 1,500 nodes six thousand
+  times. The performance check runs exactly that graph and will reject it.
+
+  The graph may contain cycles and self-loops. An empty graph has zero
+  components.
+hints:
+  - "Count how many times the starter visits the node `0`. Now count how many times it *needs* to."
+  - "There are two visited sets in play, and only one of them should be created inside the loop. Which one is answering 'have I already assigned this node to a component?'"
+  - "Move `seen` above the `for start in graph` loop. Then `if start in seen: continue` skips every node whose component has already been counted, and the whole scan touches each node once."
+solutionWalkthrough: |
+  ```python
+  def count_components(graph):
+      seen = set()
+      components = 0
+      for start in graph:
+          if start in seen:
+              continue
+          components += 1
+          seen.add(start)
+          stack = [start]
+          while stack:
+              node = stack.pop()
+              for nxt in graph[node]:
+                  if nxt not in seen:
+                      seen.add(nxt)
+                      stack.append(nxt)
+      return components
+  ```
+
+  One set, declared once, shared by every traversal. That is the whole change,
+  and it takes the algorithm from $O(V \cdot (V + E))$ to $O(V + E)$.
+
+  The reasoning is worth stating carefully, because "hoist the variable" sounds
+  like a micro-optimisation and this is not one. Each node is pushed exactly
+  once across the entire run, because the only push is guarded by
+  `nxt not in seen` and the push is immediately followed by `seen.add`. So the
+  total number of pops over all traversals is $V$, and the total number of
+  neighbour examinations is $2E$ — regardless of how the components are shaped.
+  The outer loop runs $V$ times but does almost nothing on most iterations.
+
+  The starter's cost, by contrast, depends on the *shape*: a graph of $V$
+  isolated nodes costs $O(V)$ and a single connected blob costs $O(V^2)$. An
+  algorithm whose complexity swings by a factor of $V$ depending on the input's
+  structure is one you cannot reason about, which matters more than the constant.
+
+  `stack.pop()` makes this a DFS. Swap in a `deque` and `popleft()` and it is a
+  BFS. Neither is better here — the question is which nodes are connected, not
+  how far apart they are, so any traversal that reaches all of them works. When
+  the answer does not depend on the order, take the cheaper container: a list
+  used as a stack has less overhead than a deque.
+
+# Enforces the claim that the visited set belongs outside the loop.
+# The starter is correct, so only a budget can reject it.
+#
+# 6,000 nodes in 4 cycles of 1,500. Every node has degree 2, so E = V and the
+# one-pass version is trivially fast; the per-node version re-walks a
+# 1,500-node component 6,000 times.
+complexityBudget:
+  setup: |
+    n, comp = 6000, 1500
+    data = {i: [] for i in range(n)}
+    for i in range(n):
+        j = (i // comp) * comp + ((i + 1) % comp)
+        data[i].append(j)
+        data[j].append(i)
+  call: |
+    count_components(data)
+  # Measured under CPython 3.13: shared visited set 0.9ms, per-node traversal
+  # 940ms. 300ms is 330x above the fast version and 3.1x below the slow one, so
+  # it separates them with room to spare even under Pyodide.
+  maxMs: 300
+  message: >-
+    Correct, but it re-walks each component once per node in it. Move the
+    visited set out of the `for start in graph` loop so a node that has already
+    been assigned to a component is skipped instead of re-traversed.

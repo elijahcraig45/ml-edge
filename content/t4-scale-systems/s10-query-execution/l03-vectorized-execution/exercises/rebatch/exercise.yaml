@@ -1,0 +1,81 @@
+id: rebatch
+kind: python
+title: Put the batches back to full size
+difficulty: 4
+pattern: vectorized-execution
+topics: [vectorization, columnar, generators]
+timeLimitMs: 10000
+prompt: |
+  A selective filter leaves a stream of ragged batches: 3 rows, then 1, then
+  1,900. Every operator above pays a full dispatch for each of them, so the
+  saving that batching bought is being given back. Real engines therefore insert
+  a rebatching step.
+
+  `rebatch(batches, size)` consumes an iterable of column-major batches and
+  yields batches of exactly `size` rows, except the final one, which holds
+  whatever is left over.
+
+  ```python
+  batches = [
+      {"id": [1, 2, 3]},
+      {"id": [4]},
+      {"id": [5, 6, 7, 8]},
+  ]
+  list(rebatch(batches, 3))
+  # [{"id": [1, 2, 3]}, {"id": [4, 5, 6]}, {"id": [7, 8]}]
+  ```
+
+  Rules:
+
+  - Row order is preserved, and each output batch keeps every column the input
+    had, with the values that belong together still at the same index.
+  - No empty batch is ever emitted — including when the input is empty, or when
+    the row count divides exactly by `size`.
+  - Input batches may be larger than `size`, smaller, or empty.
+  - Stay streaming: hold at most one output batch's worth of rows at a time.
+    Concatenating everything and then slicing defeats the purpose.
+hints:
+  - "Keep a partially filled output buffer between input batches. An input batch does not map onto one output batch, so the loop over inputs and the decision to emit are two separate things."
+  - "Append the incoming batch's columns onto the buffer, then emit full batches from the buffer in a `while` loop — one input batch can complete several outputs if it is large."
+  - "The last emission is outside the loop over inputs, and it must be guarded: after an input whose length divides exactly, the buffer is empty and emitting it would produce a batch of zero rows."
+solutionWalkthrough: |
+  ```python
+  def rebatch(batches, size):
+      buffer = None
+      for batch in batches:
+          if buffer is None:
+              buffer = {name: list(values) for name, values in batch.items()}
+          else:
+              for name, values in batch.items():
+                  buffer[name].extend(values)
+          while len(next(iter(buffer.values()), [])) >= size:
+              yield {name: values[:size] for name, values in buffer.items()}
+              buffer = {name: values[size:] for name, values in buffer.items()}
+      if buffer and len(next(iter(buffer.values()))) > 0:
+          yield buffer
+  ```
+
+  Three things are worth taking away, and none of them is the arithmetic.
+
+  **The buffer is the state that makes this an operator rather than a
+  transformation.** It carries rows across the boundary between two input
+  batches, which is the same problem every batched operator has — a join
+  probing a key whose matches straddle two batches, a window function whose
+  frame does. Once you batch, essentially every operator grows a buffer like
+  this one, and that is most of the "3× more code" that vectorization costs.
+
+  **The `while`, not an `if`.** One input batch of 10,000 rows must produce
+  several full output batches. An `if` handles the common case and silently
+  grows the buffer without bound on a large input — a bug that only appears when
+  the upstream operator changes its batch size.
+
+  **The guard on the final yield.** When the total row count is a multiple of
+  `size`, the buffer is empty when the loop ends, and an unguarded final yield
+  produces `{"id": []}` — a batch of zero rows, which is exactly the thing this
+  operator exists to eliminate. It is the standard off-by-one of every
+  chunking routine ever written.
+
+  The one design choice here that is not forced: the solution copies out of the
+  buffer with slices, which is $O(n)$ per emission. A production version keeps
+  an offset instead of re-slicing, for the same reason a ring buffer beats
+  `list.pop(0)`.

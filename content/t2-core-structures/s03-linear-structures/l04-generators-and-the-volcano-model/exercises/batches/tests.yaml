@@ -1,0 +1,47 @@
+- id: even-split
+  label: Splits into full batches
+  code: |
+    assert list(batches([1, 2, 3, 4], 2)) == [[1, 2], [3, 4]]
+- id: ragged-tail
+  label: The last batch may be short
+  code: |
+    assert list(batches([1, 2, 3, 4, 5], 2)) == [[1, 2], [3, 4], [5]]
+- id: empty-source
+  label: An empty source yields nothing at all
+  code: |
+    assert list(batches([], 3)) == []
+- id: size-larger-than-source
+  label: One short batch when size exceeds the source
+  code: |
+    assert list(batches([1, 2], 10)) == [[1, 2]]
+- id: is-an-iterator
+  label: Returns an iterator, not a materialised list
+  code: |
+    stream = batches([1, 2, 3], 2)
+    assert iter(stream) is stream, "batches must return an iterator you can advance"
+- id: stays-lazy
+  label: Pulls only what the current batch needs
+  hidden: true
+  code: |
+    # The source raises if it is drained past six items. A version that does
+    # list(source) first will trip it before yielding anything.
+    def limited():
+        for i in range(6):
+            yield i
+        raise AssertionError("batches() drained the whole source before yielding")
+
+    stream = batches(limited(), 2)
+    assert next(stream) == [0, 1]
+    assert next(stream) == [2, 3]
+- id: bad-size
+  label: A size below 1 raises ValueError
+  hidden: true
+  code: |
+    # Note where the raise lands: inside a generator function nothing runs
+    # until the first next(), so this has to be forced with list().
+    try:
+        list(batches([1, 2, 3], 0))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("size 0 must raise ValueError")

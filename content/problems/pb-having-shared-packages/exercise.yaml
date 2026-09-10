@@ -1,0 +1,94 @@
+id: pb-having-shared-packages
+kind: sql
+title: WHERE runs first, and that is the problem
+difficulty: 3
+pattern: aggregation
+stage: s03-linear-structures
+topics: [having, filtered-aggregates]
+datasetId: package-registry
+timeLimitMs: 15000
+prompt: |
+  Find the packages that more than one person is attached to, and break their
+  maintainer list down by role.
+
+  Four columns:
+
+  - `name`
+  - `maintainers` — everyone linked to the package
+  - `owners` — of those, how many hold the `owner` role
+  - `contributors` — how many hold `contributor`
+
+  Five packages qualify. Order does not matter.
+
+  Filtering to owners first and then testing `HAVING count(*) > 1` returns
+  nothing at all — no package has two owners. The role split has to happen
+  *inside* the aggregate, not in front of it.
+hints:
+  - "Write out the order the clauses actually execute in: FROM, WHERE, GROUP BY, HAVING, SELECT. A `WHERE` on `role` removes rows before the count exists, so the count is counting a different thing than the one you want to test."
+  - "You need three counts over the same group, each with a different condition. That rules out `WHERE`, which can only apply one condition to all of them."
+  - "`count(*) FILTER (WHERE pm.role = 'owner')` counts within the group. `count(*) FILTER (WHERE ...)` and `sum(CASE WHEN ... THEN 1 ELSE 0 END)` are the same idea; the first is standard SQL and reads better."
+solutionWalkthrough: |
+  ```sql
+  SELECT
+    p.name,
+    count(*)                                        AS maintainers,
+    count(*) FILTER (WHERE pm.role = 'owner')       AS owners,
+    count(*) FILTER (WHERE pm.role = 'contributor') AS contributors
+  FROM packages p
+  JOIN package_maintainers pm ON pm.package_id = p.id
+  GROUP BY p.name
+  HAVING count(*) > 1;
+  ```
+
+  `chunker` with three, and `arrowkit`, `graphwalk`, `keyspace`, `quickselect`
+  with two each. Every one of them has exactly one owner — which is the fact the
+  broken query destroyed rather than reported.
+
+  `WHERE` and `HAVING` are not two dialects of the same clause. `WHERE` chooses
+  which rows enter a group; `HAVING` chooses which groups survive. Once you say
+  that out loud, `WHERE role = 'owner' ... HAVING count(*) > 1` reads as "of the
+  owners only, which packages have more than one?" — a sensible question with an
+  empty answer, and not the question that was asked.
+
+  `FILTER` is the clause that lets one pass over the data answer several
+  questions at once. The alternative is three self-joins or three correlated
+  subqueries, one per role, each re-scanning `package_maintainers`. On a real
+  fact table that is the difference between one scan and *n* scans, and the
+  optimiser cannot always fix it for you because it would have to prove the
+  subqueries are over identical row sets.
+
+  Where `FILTER` stops being the answer: when the conditions need different
+  *grains*, not just different predicates — counting distinct maintainers per
+  package alongside distinct packages per maintainer, say. Then you are looking
+  at two aggregations, and no amount of filtering collapses them into one.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 5
+      message: >-
+        Expected 5 packages. Zero rows means a `WHERE` on `role` ran before the
+        grouping and left every package with at most one row to count.
+    - type: syntax
+      pattern: "\\bhaving\\b"
+      negate: false
+      message: >-
+        "More than one maintainer" is a condition on a group, so it belongs in
+        `HAVING`.
+    - type: predicate
+      sql: "SELECT count(*) = 0 FROM __learner WHERE owners <> 1"
+      message: >-
+        Every shared package has exactly one owner. A zero there means the role
+        breakdown was filtered away; a value above one means the roles got mixed.
+    - type: predicate
+      sql: "SELECT sum(maintainers) = 11 AND sum(contributors) = 6 FROM __learner"
+      message: >-
+        The five packages hold 11 maintainer links between them: 5 owners and 6
+        contributors.
+    - type: plan
+      notContains: ["CROSS_PRODUCT"]
+      message: >-
+        Join `package_maintainers` on `package_id` rather than pairing every
+        package with every link row.

@@ -1,0 +1,64 @@
+id: pa-feature-flag-combinations
+kind: python
+title: Every combination of optional features
+difficulty: 3
+pattern: recursion
+stage: s01-ground-floor
+topics:
+  - arrays
+  - combinatorics
+timeLimitMs: 15000
+prompt: |
+  A package has a list of optional features. Return every combination a user
+  could install, as a list of lists, including the empty combination and the
+  full set.
+
+  Order the result so that a combination appears before any combination that
+  extends it, and among the rest, the order the features are given decides:
+
+  ```
+  feature_sets(["a", "b"])   # [[], ["a"], ["b"], ["a", "b"]]
+  feature_sets([])           # [[]]
+  ```
+
+  That ordering is what you get by deciding, feature by feature, whether to
+  include it — with "leave it out" considered before "put it in". Features are
+  distinct. `itertools` is rejected.
+hints:
+  - "There are 2^n answers, so no trick beats generating them. The question is how to generate each one exactly once, and the required ordering tells you which feature to make the decision about."
+  - "Every combination either excludes the last feature or includes it. Solve the list without that feature once; the answer is that result, followed by the same result with the last feature appended to each."
+  - "`rest = feature_sets(features[:-1])`, then return `rest + [combo + [features[-1]] for combo in rest]`. The empty list is the base case and returns `[[]]` — a list holding one empty combination, not an empty list."
+solutionWalkthrough: |
+  ```python
+  def feature_sets(features):
+      if not features:
+          return [[]]
+      last = features[-1]
+      rest = feature_sets(features[:-1])
+      return rest + [combo + [last] for combo in rest]
+  ```
+
+  The base case is the thing to get right, and it is the one people write wrong.
+  Returning `[]` says "there are no combinations"; returning `[[]]` says "there
+  is exactly one combination, the empty one". With `[]` the whole recursion
+  collapses to nothing, because every later step maps over an empty list.
+
+  Putting `rest` before the extended copies is what produces the required
+  ordering: leaving the last feature out is considered before putting it in, at
+  every level. That makes the result read exactly like counting in binary with
+  one bit per feature. Split on the *first* feature instead and you get all 2^n
+  combinations in a different, equally valid order — which is why the ordering
+  had to be spelled out in the prompt at all.
+
+  There are 2^n results, each up to n long, so this is O(n · 2^n) — the output
+  itself is exponential and nothing can fix that. What *can* be fixed is the
+  memory: this builds every combination at once, so 30 features means a billion
+  lists and no machine to hold them. A generator that yields one combination at
+  a time keeps memory at O(n), which is what you actually want as soon as the
+  caller is only iterating.
+
+  `features[:-1]` copies the list at every level, adding an O(n²) term. Passing
+  an index instead of a slice removes it. At exponential scale it is noise, but
+  it is the same habit that quietly makes linear recursions quadratic.
+forbid:
+  - "itertools"

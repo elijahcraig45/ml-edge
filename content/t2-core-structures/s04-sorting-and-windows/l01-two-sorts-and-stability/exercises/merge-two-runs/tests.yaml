@@ -1,0 +1,47 @@
+- id: interleaves
+  label: Interleaves two runs correctly
+  code: |
+    assert merge_runs(
+        [(61, "bitmask"), (190, "arrowkit")],
+        [(130, "probe"), (402, "chunker")],
+    ) == [(61, "bitmask"), (130, "probe"), (190, "arrowkit"), (402, "chunker")]
+- id: one-empty
+  label: An empty run returns the other run unchanged
+  code: |
+    assert merge_runs([], [(18, "memoize")]) == [(18, "memoize")]
+    assert merge_runs([(18, "memoize")], []) == [(18, "memoize")]
+    assert merge_runs([], []) == []
+- id: disjoint
+  label: Handles runs that do not overlap at all
+  code: |
+    assert merge_runs([(1, "a"), (2, "b")], [(9, "y"), (10, "z")]) == [
+        (1, "a"), (2, "b"), (9, "y"), (10, "z")
+    ]
+    assert merge_runs([(9, "y"), (10, "z")], [(1, "a"), (2, "b")]) == [
+        (1, "a"), (2, "b"), (9, "y"), (10, "z")
+    ]
+- id: uneven-lengths
+  label: Handles runs of very different lengths
+  code: |
+    assert merge_runs([(5, "m")], [(1, "a"), (2, "b"), (3, "c"), (4, "d")]) == [
+        (1, "a"), (2, "b"), (3, "c"), (4, "d"), (5, "m")
+    ]
+- id: stable-on-ties
+  label: Equal sizes keep left before right, and are not reordered by name
+  hidden: true
+  code: |
+    # If you compared whole tuples, "alpha" would jump ahead of "zeta".
+    assert merge_runs([(100, "zeta")], [(100, "alpha")]) == [(100, "zeta"), (100, "alpha")]
+    assert merge_runs(
+        [(100, "z1"), (100, "z2")],
+        [(100, "r1"), (200, "r2")],
+    ) == [(100, "z1"), (100, "z2"), (100, "r1"), (200, "r2")]
+- id: does-not-mutate
+  label: Leaves both inputs untouched
+  hidden: true
+  code: |
+    left = [(61, "bitmask")]
+    right = [(44, "probe")]
+    merge_runs(left, right)
+    assert left == [(61, "bitmask")]
+    assert right == [(44, "probe")]
