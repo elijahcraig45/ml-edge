@@ -1,0 +1,68 @@
+id: merge-two-runs
+kind: python
+title: The merge step, and the one character that keeps it stable
+difficulty: 2
+pattern: divide-and-conquer
+topics: [sorting, stability]
+timeLimitMs: 10000
+forbid:
+  - "sorted("
+  - ".sort("
+  - "heapq"
+prompt: |
+  Two release logs have each already been sorted by artifact size. Each entry is
+  a `(size_kb, name)` pair. Merge them into **one** list ordered by `size_kb`.
+
+  ```
+  merge_runs([(61, "bitmask"), (190, "arrowkit")], [(130, "probe"), (402, "chunker")])
+  # [(61, 'bitmask'), (130, 'probe'), (190, 'arrowkit'), (402, 'chunker')]
+  ```
+
+  Two rules:
+
+  - Order by `size_kb` **only**. The name is payload, not part of the key.
+  - Ties go to `left` first. If an entry in `left` and an entry in `right` have
+    the same size, the one from `left` comes out first. That is what makes the
+    merge stable, and a hidden test checks it.
+
+  Do not sort the concatenation — `sorted` and `.sort` are unavailable. Both
+  inputs are already ordered; walk them.
+hints:
+  - "Both lists are already sorted. That means you never need to look backwards in either one — you only ever need to know which of the two *front* elements is smaller."
+  - "Keep two indices, `i` into `left` and `j` into `right`. Take the smaller front element, append it, advance that index. Stop when either index runs off the end, then append whatever remains of the other list."
+  - "Compare `left[i][0] <= right[j][0]`, not `left[i] <= right[j]`. Comparing whole tuples falls through to the name on a tie, which reorders equal sizes and breaks stability."
+solutionWalkthrough: |
+  ```python
+  def merge_runs(left, right):
+      out = []
+      i = j = 0
+      while i < len(left) and j < len(right):
+          if left[i][0] <= right[j][0]:
+              out.append(left[i])
+              i += 1
+          else:
+              out.append(right[j])
+              j += 1
+      out.extend(left[i:])
+      out.extend(right[j:])
+      return out
+  ```
+
+  Two details carry the exercise.
+
+  **`<=` rather than `<`.** On a tie the left run wins, and the left run holds
+  the entries that were earlier in the original ordering. Swap the operator and
+  the function still returns a correctly sorted list — every test about ordering
+  still passes — but the sort is now unstable. That is the shape of the bug: no
+  crash, no failing assertion about order, a property quietly gone.
+
+  **`left[i][0]` rather than `left[i]`.** Python compares tuples
+  lexicographically, so `(100, "zeta") <= (100, "alpha")` is `False` and the
+  names decide. Comparing whole records when you meant to compare one field is
+  the most common way an accidental secondary sort key sneaks into production
+  code.
+
+  The two `extend` calls at the end look like an edge case and are not. Exactly
+  one of the two slices is non-empty, and appending it wholesale is cheaper than
+  a loop — you already know it is sorted and that every element in it is larger
+  than everything emitted so far.

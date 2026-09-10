@@ -1,0 +1,68 @@
+id: composite-left-prefix
+kind: sql
+title: The query a composite index can serve
+difficulty: 3
+datasetId: package-registry
+pattern: index-design
+topics: [query-plans, index-design]
+timeLimitMs: 15000
+prompt: |
+  There is an index on `packages(language, created_at)`, in that order. Write
+  the query it can serve: **Python packages created on or after 1 January
+  2019**, oldest first.
+
+  Two columns named `name` and `created_at`. Four rows.
+
+  The starter constrains only `created_at` — the *second* column of the index —
+  and so returns every language. That is not only a different answer; it is the
+  query shape the index cannot help with at all, because dates are scattered
+  through every language block instead of forming one contiguous range.
+hints:
+  - "The index sorts by language first, then by date within each language. Which column has to be pinned down before the dates are contiguous?"
+  - "Constrain the leading column with an equality, then the second with a range."
+  - "`WHERE language = 'python' AND created_at >= DATE '2019-01-01'`, ordered by created_at. The boundary is inclusive: a package created exactly on 2019-01-01 belongs in the result."
+solutionWalkthrough: |
+  ```sql
+  SELECT name, created_at
+  FROM packages
+  WHERE language = 'python'
+    AND created_at >= DATE '2019-01-01'
+  ORDER BY created_at;
+  ```
+
+  Four rows: `arrowkit`, `quickselect`, `graphwalk`, `dagrun`.
+
+  Trace what the index does with this. Seek to the first entry where
+  `language = 'python'`; inside that block the entries are already in date
+  order, so seek again to `2019-01-01` and read forward until the language
+  changes. Two seeks and a sequential read — and the `ORDER BY` is free, because
+  the block was already sorted by date.
+
+  Now the starter's shape. `WHERE created_at >= DATE '2019-01-01'` alone leaves
+  `language` unconstrained, so matching entries appear in every language's
+  block. There is no contiguous range, so there is nothing to seek to, and the
+  index is useless — which is the left-prefix rule stated from the other side.
+  If that query matters, it needs its own index leading with `created_at`.
+
+  The column order also decides how much of the index does work. Put the
+  equality first and the range second, as here, and both predicates narrow the
+  search. Reverse them — `(created_at, language)` — and the range on dates comes
+  first, after which the language values are no longer contiguous and can only
+  be used to discard entries the index already read. Equalities first, then at
+  most one range: that ordering rule follows from nothing more than "the index
+  is sorted".
+
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 4
+      message: >-
+        Expected four rows. If you got fourteen, the filter constrained only
+        created_at — the index's second column — and let every language through.
+    - type: syntax
+      pattern: "\\blanguage\\b"
+      message: >-
+        The leading column of the index has to be constrained, so `language`
+        must appear in the query.

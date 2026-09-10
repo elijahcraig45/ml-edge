@@ -1,0 +1,100 @@
+id: lru-cache
+kind: python
+title: An LRU cache from a map and a list
+difficulty: 4
+pattern: hash-map-plus-list
+topics: [hashing, caching, linked-lists]
+timeLimitMs: 30000
+prompt: |
+  Finish `LRUCache`: a fixed-capacity cache where every operation is $O(1)$ and
+  the entry evicted is the one used longest ago.
+
+  ```
+  c = LRUCache(2)
+  c.put("a", 1)
+  c.put("b", 2)
+  c.get("a")        # 1  -- and this makes "a" the most recently used
+  c.put("c", 3)     # so "b" is evicted, not "a"
+  c.get("b", "GONE")  # "GONE"
+  ```
+
+  The scaffolding is given: a dict from key to node, a doubly linked list of
+  `[key, value, prev, next]` lists threaded between a head and a tail sentinel,
+  and working `_unlink` / `_push_front` helpers. The head end is most recently
+  used; the tail end is least.
+
+  Two things are wrong in the starter and both are the classic mistakes.
+
+  1. `get` returns the value without moving the node, so a read does not count
+     as a use.
+  2. `put` never checks whether the key is already present — so updating a key
+     inserts a second node and leaks the old one — and it evicts from the head,
+     which throws away the *most* recently used entry.
+
+  `OrderedDict`, `move_to_end` and `functools.lru_cache` are unavailable. They
+  are all this, already written.
+hints:
+  - "Both operations end the same way: the entry that was just touched has to become the most recently used. There is already a helper that does that half."
+  - "`get`: fetch the node, `_unlink` it, `_push_front` it, then return its value. Missing keys return the default and touch nothing."
+  - "`put`: if the key is already in the map, overwrite `node[VALUE]` and refresh it — nothing is evicted and the size does not change. Otherwise, evict `self.tail[PREV]` if the cache is full (deleting it from the map by its stored key), then build a node and push it to the front."
+solutionWalkthrough: |
+  ```python
+  def get(self, key, default=None):
+      node = self.nodes.get(key)
+      if node is None:
+          return default
+      self._unlink(node)
+      self._push_front(node)
+      return node[VALUE]
+
+  def put(self, key, value):
+      node = self.nodes.get(key)
+      if node is not None:
+          node[VALUE] = value
+          self._unlink(node)
+          self._push_front(node)
+          return
+      if len(self.nodes) >= self.capacity:
+          victim = self.tail[PREV]
+          self._unlink(victim)
+          del self.nodes[victim[KEY]]
+      node = [key, value, None, None]
+      self.nodes[key] = node
+      self._push_front(node)
+  ```
+
+  Two structures, two jobs, and neither can do the other's.
+
+  The dict answers **"where is this key?"** in constant time, but a dict has no
+  concept of "least recently used" — insertion order is not access order, and
+  re-inserting a key does not move it. The linked list answers **"which entry is
+  oldest?"** in constant time and lets you move a node to the front without
+  touching anything else, but finding a node in it would be a scan. Put the
+  list's nodes *inside* the map's values and both questions are $O(1)$.
+
+  `victim[KEY]` is why each node stores its key as well as its value. Eviction
+  runs list-to-map: you find the victim from the tail, and you need its key to
+  delete the right map entry. Without the back-reference you would have to search
+  the map for the node that matches, which is $O(n)$ and destroys the design.
+
+  The **sentinels** are the reason there are no `if node is None` checks inside
+  `_unlink` and `_push_front`. With a real head and tail node, every list node
+  always has a genuine `prev` and `next`, so the first and last elements are not
+  special cases — and the first and last elements are where linked-list bugs
+  live.
+
+  The alternative you were forbidden: `OrderedDict` with `move_to_end`, which is
+  five lines and is exactly this implementation written in C. Reaching for it in
+  production is right. Being unable to describe what is inside it is what this
+  exercise is about, because the follow-up question is always some variation the
+  library does not implement — LFU, TTL expiry, a segmented cache — and those
+  are edits to this code.
+
+  What this design does not give you: thread safety (every operation mutates
+  shared list pointers), and any bound on memory beyond the entry count. Real
+  caches size by *bytes*, which means the eviction loop runs until enough space
+  is free rather than exactly once.
+forbid:
+  - OrderedDict
+  - move_to_end
+  - lru_cache

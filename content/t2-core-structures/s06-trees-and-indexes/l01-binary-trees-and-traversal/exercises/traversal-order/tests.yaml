@@ -1,0 +1,43 @@
+- id: balanced
+  label: All four orders on a full three-level tree
+  code: |
+    tree = (
+        "d",
+        ("b", ("a", None, None), ("c", None, None)),
+        ("f", ("e", None, None), ("g", None, None)),
+    )
+    got = traversals(tree)
+    assert got["preorder"] == ["d", "b", "a", "c", "f", "e", "g"]
+    assert got["inorder"] == ["a", "b", "c", "d", "e", "f", "g"]
+    assert got["postorder"] == ["a", "c", "b", "e", "g", "f", "d"]
+    assert got["level"] == ["d", "b", "f", "a", "c", "e", "g"]
+- id: single
+  label: A one-node tree
+  code: |
+    got = traversals(("x", None, None))
+    assert got == {"preorder": ["x"], "inorder": ["x"], "postorder": ["x"], "level": ["x"]}
+- id: empty
+  label: The empty tree gives four empty lists
+  code: |
+    got = traversals(None)
+    assert got == {"preorder": [], "inorder": [], "postorder": [], "level": []}
+- id: lopsided
+  label: Missing children on one side only
+  hidden: true
+  code: |
+    # Every node here has an empty left child, so the tree is a right chain.
+    tree = (1, None, (2, None, (3, None, None)))
+    got = traversals(tree)
+    assert got["preorder"] == [1, 2, 3]
+    assert got["inorder"] == [1, 2, 3]
+    assert got["postorder"] == [3, 2, 1]
+    assert got["level"] == [1, 2, 3]
+- id: level-not-preorder
+  label: Level order is not preorder on an unbalanced tree
+  hidden: true
+  code: |
+    # Preorder dives into the left subtree completely; level order does not.
+    tree = ("a", ("b", ("d", None, None), None), ("c", None, None))
+    got = traversals(tree)
+    assert got["preorder"] == ["a", "b", "d", "c"]
+    assert got["level"] == ["a", "b", "c", "d"]

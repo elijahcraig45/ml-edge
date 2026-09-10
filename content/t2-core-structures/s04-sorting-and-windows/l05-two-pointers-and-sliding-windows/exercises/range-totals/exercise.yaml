@@ -1,0 +1,86 @@
+id: range-totals
+kind: python
+title: Many range totals, one pass
+difficulty: 3
+pattern: prefix-sums
+topics: [prefix-sums, precomputation]
+timeLimitMs: 30000
+prompt: |
+  `counts` holds one download count per day. `queries` is a list of
+  `(lo, hi)` pairs, each asking for the total downloads from day `lo` to day
+  `hi` **inclusive**. Return a list of the totals, in query order.
+
+  ```
+  range_totals([10, 20, 30, 40], [(0, 1), (1, 3), (2, 2)])
+  # [30, 90, 30]
+  ```
+
+  **This one has a complexity budget.** The hidden performance check runs 20,000
+  queries against 50,000 days. Summing each range directly returns the right
+  answer and will fail the budget, because the work grows with the *product* of
+  the number of days and the number of queries.
+
+  Every query is answered against the same unchanged array. Do something once,
+  before the loop over queries, that makes each query cost the same regardless
+  of how wide its range is.
+hints:
+  - "The queries are independent, but they all read the same array. What could you compute once, in a single pass over `counts`, that turns each query into arithmetic?"
+  - "Build a running total: `prefix[i]` = the sum of the first `i` days. Then the total of days `lo..hi` is the difference between two entries of that array."
+  - "Make `prefix` one longer than `counts` with a leading zero, so `prefix[0] = 0`. The inclusive range `[lo, hi]` is then `prefix[hi + 1] - prefix[lo]`, with no special case for `lo == 0`."
+solutionWalkthrough: |
+  ```python
+  def range_totals(counts, queries):
+      prefix = [0] * (len(counts) + 1)
+      for i, c in enumerate(counts):
+          prefix[i + 1] = prefix[i] + c
+      return [prefix[hi + 1] - prefix[lo] for lo, hi in queries]
+  ```
+
+  One pass to build, one subtraction per query: $\Theta(n + q)$ instead of
+  $\Theta(nq)$. That is a change of complexity class, not a constant-factor
+  tweak — 50,000 days and 20,000 queries is 70,000 operations here against up to
+  a billion for the direct version.
+
+  **The leading zero earns its place.** With `prefix[i]` defined as the sum of
+  the first $i$ days, `prefix[0] = 0` is the sum of no days, and the inclusive
+  range `[lo, hi]` is `prefix[hi + 1] - prefix[lo]` for every `lo` including
+  zero. Define `prefix` as the same length as `counts` and you need an `if lo ==
+  0` in the hot path, which is both slower and the classic place for an
+  off-by-one to hide.
+
+  **Why the direct version is so slow, given that `sum` is C code.** `sum` on a
+  slice is fast per element, but it is still $O(\text{width})$ per query, and it
+  copies the slice first. Being written in C changes the constant, not the shape.
+  This is the single most useful thing to internalise about performance work: an
+  optimised inner loop and a better algorithm are not alternatives on the same
+  scale.
+
+  **The SQL twin.** `prefix` is exactly
+  `SUM(count) OVER (ORDER BY day ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT
+  ROW)`, and a range total is the difference between two of its rows. The engine
+  builds it the same way you did: sort once, then scan once carrying a
+  running total. The next lesson writes it.
+
+# Enforces the linear-precompute claim. The direct version is CORRECT, so only a
+# budget can reject it.
+#
+# Measured on CPython 3.13 with the setup below:
+#   prefix-sum solution:  3 ms
+#   sum(counts[lo:hi+1]): 1349 ms
+# 150 ms sits 50x above the fast solution and 9x below the slow one, so it
+# separates them with room to spare on a slow runner or under Pyodide.
+complexityBudget:
+  setup: |
+    n = 50000
+    counts = [(i * 37) % 1000 for i in range(n)]
+    queries = [
+        ((i * 7919) % n, (i * 7919) % n + (i * 104729) % (n - (i * 7919) % n))
+        for i in range(20000)
+    ]
+  call: |
+    range_totals(counts, queries)
+  maxMs: 150
+  message: >-
+    Correct, but too slow: this summed each range from scratch, so the work grows
+    with the number of days times the number of queries. Build a prefix-sum array
+    once before answering any query, then each answer is a single subtraction.

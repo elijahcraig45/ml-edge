@@ -1,0 +1,42 @@
+- id: empty
+  label: An empty list returns zeros and None
+  code: |
+    assert summarise([]) == {"count": 0, "total_kb": 0, "largest": None}
+- id: single
+  label: A single package is its own largest
+  code: |
+    result = summarise([{"name": "arrowkit", "size_kb": 190, "language": "python"}])
+    assert result == {"count": 1, "total_kb": 190, "largest": "arrowkit"}
+- id: several
+  label: Sums sizes and picks the largest across several packages
+  code: |
+    packages = [
+        {"name": "chunker", "size_kb": 402, "language": "python"},
+        {"name": "bitmask", "size_kb": 61, "language": "rust"},
+        {"name": "memoize", "size_kb": 18, "language": "js"},
+    ]
+    result = summarise(packages)
+    assert result["count"] == 3
+    assert result["total_kb"] == 481
+    assert result["largest"] == "chunker"
+- id: does-not-mutate
+  label: Does not modify the list it was given
+  hidden: true
+  code: |
+    packages = [
+        {"name": "a", "size_kb": 10, "language": "python"},
+        {"name": "b", "size_kb": 20, "language": "rust"},
+    ]
+    snapshot = [dict(p) for p in packages]
+    summarise(packages)
+    assert packages == snapshot, "summarise must not mutate its argument"
+- id: ties
+  label: With tied sizes, returns one of the tied names
+  hidden: true
+  code: |
+    result = summarise([
+        {"name": "x", "size_kb": 50, "language": "python"},
+        {"name": "y", "size_kb": 50, "language": "python"},
+    ])
+    assert result["largest"] in {"x", "y"}
+    assert result["total_kb"] == 100

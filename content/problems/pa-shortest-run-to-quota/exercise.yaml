@@ -1,0 +1,55 @@
+id: pa-shortest-run-to-quota
+kind: python
+title: Fewest days to clear the quota
+difficulty: 4
+pattern: sliding-window
+stage: s04-sorting-and-windows
+topics:
+  - arrays
+timeLimitMs: 15000
+prompt: |
+  `daily` holds one download count per day; every count is zero or positive.
+  Return the length of the **shortest** run of consecutive days whose downloads
+  total at least `quota`. If no run reaches the quota, return `0`.
+
+  ```
+  shortest_run_to_quota([2, 3, 1, 2, 4, 3], 7)   # 2   -> 4 + 3
+  shortest_run_to_quota([1, 1, 1], 7)            # 0
+  shortest_run_to_quota([9], 7)                  # 1
+  ```
+
+  A quota of `0` is met by the empty run, so return `0` for that too. Solve it
+  in one pass over the list.
+hints:
+  - "Because no count is negative, extending a run can only raise its total and trimming a run can only lower it. That is what makes a window sensible here at all."
+  - "Grow the window on the right, adding as you go. The moment the total reaches the quota, stop growing and start trimming from the left, recording the width each time the window is still good enough."
+  - "The inner trim is a `while total >= quota` loop, not an `if`: after removing one day the window may still clear the quota, and the shortest answer is the smallest window you ever see, so measure inside the while loop before subtracting."
+solutionWalkthrough: |
+  ```python
+  def shortest_run_to_quota(daily, quota):
+      if quota <= 0:
+          return 0
+      best = 0
+      total = 0
+      left = 0
+      for right, count in enumerate(daily):
+          total += count
+          while total >= quota:
+              width = right - left + 1
+              if best == 0 or width < best:
+                  best = width
+              total -= daily[left]
+              left += 1
+      return best
+  ```
+
+  The `while` looks like it makes this quadratic and does not: `left` only ever
+  increases, so the inner loop runs at most n times in total across the whole
+  outer loop. Amortised O(n), one pass, constant space.
+
+  Every step of this rests on the counts being non-negative. Allow a negative
+  day and shrinking the window can *raise* the total, so a window you rejected
+  might have become valid — the monotonic relationship the two edges depend on
+  is gone, and you need prefix sums with a monotonic deque instead. That is the
+  single question to ask before reaching for this pattern: does adding an
+  element always push the metric the same direction?

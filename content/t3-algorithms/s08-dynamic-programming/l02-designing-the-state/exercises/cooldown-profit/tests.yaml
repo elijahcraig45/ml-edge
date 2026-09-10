@@ -1,0 +1,36 @@
+- id: worked-example
+  label: The standard example returns 3
+  code: |
+    assert max_profit_with_cooldown([1, 2, 3, 0, 2]) == 3
+- id: cooldown-binds
+  label: The cooldown actually blocks the second trade
+  code: |
+    # Without a cooldown this is 8 (1->4 and 2->7). With one, it is 6 (1->7).
+    assert max_profit_with_cooldown([1, 4, 2, 7]) == 6
+- id: no-profit
+  label: A falling price yields nothing
+  code: |
+    assert max_profit_with_cooldown([5, 4, 3]) == 0
+- id: degenerate
+  label: Empty and single-day inputs return zero
+  code: |
+    assert max_profit_with_cooldown([]) == 0
+    assert max_profit_with_cooldown([5]) == 0
+- id: two-days
+  label: Two days are handled in both directions
+  code: |
+    assert max_profit_with_cooldown([1, 2]) == 1
+    assert max_profit_with_cooldown([2, 1]) == 0
+- id: longer-series
+  label: A longer series where resting beats trading twice
+  hidden: true
+  code: |
+    assert max_profit_with_cooldown([6, 1, 3, 2, 4, 7]) == 6
+    assert max_profit_with_cooldown([3, 1, 6, 2, 8, 1, 5, 9]) == 13
+- id: flat-and-immutable
+  label: Flat prices earn nothing, and the input is not modified
+  hidden: true
+  code: |
+    prices = [2, 2, 2, 2]
+    assert max_profit_with_cooldown(prices) == 0
+    assert prices == [2, 2, 2, 2]

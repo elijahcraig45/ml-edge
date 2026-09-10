@@ -1,0 +1,51 @@
+id: bloom-sizing
+kind: python
+title: Size a filter from an error budget
+difficulty: 2
+pattern: probabilistic-membership
+topics: [bloom-filter, analysis]
+timeLimitMs: 10000
+prompt: |
+  Turn the design equations into code. Given `n` items to insert and a target
+  false-positive rate `p`, return `(num_bits, num_hashes)`:
+
+  $$
+  m = \left\lceil \frac{-n \ln p}{(\ln 2)^2} \right\rceil,
+  \qquad k = \mathrm{round}\!\left(\frac{m}{n}\ln 2\right)
+  $$
+
+  Round `m` **up** to a whole number of bits. Round `k` to the nearest integer,
+  but never below 1 — a filter with zero hash functions reports everything as
+  present.
+
+  ```
+  optimal_parameters(1000, 0.01)    # (9586, 7)
+  ```
+
+  One hidden test checks the property that makes this formula worth memorising.
+  Look at `m / n` across three very different values of `n` and you will see it.
+hints:
+  - "`math.log(x)` is the natural log. `math.log(2) ** 2` is the denominator, and it is a constant — about 0.4805."
+  - "`math.ceil` for the bits. For k, Python's built-in `round` returns an int when called with one argument."
+  - "Guard k with `max(1, ...)`. p close to 1 makes m/n small enough that the rounded k hits zero."
+solutionWalkthrough: |
+  ```python
+  def optimal_parameters(n, p):
+      num_bits = math.ceil(-n * math.log(p) / (math.log(2) ** 2))
+      num_hashes = max(1, round((num_bits / n) * math.log(2)))
+      return num_bits, num_hashes
+  ```
+
+  The hidden test is the point of the exercise. `m / n` is 9.585 for `p = 0.01`
+  whether `n` is a thousand or ten million, and `k` is 7 in every case. Bits per
+  item is a function of the error rate alone.
+
+  That is what makes the structure useful at scale. Ten million 2 KB URLs is
+  20 GB as a `set`; the same ten million at 1% error is 9.585 bits each — about
+  12 MB. The filter never looked at the URLs' length, so the saving is
+  proportional to how big your elements are.
+
+  It also tells you when *not* to use one. At 9.585 bits per item, a Bloom
+  filter over 64-bit integers saves roughly 6.7× against a perfectly packed
+  array — real, but far less dramatic, and you gave up exactness for it. The
+  structure earns its keep on large keys and enormous n, not on small keys.

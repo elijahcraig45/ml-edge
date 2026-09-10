@@ -1,0 +1,111 @@
+id: planner-search-space
+kind: sql
+title: The subsets a planner actually visits
+difficulty: 4
+datasetId: package-registry
+pattern: search-space
+topics: [planning, recursion, np-hard]
+timeLimitMs: 15000
+prompt: |
+  A Selinger-style planner does not enumerate join *orders*. It enumerates
+  **subsets** of the relations, bottom-up, keeping the best plan for each
+  subset — and it skips any subset that is disconnected in the join graph,
+  because joining two relations with no predicate between them is a Cartesian
+  product.
+
+  The registry schema's join graph has five relations and four edges:
+
+  ```
+  versions — packages — package_maintainers — maintainers
+                 |
+             downloads
+  ```
+
+  Return one row per subset size, with how many **connected** subsets of the
+  join graph have that size:
+
+  - `relations` — the number of relations in the subset
+  - `connected_subsets` — how many connected subsets have exactly that size
+
+  There are 31 non-empty subsets of five relations. Far fewer of them are
+  connected, and the gap is the entire reason the DP is affordable on a sparse
+  join graph.
+
+  Build the graph inside your query — the tables themselves are not the data
+  here, the *schema* is. Represent each relation by a power of two and a subset
+  by the bitwise OR of its members; `bit_count(mask)` then gives the subset
+  size.
+
+  The starter enumerates every subset and ignores connectivity. Its answer is
+  the binomial row 5, 10, 10, 5, 1 — thirty-one subsets. The correct answer sums
+  to seventeen.
+hints:
+  - "Grow the sets instead of filtering them. Every connected subset of size k+1 is a connected subset of size k plus one relation adjacent to it, so you never have to test connectivity at all."
+  - "`WITH RECURSIVE` whose base case is the five singletons and whose recursive step adds any relation joined by an edge to something already in the mask. Use `UNION`, not `UNION ALL`: the same subset is reachable by many growth orders, and deduplication is what makes the recursion reach a fixpoint."
+  - "The edge list must be symmetric — store both (a, b) and (b, a) — otherwise you can only grow away from `packages` and never toward it. Guard the step with `(mask & new_bit) = 0` so a relation is never added twice."
+solutionWalkthrough: |
+  ```sql
+  WITH RECURSIVE
+  rel(bit, name) AS (
+    VALUES (1, 'packages'), (2, 'versions'), (4, 'package_maintainers'),
+           (8, 'maintainers'), (16, 'downloads')
+  ),
+  edge(a, b) AS (
+    VALUES (1, 2), (2, 1), (1, 4), (4, 1), (4, 8), (8, 4), (1, 16), (16, 1)
+  ),
+  connected(mask) AS (
+    SELECT bit FROM rel
+    UNION
+    SELECT c.mask | e.b
+    FROM connected c
+    JOIN edge e ON (c.mask & e.a) <> 0
+    WHERE (c.mask & e.b) = 0
+  )
+  SELECT bit_count(mask) AS relations, count(*) AS connected_subsets
+  FROM connected
+  GROUP BY 1
+  ORDER BY 1;
+  ```
+
+  **Why growing beats filtering.** The obvious approach is to list all $2^n - 1$
+  masks and test each for connectivity, which needs a nested traversal per mask.
+  Growing from singletons produces connected subsets *by construction*: a set
+  built by repeatedly attaching an adjacent relation is connected, and every
+  connected set can be built that way. The recursion is the planner's own loop.
+
+  **Why `UNION` and not `UNION ALL`.** `{packages, versions, downloads}` can be
+  grown in several orders, so `UNION ALL` would re-derive it once per order.
+  Worse, it would never stop producing rows that are already known, so the
+  recursion has no fixpoint to reach. `UNION` deduplicates each round against
+  everything derived so far, the round eventually produces nothing new, and the
+  recursion halts. That is the least-fixpoint semantics recursive CTEs are
+  defined by, and Lesson 5 comes back to it.
+
+  **The numbers.** 5, 4, 4, 3, 1 — seventeen connected subsets against
+  thirty-one subsets in total. On a tree-shaped join graph the saving is large;
+  on a clique-shaped one (every relation joined to every other) it vanishes
+  entirely, because every subset is connected. That is why star schemas with a
+  central fact table plan quickly and why a query with predicates between every
+  pair of relations is the planner's worst case.
+
+  **What this costs the planner.** For each connected subset the DP also tries
+  every way of splitting it into two connected halves, which is where the $3^n$
+  in the lesson comes from. Seventeen subsets is nothing. At sixteen relations
+  in a dense join graph it is 43 million splits, and that is the wall.
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 5
+      message: One row per subset size, sizes one through five.
+    - type: predicate
+      sql: |
+        SELECT (SELECT sum(connected_subsets) FROM __learner) = 17
+          AND (SELECT connected_subsets FROM __learner WHERE relations = 1) = 5
+          AND (SELECT connected_subsets FROM __learner WHERE relations = 2) = 4
+          AND (SELECT connected_subsets FROM __learner WHERE relations = 5) = 1
+      message: >-
+        Seventeen connected subsets in total — 5, 4, 4, 3, 1 by size. Counting
+        all 31 subsets means connectivity is not being enforced; getting fewer
+        than 17 usually means the edge list is not symmetric.

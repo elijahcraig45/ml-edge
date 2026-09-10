@@ -1,0 +1,73 @@
+id: vectorized-filter
+kind: python
+title: A filter that operates on a whole batch
+difficulty: 3
+pattern: vectorized-execution
+topics: [vectorization, columnar, query-execution]
+timeLimitMs: 10000
+prompt: |
+  Write the batched form of the `FILTER` operator.
+
+  A **batch** is a dict from column name to a list of values. Every list in one
+  batch has the same length, and position `i` in each list belongs to the same
+  logical row.
+
+  ```python
+  {"id": [1, 2, 3], "size_kb": [190, 61, 402]}
+  ```
+
+  `filter_batches(batches, column, threshold)` consumes an iterable of batches
+  and yields batches containing only the rows where
+  `batch[column][i] > threshold`.
+
+  Three requirements, all of them the point of the exercise:
+
+  1. **Compute the surviving positions once**, then apply that same set of
+     positions to *every* column. Filtering each column independently is a bug
+     the moment two columns disagree, and it is slower.
+  2. **Never yield an empty batch.** A batch with no surviving rows costs every
+     operator above it a dispatch and delivers nothing.
+  3. **Do not mutate the input batch.** Operators share memory in a real engine;
+     an operator that edits its input corrupts a sibling's data.
+
+  Column keys must be preserved, in their original order.
+hints:
+  - "Two steps per batch, not one. First decide which positions survive; then build the new batch from those positions."
+  - "`keep = [i for i, v in enumerate(batch[column]) if v > threshold]` gives you the surviving positions — a selection vector by another name."
+  - "Then `{name: [values[i] for i in keep] for name, values in batch.items()}` rebuilds every column from the same positions. Guard the yield with `if keep:` so empty batches never leave the operator."
+solutionWalkthrough: |
+  ```python
+  def filter_batches(batches, column, threshold):
+      for batch in batches:
+          keep = [i for i, v in enumerate(batch[column]) if v > threshold]
+          if not keep:
+              continue
+          yield {name: [values[i] for i in keep] for name, values in batch.items()}
+  ```
+
+  The two-step shape — decide, then gather — is the whole structure of a
+  vectorized operator, and it is why the phrase *selection vector* exists.
+  `keep` is one: a list of surviving positions, computed by touching exactly one
+  column.
+
+  Filtering each column separately would be a different program:
+
+  ```python
+  {name: [v for v in values if <something>] for name, values in batch.items()}
+  ```
+
+  There is no predicate that can go in that hole, because the decision belongs
+  to the row and this loop has lost track of which row it is on. Rows only exist
+  in a columnar layout as *the same index across every column*, and the
+  selection vector is how that fact is carried around.
+
+  **The `continue` is not tidying.** In a chain of six operators, an empty batch
+  is six dispatches and six dict rebuilds that produce nothing. A filter keeping
+  1% of rows over a large table produces mostly-empty batches, so dropping them
+  is worth more than it looks — and forgetting to is a real bug in real engines.
+
+  A production engine goes one step further and does not gather at all: it
+  passes the original column arrays plus `keep`, and defers the copy until an
+  operator genuinely needs contiguous values. That saves the gather this
+  solution pays for, at the cost of every downstream operator having to
+  understand indirection.

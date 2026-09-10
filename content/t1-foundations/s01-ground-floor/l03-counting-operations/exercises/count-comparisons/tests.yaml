@@ -1,0 +1,30 @@
+- id: linear
+  label: Linear growth shows a ratio near 2
+  code: |
+    assert growth_table(lambda n: n, [10, 20, 40]) == [
+        (10, 10, None), (20, 20, 2.0), (40, 40, 2.0)
+    ]
+- id: quadratic
+  label: Quadratic growth shows a ratio near 4
+  code: |
+    assert growth_table(lambda n: n * n, [10, 20]) == [(10, 100, None), (20, 400, 4.0)]
+- id: single
+  label: A single size has no ratio
+  code: |
+    assert growth_table(lambda n: n, [5]) == [(5, 5, None)]
+- id: empty
+  label: No sizes returns no rows
+  code: |
+    assert growth_table(lambda n: n, []) == []
+- id: zero-previous
+  label: A zero previous count yields None instead of raising
+  hidden: true
+  code: |
+    result = growth_table(lambda n: 0 if n < 10 else n, [1, 20])
+    assert result == [(1, 0, None), (20, 20, None)], result
+- id: rounding
+  label: Ratios are rounded to two decimals
+  hidden: true
+  code: |
+    result = growth_table(lambda n: {3: 3, 7: 10}[n], [3, 7])
+    assert result[1][2] == 3.33, result

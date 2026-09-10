@@ -1,0 +1,84 @@
+id: detect-runs
+kind: python
+title: Run detection, and the asymmetry that keeps it stable
+difficulty: 4
+pattern: run-detection
+topics: [sorting, stability, timsort]
+timeLimitMs: 10000
+forbid:
+  - "sorted("
+  - ".sort("
+prompt: |
+  This is the first thing Timsort does to your list.
+
+  `values` is a list of `(size, name)` tuples, ordered **by `size` only** — the
+  name is payload. Split the list, left to right, into maximal runs that are
+  already ordered, and return each run in **ascending** order.
+
+  - An **ascending** run is one where each `size` is `>=` the previous. Return it
+    unchanged.
+  - A **descending** run is one where each `size` is **strictly less than** the
+    previous. Return it reversed, so it comes back ascending.
+  - Runs are maximal and greedy: extend the current run as far as it goes, then
+    start a new one at the next element.
+
+  ```
+  normalized_runs([(1, "a"), (2, "b"), (9, "c"), (8, "d"), (7, "e"), (4, "f")])
+  # [[(1, 'a'), (2, 'b'), (9, 'c')], [(4, 'f'), (7, 'e'), (8, 'd')]]
+  ```
+
+  The word **strictly** in the descending rule is the exercise. A run with equal
+  sizes must never be classified as descending, because you are about to reverse
+  it — and reversing equal elements swaps them. A hidden test checks exactly
+  that.
+
+  An empty input returns an empty list. `sorted` and `.sort` are unavailable.
+hints:
+  - "Walk with two indices: `i` marks where the current run starts, `j` scans forward. When `j` can no longer extend the run, emit `values[i:j]` and set `i = j`."
+  - "Decide the run's direction from its first two elements, then use the matching condition to extend it. A run of length one is ascending by convention — there is nothing to reverse."
+  - "Ascending extends while `values[j][0] >= values[j - 1][0]`. Descending extends while `values[j][0] < values[j - 1][0]` — strict, with no `=`. Reverse the descending slice before appending it."
+solutionWalkthrough: |
+  ```python
+  def normalized_runs(values):
+      runs, i, n = [], 0, len(values)
+      while i < n:
+          j = i + 1
+          if j < n and values[j][0] < values[i][0]:
+              while j < n and values[j][0] < values[j - 1][0]:
+                  j += 1
+              runs.append(list(values[i:j])[::-1])
+          else:
+              while j < n and values[j][0] >= values[j - 1][0]:
+                  j += 1
+              runs.append(list(values[i:j]))
+          i = j
+      return runs
+  ```
+
+  Two conditions, one `>=` and one `<`, and the asymmetry between them is the
+  whole point.
+
+  A descending run is **reversed in place** before merging. If it were allowed to
+  contain two elements of equal size, the reversal would put the later one first
+  — and stability says elements that compare equal must keep their input order.
+  So the descending test excludes ties, which pushes every tie into an ascending
+  run, where nothing is reordered. One character (`<` rather than `<=`) is the
+  difference between a stable sort and an unstable one, and no test about
+  *ordering* would ever catch it.
+
+  Compare that to lesson 1: the merge step's `<=` and this loop's `<` are the two
+  places in a real Timsort where stability is decided, and both are single
+  characters.
+
+  **Why bother at all.** Merge sort ignores the input and always pays
+  $n\log n$. Run detection is one linear scan, and on data that arrives partly
+  ordered — appended log lines, a table re-sorted after a few edits, a
+  concatenation of two sorted files — it finds long runs and the merge phase has
+  almost nothing to do. On fully sorted input it finds one run and the sort is
+  $\Theta(n)$. That is why `sorted(already_sorted)` is nearly free in Python and
+  why this scan earns its place before any comparison-heavy work begins.
+
+  Real Timsort adds one more step here: if a detected run is shorter than a
+  computed `minrun` (32 to 64), it extends it to that length with binary
+  insertion sort, so the merge phase always sees runs of a useful size rather
+  than a thousand runs of length two.

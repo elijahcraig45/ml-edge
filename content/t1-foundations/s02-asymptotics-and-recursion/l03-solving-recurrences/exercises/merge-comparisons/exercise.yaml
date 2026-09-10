@@ -1,0 +1,87 @@
+id: merge-comparisons
+kind: python
+title: Count the comparisons a divide-and-conquer sort actually makes
+difficulty: 3
+pattern: divide-and-conquer
+topics: [recursion, divide-and-conquer]
+timeLimitMs: 20000
+prompt: |
+  You solved $T(n) = 2T(n/2) + \Theta(n)$ on paper. Now produce the numbers it
+  predicts.
+
+  Write `merge_sort_count(values)` returning the tuple
+  `(sorted_values, comparisons)` — a new sorted list, and the exact number of
+  **element-to-element comparisons** performed.
+
+  The count is pinned by the tests, so follow this shape precisely:
+
+  - A list of length 0 or 1 is already sorted and costs 0 comparisons.
+  - Otherwise split at `mid = len(values) // 2` into `values[:mid]` and
+    `values[mid:]`, sort each recursively, and add both of their counts.
+  - Merge by repeatedly comparing the two front elements. **Each such comparison
+    counts as one**, and `left[i] <= right[j]` takes from the left. When either
+    side runs out, append the remainder of the other with no further comparisons.
+
+  ```
+  merge_sort_count([2, 1])                 # ([1, 2], 1)
+  merge_sort_count([1, 2, 3, 4])           # ([1, 2, 3, 4], 4)
+  merge_sort_count([3, 1, 4, 1, 5, 9, 2, 6])
+  # ([1, 1, 2, 3, 4, 5, 6, 9], 15)
+  ```
+
+  The input list must come back unmodified. `sorted` and `list.sort` are blocked;
+  the counting is the exercise and a built-in cannot report it.
+hints:
+  - "Three obligations, as usual. Contract: for any list, return a sorted copy and the comparisons that copy cost. Base case: length 0 or 1. Measure: the length, which halves."
+  - "The total is the two child counts plus the merge count. Forgetting to add the child counts is the standard slip — it gives 2 instead of 4 for a four-element list, because it reports only the top level of the tree."
+  - "In the merge loop, increment the counter once per iteration of the `while` that has both sides non-empty. The final `extend` of the leftover tail is not a comparison."
+solutionWalkthrough: |
+  ```python
+  def merge_sort_count(values):
+      if len(values) <= 1:
+          return list(values), 0
+      mid = len(values) // 2
+      left, left_count = merge_sort_count(values[:mid])
+      right, right_count = merge_sort_count(values[mid:])
+
+      merged = []
+      comparisons = left_count + right_count
+      i = j = 0
+      while i < len(left) and j < len(right):
+          comparisons += 1
+          if left[i] <= right[j]:
+              merged.append(left[i])
+              i += 1
+          else:
+              merged.append(right[j])
+              j += 1
+      merged.extend(left[i:])
+      merged.extend(right[j:])
+      return merged, comparisons
+  ```
+
+  `return list(values), 0` rather than `return values, 0` is what keeps the input
+  unmodified. Returning the caller's list would be fine here because nothing
+  mutates it — until someone extends this function, and then the aliasing bug is
+  a long afternoon.
+
+  Now read the numbers off. On 1,024 already-sorted items the answer is 5,120,
+  which is exactly $\tfrac{1}{2} n \log_2 n$. On 1,024 items in a shuffled order
+  it is closer to 9,000, and the worst case is $n\log_2 n - n + 1 = 9{,}217$. All
+  three are $\Theta(n\log n)$ and they differ by a factor of nearly two — which is
+  the constant factor that asymptotics threw away, showing up as real work.
+
+  Why sorted input is the cheap case here: each merge exhausts one side entirely
+  before touching the other, so it costs $n/2$ comparisons rather than $n - 1$.
+  That is also why "already sorted" is the best case for this merge and the
+  *worst* case for naive quicksort — an asymmetry worth remembering long before
+  the sorting stage.
+
+  The recurrence, made concrete: the comparison count satisfies
+  $C(n) = C(\lfloor n/2 \rfloor) + C(\lceil n/2 \rceil) + m$ where
+  $m \le n - 1$. Case 2 of the Master Theorem, $\Theta(n\log n)$, and now you have
+  measured the constant in front of it.
+
+forbid:
+  - "sorted("
+  - ".sort("

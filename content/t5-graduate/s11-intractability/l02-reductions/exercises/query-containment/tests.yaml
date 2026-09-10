@@ -1,0 +1,89 @@
+- id: extra-atom
+  label: A query with an extra constraint is contained in the looser one
+  code: |
+    path2 = (("x", "z"), (("edge", ("x", "y")), ("edge", ("y", "z"))))
+    path3 = (("x", "z"), (("edge", ("x", "y")), ("edge", ("y", "z")), ("edge", ("z", "w"))))
+    assert contained_in(path3, path2) is True
+    assert contained_in(path2, path3) is False
+
+- id: two-path-is-not-an-edge
+  label: A 2-path is not an edge, in either direction
+  code: |
+    path2 = (("x", "z"), (("edge", ("x", "y")), ("edge", ("y", "z"))))
+    one   = (("x", "z"), (("edge", ("x", "z")),))
+    assert contained_in(path2, one) is False
+    assert contained_in(one, path2) is False
+
+- id: renaming
+  label: Containment is blind to variable names
+  code: |
+    a = (("x", "z"), (("edge", ("x", "y")), ("edge", ("y", "z"))))
+    b = (("x", "z"), (("edge", ("x", "w")), ("edge", ("w", "z"))))
+    assert contained_in(a, b) is True
+    assert contained_in(b, a) is True
+
+- id: self-loop-in-triangle
+  label: A self-loop satisfies the triangle pattern but not conversely
+  code: |
+    loop = (("x",), (("edge", ("x", "x")),))
+    tri  = (("x",), (("edge", ("x", "y")), ("edge", ("y", "z")), ("edge", ("z", "x"))))
+    assert contained_in(loop, tri) is True
+    assert contained_in(tri, loop) is False
+
+- id: arity
+  label: Queries with different output arity are incomparable
+  code: |
+    a = (("x",), (("edge", ("x", "y")),))
+    b = (("x", "y"), (("edge", ("x", "y")),))
+    assert contained_in(a, b) is False
+    assert contained_in(b, a) is False
+
+- id: constants
+  label: Constants must map to themselves
+  hidden: true
+  code: |
+    fixed = (("x",), (("edge", ("x", 7)),))
+    anyone = (("x",), (("edge", ("x", "y")),))
+    assert contained_in(fixed, anyone) is True
+    assert contained_in(anyone, fixed) is False
+    other = (("x",), (("edge", ("x", 8)),))
+    assert contained_in(fixed, other) is False
+
+- id: cycles
+  label: A 4-cycle and a triangle do not contain each other
+  hidden: true
+  code: |
+    tri = (("x",), (("edge", ("x", "y")), ("edge", ("y", "z")), ("edge", ("z", "x"))))
+    c4  = (("x",), (("edge", ("x", "a")), ("edge", ("a", "b")),
+                    ("edge", ("b", "c")), ("edge", ("c", "x"))))
+    assert contained_in(c4, tri) is False
+    assert contained_in(tri, c4) is False
+    loop = (("x",), (("edge", ("x", "x")),))
+    assert contained_in(loop, c4) is True
+
+- id: backtracking-required
+  label: A wrong first choice must be undone, not carried forward
+  hidden: true
+  code: |
+    # q2's first atom can match r(1,2) or r(2,3); only the second choice lets the
+    # rest of the body be placed. A search that keeps the first binding fails.
+    q1 = (("x",), (("r", (1, 2)), ("r", (2, 3)), ("s", (3, "x"))))
+    q2 = (("x",), (("r", ("u", "v")), ("s", ("v", "x"))))
+    assert contained_in(q1, q2) is True
+
+- id: relation-names-matter
+  label: Atoms only match atoms of the same relation
+  hidden: true
+  code: |
+    q1 = (("x",), (("edge", ("x", "y")),))
+    q2 = (("x",), (("link", ("x", "y")),))
+    assert contained_in(q1, q2) is False
+
+- id: variables-may-collapse
+  label: Two atoms of q2 may map onto the same atom of q1
+  hidden: true
+  code: |
+    loop = (("x",), (("edge", ("x", "x")),))
+    both = (("x",), (("edge", ("x", "y")), ("edge", ("y", "x"))))
+    assert contained_in(loop, both) is True
+    assert contained_in(both, loop) is False

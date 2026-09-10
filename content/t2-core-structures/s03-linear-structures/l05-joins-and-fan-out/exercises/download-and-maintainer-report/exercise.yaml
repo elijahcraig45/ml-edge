@@ -1,0 +1,97 @@
+id: download-and-maintainer-report
+kind: sql
+title: The report whose SUM is wrong
+difficulty: 4
+datasetId: package-registry
+pattern: fan-out
+topics: [joins, aggregation, fan-out]
+timeLimitMs: 15000
+prompt: |
+  One row per package with three columns:
+
+  - `name`
+  - `total_downloads` — the sum of `downloads.count` over the ten-day window
+  - `maintainer_count` — how many maintainers the package has
+
+  Sorted by `total_downloads` descending, then `name`.
+
+  **The starter runs, returns twenty rows, and is wrong.** It joins `downloads`
+  and `package_maintainers` to `packages` in the same query. Both are one-to-many
+  from `packages`, so the join produces every *combination* of the two: a
+  package with 10 download rows and 3 maintainers yields 30 rows, and every
+  download is counted three times.
+
+  It reports `arrowkit` at 184,000 downloads. The real figure is 92,000, and
+  `arrowkit` has exactly two maintainers. Run the starter, find the packages
+  whose totals are inflated, and notice they are precisely the ones with more
+  than one maintainer.
+
+  Fixing this with `SUM(DISTINCT ...)` does not work and it is worth
+  understanding why before you try it.
+hints:
+  - "Compare the starter's total for `chunker` (three maintainers) against `sum(count)` for `chunker` computed from `downloads` alone. The ratio is not a coincidence."
+  - "The two child tables never needed to meet. Reduce each of them to one row per package *first*, and only then join those single rows to `packages`."
+  - "Two CTEs: one that groups `downloads` by `package_id`, one that groups `package_maintainers` by `package_id`. Both are now one row per package, so joining them cannot multiply anything."
+solutionWalkthrough: |
+  ```sql
+  WITH package_downloads AS (
+    SELECT package_id, sum(count) AS total_downloads
+    FROM downloads
+    GROUP BY package_id
+  ),
+  package_team AS (
+    SELECT package_id, count(*) AS maintainer_count
+    FROM package_maintainers
+    GROUP BY package_id
+  )
+  SELECT p.name, d.total_downloads, t.maintainer_count
+  FROM packages p
+  JOIN package_downloads d ON d.package_id = p.id
+  JOIN package_team t ON t.package_id = p.id
+  ORDER BY d.total_downloads DESC, p.name;
+  ```
+
+  **Why the starter inflates.** Join cardinality multiplies. `packages ⋈
+  downloads` gives 10 rows per package. Joining `package_maintainers` onto that
+  gives 10 × (number of maintainers). For `arrowkit`, 10 × 2 = 20 rows, each
+  carrying the same download count, so `sum` doubles it: 92,000 becomes 184,000.
+  `chunker` has three maintainers and triples: 31,880 becomes 95,640. Every
+  single-maintainer package is untouched, which is exactly what makes this bug
+  so hard to see — seventeen of the twenty rows are correct.
+
+  **Why `SUM(DISTINCT count)` does not fix it.** `DISTINCT` deduplicates
+  *values*, not rows. Two different days with 4,000 downloads each are two rows
+  holding the same number, and `SUM(DISTINCT ...)` would collapse them into
+  one — turning an inflated answer into a differently wrong one. `DISTINCT`
+  only ever rescues you when the duplicated values happen to be unique to begin
+  with, and relying on that is relying on your data not to repeat itself.
+
+  **The general rule.** When a query aggregates across two or more one-to-many
+  relationships from the same parent, pre-aggregate each branch to one row per
+  parent before joining. Some engines let you write this as lateral or scalar
+  subqueries instead of CTEs; the shape is the same either way. What matters is
+  that no branch is ever more than one row per parent at the moment the join
+  happens.
+
+  **How to catch it before it reaches a dashboard.** Compare `count(*)` before
+  and after adding a join. If the row count changed and you were not expecting
+  a fan-out, everything downstream that sums, averages, or counts is now wrong,
+  and the report will look completely plausible.
+
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 20
+      message: One row per package — twenty in total.
+    - type: predicate
+      sql: |
+        SELECT (SELECT total_downloads FROM __learner WHERE name = 'arrowkit') = 92000
+          AND (SELECT total_downloads FROM __learner WHERE name = 'chunker') = 31880
+          AND (SELECT sum(total_downloads) FROM __learner) = 363840
+      message: >-
+        The totals are inflated by the fan-out. arrowkit should be 92,000 (the
+        starter reports 184,000 because it has two maintainers) and chunker
+        31,880 (the starter reports 95,640 for three). The whole table sums to
+        363,840.

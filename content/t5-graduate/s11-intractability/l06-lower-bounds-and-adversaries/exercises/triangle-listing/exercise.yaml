@@ -1,0 +1,104 @@
+id: triangle-listing
+kind: sql
+title: The triangle query, once per triangle
+difficulty: 5
+datasetId: package-registry
+pattern: cyclic-join
+topics: [sql, joins, agm]
+timeLimitMs: 15000
+prompt: |
+  Two packages are **linked** when they share a maintainer. List every
+  **triangle** in that link graph — three packages, each pair linked — exactly
+  once.
+
+  Return three columns `a`, `b`, `c`: the three package names, in ascending name
+  order within each row.
+
+  This is the triangle query, the standard example of a cyclic join, and it is
+  the query the AGM bound is about. The link graph has 56 directed edge rows, so
+  the AGM bound on the output is $\lfloor 56^{3/2} \rfloor = 419$ rows. The
+  actual answer is far smaller — seventeen triangles.
+
+  The starter is the natural three-way self-join and it returns **102** rows:
+  each triangle appears six times, once for each way of walking its three
+  vertices. Fix that without `DISTINCT` on a computed key — constrain the join
+  itself, so the engine never builds the five redundant copies in the first
+  place.
+hints:
+  - "Build the link graph once in a CTE, with both directions and DISTINCT: two packages can share more than one maintainer, and a duplicated edge would duplicate every triangle through it."
+  - "Six orderings of three vertices collapse to one if you demand that the three ids come out in increasing order. Two inequalities in the WHERE clause do it."
+  - "Closing the cycle as `t.x = r.x AND t.y = s.y` — an edge from the smallest vertex to the largest — is the same predicate as `t.x = s.y AND t.y = r.x` on an undirected graph, and it lets the ordering constraints be checked earlier."
+solutionWalkthrough: |
+  ```sql
+  WITH edge AS (
+    SELECT DISTINCT a.package_id AS x, b.package_id AS y
+    FROM package_maintainers a
+    JOIN package_maintainers b
+      ON a.maintainer_id = b.maintainer_id AND a.package_id <> b.package_id
+  )
+  SELECT pa.name AS a, pb.name AS b, pc.name AS c
+  FROM edge r
+  JOIN edge s ON s.x = r.y
+  JOIN edge t ON t.x = r.x AND t.y = s.y
+  JOIN packages pa ON pa.id = r.x
+  JOIN packages pb ON pb.id = r.y
+  JOIN packages pc ON pc.id = s.y
+  WHERE r.x < r.y AND r.y < s.y
+  ORDER BY a, b, c;
+  ```
+
+  **Why the ordering predicates are not cosmetic.** `r.x < r.y < s.y` picks one
+  representative from each orbit of the six symmetries, so the query returns 17
+  rows instead of 102. It also prunes the join: with the ordering applied to
+  `r` first, the second join only ever extends upward, so the intermediate is
+  smaller as well as the output. Deduplicating afterwards with `DISTINCT` on a
+  sorted key gives the same answer and does all six times the work first.
+
+  **What the AGM bound says here.** With 56 edge rows and the fractional cover
+  $(\tfrac12, \tfrac12, \tfrac12)$, the bound is $56^{3/2} \approx 419$. The
+  binary plan's first join — the two-paths — has 186 rows. On this graph nothing
+  looks alarming, because 56 edges over 20 vertices is dense and the bound is
+  loose.
+
+  **Where it goes wrong.** Put 600 edges into a star — one hub joined to 300
+  leaves — and the AGM bound is 14,696, the answer is **zero** (a star has no
+  triangles), and the first binary join produces **90,300** rows. Six times the
+  AGM bound, built in full, to return nothing. That is not a statistics problem:
+  a perfect estimator would predict 90,300 and the plan would still have to
+  materialise them.
+
+  **What a worst-case-optimal join does instead.** It processes one *attribute*
+  at a time rather than one relation at a time. Bind $a$; intersect the outgoing
+  neighbourhoods of $a$ in `r` and `t` to get candidate $b$ values; for each,
+  intersect again for $c$. On the star graph the first intersection is empty
+  almost immediately and no intermediate is ever built. Leapfrog Triejoin runs
+  the triangle query in $O(N^{3/2})$, matching the AGM bound — and no binary
+  plan can, on any join order, which is a proved statement rather than an
+  observation about this engine.
+
+  **When to reach for it.** Only on **cyclic** queries. Acyclic queries already
+  run in $O(\text{input} + \text{output})$ under Yannakakis's algorithm, which a
+  binary plan achieves. The trigger is a join graph with a cycle: fraud rings,
+  reciprocal follows, co-purchase triangles, shared-attribute clusters. If one of
+  those is slow and the intermediate row counts dwarf the output, no index will
+  save it.
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 17
+      message: >-
+        Seventeen triangles. 102 rows means each triangle is being returned six
+        times, once per traversal order; 51 means three times, so only the
+        rotations were collapsed and not the reflections.
+    - type: predicate
+      sql: |
+        SELECT (SELECT count(*) FROM __learner WHERE NOT (a < b AND b < c)) = 0
+          AND (SELECT count(*) FROM __learner
+               WHERE a = 'arrowkit' AND b = 'chunker' AND c = 'lazyseq') = 1
+          AND (SELECT count(*) FROM __learner WHERE a = 'bitmask') = 6
+      message: >-
+        Each row must carry the three names in ascending order, arrowkit /
+        chunker / lazyseq must appear exactly once, and bitmask must be the
+        smallest name of exactly six triangles.

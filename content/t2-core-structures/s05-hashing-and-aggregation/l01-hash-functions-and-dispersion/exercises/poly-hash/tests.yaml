@@ -1,0 +1,43 @@
+- id: empty
+  label: The empty string hashes to 0
+  code: |
+    assert poly_hash("", 16) == 0
+- id: single-char
+  label: A one-character string is its code point
+  code: |
+    assert poly_hash("a", 1000) == 97
+    assert poly_hash("z", 1000) == 122
+- id: two-chars
+  label: Horner's rule gives 97 * 131 + 98 for "ab"
+  code: |
+    assert poly_hash("ab", 10**9) == 12805
+    assert poly_hash("abc", 10**9) == 1677554
+- id: in-range
+  label: Every result lands inside [0, buckets)
+  code: |
+    names = ["arrowkit", "bitmask", "chunker", "dagrun", "edgecase", "fanout"]
+    for buckets in (1, 7, 16, 1024):
+        for name in names:
+            got = poly_hash(name, buckets)
+            assert 0 <= got < buckets, (name, buckets, got)
+- id: anagrams-differ
+  label: Permutations of the same characters get different hashes
+  hidden: true
+  code: |
+    # The whole point: an additive hash gives these the same value.
+    assert poly_hash("1.0.2", 4096) != poly_hash("2.0.1", 4096)
+    assert poly_hash("stop", 4096) != poly_hash("pots", 4096)
+    assert poly_hash("arrowkit", 10**9) == 443511073
+- id: matches-closed-form
+  label: Agrees with the explicit power-sum definition on a long key
+  hidden: true
+  code: |
+    # Horner's rule computed the other way round: sum of c_i * base**(n-1-i).
+    modulus = (1 << 61) - 1
+    text = "0.9.11-rc.2+build.7"
+    expected = sum(
+        ord(ch) * pow(131, len(text) - 1 - i, modulus)
+        for i, ch in enumerate(text)
+    ) % modulus % 4096
+    assert poly_hash(text, 4096) == expected
+    assert poly_hash("x" * 300, 10**9) == 407410556

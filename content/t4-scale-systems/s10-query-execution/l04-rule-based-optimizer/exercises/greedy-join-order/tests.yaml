@@ -1,0 +1,58 @@
+- id: chain
+  label: Follows the chain from the smallest relation
+  code: |
+    order = greedy_order(
+        {"a": 100, "b": 10, "c": 5},
+        {frozenset({"a", "b"}): 0.1, frozenset({"b", "c"}): 0.1},
+    )
+    assert order == ["c", "b", "a"], order
+- id: single-relation
+  label: One relation is already an order
+  code: |
+    assert greedy_order({"only": 7}, {}) == ["only"]
+- id: star
+  label: A star schema joins the hub before the far leaves
+  code: |
+    order = greedy_order(
+        {"packages": 20000, "versions": 260000, "downloads": 2000000, "maintainers": 10000},
+        {frozenset({"packages", "versions"}): 1 / 20000,
+         frozenset({"packages", "downloads"}): 1 / 20000,
+         frozenset({"packages", "maintainers"}): 1 / 20000},
+    )
+    assert order == ["maintainers", "packages", "versions", "downloads"], order
+- id: avoids-cross-product
+  label: Prefers a connected relation over an unconnected smaller one
+  hidden: true
+  code: |
+    # `tiny` has no edge at all. Taking it second would be a cross product,
+    # so it must be left until nothing connected remains.
+    order = greedy_order(
+        {"a": 1000, "b": 1000, "tiny": 2},
+        {frozenset({"a", "b"}): 0.001},
+    )
+    assert order == ["tiny", "a", "b"] or order == ["a", "b", "tiny"], order
+    assert order[-1] == "tiny" or order[0] == "tiny", order
+    # Whichever end it lands on, `a` and `b` must be adjacent so their edge is used.
+    assert abs(order.index("a") - order.index("b")) == 1, order
+- id: selectivity-beats-size
+  label: Chooses by result size, not by table size
+  hidden: true
+  code: |
+    # `big` is 100x larger than `small`, but joins on a far more selective edge,
+    # so joining it first produces fewer rows.
+    order = greedy_order(
+        {"hub": 10, "small": 100, "big": 10000},
+        {frozenset({"hub", "small"}): 1.0, frozenset({"hub", "big"}): 0.00001},
+    )
+    assert order == ["hub", "big", "small"], (
+        "expected the more selective edge first; got %r" % order
+    )
+- id: ties-break-by-name
+  label: Equal estimates are broken alphabetically
+  hidden: true
+  code: |
+    order = greedy_order(
+        {"hub": 1, "zeta": 50, "alpha": 50},
+        {frozenset({"hub", "zeta"}): 0.5, frozenset({"hub", "alpha"}): 0.5},
+    )
+    assert order == ["hub", "alpha", "zeta"], order

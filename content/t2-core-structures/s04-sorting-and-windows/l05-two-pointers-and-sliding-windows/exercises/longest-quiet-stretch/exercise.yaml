@@ -1,0 +1,67 @@
+id: longest-quiet-stretch
+kind: python
+title: The longest stretch under budget
+difficulty: 3
+pattern: sliding-window
+topics: [sliding-window, amortised-analysis]
+timeLimitMs: 10000
+prompt: |
+  `counts` holds one non-negative download count per day, in day order. Return
+  the length of the **longest run of consecutive days** whose total is at most
+  `budget`.
+
+  ```
+  longest_under([770, 850, 490, 570, 650], 2000)   # 3   (490 + 570 + 650 = 1710)
+  longest_under([5, 5, 5], 4)                      # 0   (no single day fits)
+  longest_under([], 100)                           # 0
+  ```
+
+  Return the **length**, not the days themselves. A day whose own count exceeds
+  the budget cannot be in any qualifying run, and a run of length zero is always
+  allowed, so the answer is never negative.
+
+  Write it as one pass with a window that grows on the right and shrinks on the
+  left. Do not recompute the total of the window from scratch each time — keep
+  it as you go.
+hints:
+  - "Track two things: where the window currently starts, and the sum of the values inside it. Adding a day on the right is one addition; removing a day on the left is one subtraction."
+  - "For each new right-hand day: add it to the running total, then, while the total exceeds the budget, remove days from the left. Whatever is left is the longest valid window ending at this day."
+  - "The window can legitimately become empty — that happens when a single day exceeds the budget on its own. Make sure your shrink loop stops when `left` passes `right` rather than running off the end."
+solutionWalkthrough: |
+  ```python
+  def longest_under(counts, budget):
+      best = 0
+      total = 0
+      left = 0
+      for right, value in enumerate(counts):
+          total += value
+          while total > budget:
+              total -= counts[left]
+              left += 1
+          best = max(best, right - left + 1)
+      return best
+  ```
+
+  **Why the inner `while` does not make this quadratic.** `left` only ever
+  increases and never passes `right`, so across the whole run its body executes
+  at most $n$ times *in total* — not $n$ times per outer iteration. Adding the
+  $n$ outer steps, total pointer movement is bounded by $2n$. This is amortised
+  analysis: the cost of any single outer iteration is unbounded, but the sum is
+  linear because each element is added exactly once and removed at most once.
+
+  **The empty-window case.** If `counts[right]` alone exceeds the budget, the
+  shrink loop keeps going until `left` becomes `right + 1`, the total is 0, and
+  `right - left + 1` is 0. That falls out of the arithmetic with no special case,
+  which is why the loop is written on the total rather than on the length.
+
+  **The invariant, stated once:** at the bottom of each outer iteration,
+  `counts[left..right]` is the longest run ending at `right` whose total is
+  within budget. Every valid run ends *somewhere*, so taking the best over all
+  right-hand ends is the answer.
+
+  **Where this technique stops working.** Shrinking from the left helps only
+  because removing a non-negative value lowers the total. Allow negative values
+  and the invariant collapses — dropping a $-50$ makes the sum *bigger*, so a
+  window that is over budget may need to grow rather than shrink. The correct
+  tool there is prefix sums plus a monotonic structure, not a window. Check the
+  sign of your data before reaching for this pattern.

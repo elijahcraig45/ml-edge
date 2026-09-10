@@ -1,0 +1,67 @@
+id: clock-eviction
+kind: python
+title: CLOCK, the eviction policy in your kernel
+difficulty: 3
+pattern: cache-eviction
+topics: [caching, clock, operating-systems]
+timeLimitMs: 30000
+prompt: |
+  The starter implements FIFO: a hand walks a circular array of slots and
+  evicts whatever it points at. Turn it into **CLOCK** by adding the reference
+  bits.
+
+  Two changes:
+
+  1. **On a hit**, set that slot's reference bit. Nothing else — no reordering,
+     no list splice. That single-byte write is the reason CLOCK exists.
+  2. **Before evicting**, sweep forward: while the slot under the hand has its
+     bit set, clear the bit and advance. Evict the first slot you reach whose
+     bit is already clear. An entry that was referenced since the hand last
+     passed therefore gets one free pass.
+
+  ```
+  clock_hits(3, [1, 2, 3, 1, 4, 5, 1])   # 2 — CLOCK spares 1 and evicts 2
+                                          #     plain FIFO would score 1
+  ```
+
+  Newly inserted entries start with a **clear** bit, and the hand advances past
+  the slot it just filled.
+
+  The hidden tests pin exact hit counts against a seeded 20,000-request
+  workload, where CLOCK scores 11,809 and FIFO scores 9,829.
+hints:
+  - "The hit branch already returns early. It needs one line before the `continue`, and `slot_of[key]` tells you which slot to mark."
+  - "The sweep is a `while` loop, not an `if`: several consecutive slots may all have their bits set, and each must be cleared as the hand passes."
+  - "The loop must run before the eviction code that is already there, so that `hand` points at a clear slot by the time the existing lines use it. It always terminates — each pass clears a bit, so after one full revolution every bit is clear."
+solutionWalkthrough: |
+  ```python
+  if key in slot_of:
+      hits += 1
+      referenced[slot_of[key]] = True
+      continue
+
+  while referenced[hand]:
+      referenced[hand] = False        # spend the second chance
+      hand = (hand + 1) % capacity
+  ```
+
+  The `while` loop cannot run forever: every iteration clears a bit and no
+  iteration sets one, so after at most `capacity` steps the hand is standing on
+  a clear slot. That bound is why CLOCK's amortised eviction cost is $O(1)$
+  even though a single eviction can sweep the whole array.
+
+  What CLOCK is buying is not accuracy — LRU has strictly better information.
+  It is buying a **read path that does not mutate shared order**. LRU's hit
+  splices a linked list, which under 64 concurrent readers means 64 threads
+  fighting over one lock to perform reads. CLOCK's hit writes one bit at a known
+  address, needs no lock, and needs no ordering with respect to other hits. That
+  is the trade, and it is why the policy in your operating system's page cache
+  and your database's buffer pool is a CLOCK variant rather than an LRU.
+
+  The reference bit is also a one-bit approximation of "recently used", which
+  makes CLOCK the poorest-resolution member of a family. **CLOCK-Pro** and
+  Postgres's clock-sweep replace the bit with a small counter, so a page must
+  survive several sweeps before eviction — more resolution, still no list. And
+  the cyclic-scan test shows what none of them fix: four keys through three
+  slots scores zero under FIFO, CLOCK and LRU alike, because the problem is
+  recency itself rather than how well you approximate it.

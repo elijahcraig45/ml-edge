@@ -1,0 +1,45 @@
+- id: basic
+  label: Collapses runs and reports the distinct count
+  code: |
+    data = [1, 1, 2, 4, 4, 4]
+    n = compact_versions(data)
+    assert n == 3
+    assert data[:n] == [1, 2, 4]
+- id: mutates-caller
+  label: The caller's list is the one that changes
+  code: |
+    data = [3, 3, 7]
+    n = compact_versions(data)
+    assert n == 2
+    assert data[:2] == [3, 7]
+- id: already-distinct
+  label: A list with no repeats is left alone
+  code: |
+    data = [1, 2, 3]
+    assert compact_versions(data) == 3
+    assert data == [1, 2, 3]
+- id: empty
+  label: An empty list has zero distinct values
+  code: |
+    data = []
+    assert compact_versions(data) == 0
+    assert data == []
+- id: all-equal
+  label: Every value identical collapses to one
+  hidden: true
+  code: |
+    data = [9, 9, 9, 9, 9]
+    n = compact_versions(data)
+    assert n == 1
+    assert data[0] == 9
+- id: single-and-negative
+  label: One element, and negative values
+  hidden: true
+  code: |
+    data = [42]
+    assert compact_versions(data) == 1
+    assert data == [42]
+    data = [-5, -5, -1, 0, 0]
+    n = compact_versions(data)
+    assert n == 3
+    assert data[:n] == [-5, -1, 0]

@@ -1,0 +1,67 @@
+id: rpn-evaluator
+kind: python
+title: A stack machine for postfix expressions
+difficulty: 3
+pattern: stack
+topics: [stacks, parsing]
+timeLimitMs: 10000
+prompt: |
+  Evaluate a postfix (reverse Polish) expression. `tokens` is a list of
+  strings: integer literals, and the operators `+`, `-`, `*`.
+
+  ```
+  evaluate(["3", "4", "+"])            # 7
+  evaluate(["5", "1", "-"])            # 4     -> 5 - 1
+  evaluate(["2", "3", "4", "*", "+"])  # 14    -> 2 + (3 * 4)
+  ```
+
+  Raise `ValueError` if the expression is malformed: an operator with fewer
+  than two operands available, or anything other than exactly one value left on
+  the stack at the end. `["1", "2"]` is malformed. So is `[]`.
+
+  Postfix needs no parentheses and no precedence rules, which is why it is what
+  compilers and query engines evaluate *after* parsing. The only structure it
+  needs is a stack — and the only operations it needs from that stack are push,
+  pop, and "how deep are you".
+hints:
+  - "Walk the tokens left to right. A number goes on the stack. An operator takes operands off it and puts the result back."
+  - "`stack.pop()` returns what was pushed most recently. For `a b -`, `b` was pushed last — so the first pop is the right-hand operand, not the left."
+  - "Two checks make the ValueError cases work: before applying an operator, is the stack at least two deep; after the loop, is it exactly one deep."
+solutionWalkthrough: |
+  ```python
+  def evaluate(tokens):
+      stack = []
+      for token in tokens:
+          if token in ("+", "-", "*"):
+              if len(stack) < 2:
+                  raise ValueError("operator %r has too few operands" % token)
+              right = stack.pop()      # pushed last, so it is on the right
+              left = stack.pop()
+              stack.append(left + right if token == "+"
+                           else left - right if token == "-"
+                           else left * right)
+          else:
+              stack.append(int(token))
+      if len(stack) != 1:
+          raise ValueError("expression left %d values on the stack" % len(stack))
+      return stack[0]
+  ```
+
+  Naming the pops `right` then `left` is the whole exercise. Addition and
+  multiplication forgive you; subtraction does not, and a version that gets the
+  order backwards passes four of the six tests here. That is what a real
+  operand-order bug looks like — it is not visibly broken, it is quietly
+  reversed on the operators where it matters.
+
+  **The depth check is not error handling, it is the type system.** `len(stack)
+  < 2` before an operator and `len(stack) == 1` at the end are together a proof
+  that the token sequence is a well-formed expression. Every postfix evaluator
+  in every compiler does this, and it is why postfix can be validated in one
+  pass with a counter rather than a parser.
+
+  **Which contract did you actually use?** Push, pop, and depth. Nothing else.
+  A Python list satisfies that contract, and so would a linked list, a
+  fixed-size array with an index, or the CPU's own call stack. The algorithm is
+  written against the contract, not against the list — which is why the same
+  code appears unchanged inside a bytecode interpreter, an expression evaluator
+  in a database, and an HP calculator from 1972.

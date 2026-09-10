@@ -1,0 +1,32 @@
+- id: basic
+  label: Finds the busiest pair of days
+  code: |
+    assert busiest_window([3, 1, 9, 2, 4], 2) == 11
+- id: whole-list
+  label: A window as wide as the list is the total
+  code: |
+    assert busiest_window([3, 1, 9, 2, 4], 5) == 19
+- id: window-of-one
+  label: A one-day window is the largest single day
+  code: |
+    assert busiest_window([3, 1, 9, 2, 4], 1) == 9
+- id: too-wide
+  label: A window wider than the list has no answer
+  code: |
+    assert busiest_window([3, 1], 4) is None
+- id: degenerate-k
+  label: Zero, negative, and empty-input windows return None
+  hidden: true
+  code: |
+    assert busiest_window([3, 1], 0) is None
+    assert busiest_window([3, 1], -2) is None
+    assert busiest_window([], 1) is None
+- id: negatives-and-ties
+  label: Negative days, and a tie between two windows
+  hidden: true
+  code: |
+    assert busiest_window([-5, -1, -4], 2) == -5
+    assert busiest_window([2, 2, 2, 2], 2) == 4
+    original = [1, 2, 3]
+    busiest_window(original, 2)
+    assert original == [1, 2, 3], "the input must not be modified"

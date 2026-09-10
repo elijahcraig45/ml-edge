@@ -1,0 +1,108 @@
+id: dynamic-table-potential
+kind: python
+title: The potential method, as a unit test
+difficulty: 4
+pattern: amortized
+topics: [amortized, dynamic-array, potential]
+timeLimitMs: 20000
+prompt: |
+  Turn the potential-method proof into code the tests can check.
+
+  **`table_costs(ops)`** simulates a dynamic table over a list of `"push"` and
+  `"pop"` strings, returning one `(actual_cost, num_after, size_after)` tuple per
+  operation. Start empty: `num = 0`, `size = 0`.
+
+  - **push**: if `num == size`, the table is full — copy all `num` items into a
+    new block of capacity `1` (when `size` is 0) or `2 * size`. Then insert.
+    Cost is `1 + items_copied`.
+  - **pop** on an empty table: cost 1, nothing changes.
+  - **pop** otherwise: remove the item, then if `num > 0` and `4 * num <= size`,
+    copy the remaining `num` items into a block of capacity `size // 2`. Cost is
+    `1 + items_copied`.
+
+  **`potential(num, size)`** returns $\Phi$ as a float:
+
+  $$
+  \Phi = \begin{cases}
+    0 & \text{if } size = 0\\
+    2\,num - size & \text{if } 2\,num \ge size\\
+    size/2 - num & \text{otherwise}
+  \end{cases}
+  $$
+
+  ```
+  [c for c, _, _ in table_costs(["push"] * 8)]   # [1, 2, 3, 1, 5, 1, 1, 1]
+  potential(4, 4)   # 4.0
+  potential(1, 4)   # 1.0
+  potential(0, 0)   # 0.0
+  ```
+
+  The tests check the two things the proof claims: $\Phi \ge 0$ everywhere with
+  $\Phi(0,0) = 0$, and
+
+  $$\hat{c}_i = c_i + \Phi_i - \Phi_{i-1} \le 3$$
+
+  for **every** operation of every sequence, including adversarial interleavings
+  of pushes and pops. If your simulation or your potential is wrong, some
+  operation's amortized cost exceeds 3 and the test names it.
+hints:
+  - "Track `num` and `size` yourself; do not use a Python list. The whole exercise is about when the capacity changes, and Python's own list hides that."
+  - "Order matters on pop: decrement first, then test the shrink condition against the new num. Testing before the decrement shifts every threshold by one and breaks the amortized bound on long pop runs."
+  - "The shrink guard has two parts — `num > 0` and `4 * num <= size`. Dropping the first makes the last pop shrink a table to capacity 0 while it still has a valid state to describe, and the potential function then disagrees with the simulation."
+solutionWalkthrough: |
+  ```python
+  def table_costs(ops):
+      num = size = 0
+      out = []
+      for op in ops:
+          if op == "push":
+              copy = 0
+              if num == size:
+                  copy = num
+                  size = 1 if size == 0 else 2 * size
+              num += 1
+              out.append((1 + copy, num, size))
+          else:
+              if num == 0:
+                  out.append((1, num, size))
+                  continue
+              num -= 1
+              copy = 0
+              if num > 0 and 4 * num <= size:
+                  copy = num
+                  size //= 2
+              out.append((1 + copy, num, size))
+      return out
+
+  def potential(num, size):
+      if size == 0:
+          return 0.0
+      if 2 * num >= size:
+          return float(2 * num - size)
+      return size / 2 - num
+  ```
+
+  **Why the test is the proof.** The potential method's entire content is
+  "$\hat{c}_i \le 3$ for every operation, $\Phi \ge 0$, $\Phi_0 = 0$". Those are
+  three checkable predicates, so the theorem becomes a property test. Running it
+  over adversarial interleavings is doing empirically what the case analysis
+  does symbolically — and it catches an off-by-one in the shrink threshold in
+  about a second, which reading the proof again does not.
+
+  **Where the interesting case is.** Push into a full table costs $1 + s$ and
+  releases $s$ units of potential, netting 3. That single cancellation is the
+  method. Every other case is bookkeeping around it.
+
+  **Why the shrink threshold is a quarter.** Shrink at half-full and an
+  alternating push/pop sequence at the boundary resizes on every operation,
+  costing $\Theta(n)$ each — no amortized bound survives. The gap between
+  doubling at $\alpha = 1$ and halving at $\alpha = 1/4$ means every resize
+  leaves the table exactly half full, so $\Theta(s)$ operations must happen
+  before the next one. $\Phi$ is the algebra of that gap: it is 0 right after a
+  resize and must climb to $s$ before another can fire.
+
+  **What this does not give you.** A per-operation bound. The 9-unit push in a
+  16-push sequence is genuinely 9 units of work, and a system with a latency
+  budget will see it as a spike. The fix is a different structure — incremental
+  or chunked growth that copies a few items per operation — and the fact that
+  its total is worse is the trade you make for a flat tail latency.

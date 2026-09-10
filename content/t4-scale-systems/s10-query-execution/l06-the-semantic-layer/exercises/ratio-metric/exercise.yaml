@@ -1,0 +1,99 @@
+id: ratio-metric
+kind: sql
+title: A ratio metric that survives being rolled up
+difficulty: 4
+datasetId: package-registry
+topics: [semantic-layer, aggregation, testing]
+timeLimitMs: 15000
+prompt: |
+  Define `downloads_per_release` by language.
+
+  Return four columns, ordered by `language`:
+
+  - `language`
+  - `downloads` — total downloads for that language's packages
+  - `releases` — total releases for that language's packages
+  - `downloads_per_release` — `downloads / releases`, rounded to 2 decimal
+    places with `round(..., 2)`
+
+  Two independent traps, and the query has to avoid both.
+
+  **The join fans out twice.** `downloads` has ten rows per package and
+  `versions` has one per release. Join all three tables and every download row
+  is repeated once per release *and* every release once per download day.
+  Aggregate each side to one row per package before joining anything.
+
+  **The ratio is not additive.** `downloads_per_release` must be computed as the
+  ratio of the two summed columns at this grain. An average of per-package
+  ratios is a different number — 14% different for Python — and it is not the
+  metric.
+hints:
+  - "Three tables at three different grains cannot be joined and then aggregated. Bring each fact table to one row per package first, in its own CTE, and only then join."
+  - "`SELECT package_id, sum(count) AS downloads FROM downloads GROUP BY package_id` and `SELECT package_id, count(*) AS releases FROM versions GROUP BY package_id` are the two pre-aggregates. Both are now many-to-one against packages, so joining them is safe."
+  - "For the final column, divide the two SUMs — `round(sum(dl.downloads) / sum(rl.releases), 2)` — rather than averaging a ratio you computed per package."
+solutionWalkthrough: |
+  ```sql
+  WITH dl AS (
+    SELECT package_id, sum(count) AS downloads
+    FROM downloads
+    GROUP BY package_id
+  ),
+  rl AS (
+    SELECT package_id, count(*) AS releases
+    FROM versions
+    GROUP BY package_id
+  )
+  SELECT
+    p.language,
+    sum(dl.downloads) AS downloads,
+    sum(rl.releases)  AS releases,
+    round(sum(dl.downloads) / sum(rl.releases), 2) AS downloads_per_release
+  FROM packages p
+  JOIN dl ON dl.package_id = p.id
+  JOIN rl ON rl.package_id = p.id
+  GROUP BY p.language
+  ORDER BY p.language;
+  ```
+
+  **The pre-aggregation is what makes the join legal.** After the two CTEs,
+  each has exactly one row per package, so both joins are many-to-one and the
+  grain test passes: the number of rows entering the `GROUP BY` is the number of
+  packages. Join the raw tables instead and Python reports 429,390 downloads
+  against a true 198,570, because each download row appears once per release.
+
+  This shape has a name — *aggregate then join*, rather than join then aggregate
+  — and it is the standard fix for a fan-out. It is also usually faster, because
+  the join now runs over 20 rows per side instead of 200 and 26.
+
+  **The ratio is defined, not derived.** `sum(a) / sum(b)` recomputes correctly
+  at whatever grain it is asked for: by language, by license, ungrouped. Store
+  the metric as a per-package ratio and average it, and every rollup is wrong by
+  an amount that depends on the distribution — Python comes out at 14,228.33
+  instead of 16,547.5.
+
+  The test that catches this is a rollup cross-check: compute the metric
+  ungrouped, then compute it grouped by a dimension and recombine. For an
+  additive measure the two must agree exactly. For a ratio, "recombine" means
+  summing the numerator and denominator columns and dividing again — which is
+  only possible because you returned them. That is why a well-built ratio metric
+  always ships its numerator and denominator alongside it, and it is the reason
+  this exercise asks for four columns instead of two.
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 4
+      message: One row per language — js, python, rust and sql.
+    - type: predicate
+      sql: "SELECT downloads = 198570 AND releases = 12 FROM __learner WHERE language = 'python'"
+      message: >-
+        Python should show 198,570 downloads across 12 releases. Larger numbers
+        mean the download and version rows are multiplying each other — the two
+        fact tables need aggregating to one row per package before they meet.
+    - type: predicate
+      sql: "SELECT abs(downloads_per_release - 16547.5) < 0.005 FROM __learner WHERE language = 'python'"
+      message: >-
+        Python's downloads per release should be 16547.5 — the ratio of the two
+        sums. 14228.33 is the average of the per-package ratios, which is a
+        different metric.

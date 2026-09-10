@@ -1,0 +1,50 @@
+id: pa-complement-pair-index
+kind: python
+title: The pair that completes first
+difficulty: 2
+pattern: hash-set-lookup
+stage: s01-ground-floor
+topics:
+  - arrays
+  - hashing
+timeLimitMs: 10000
+prompt: |
+  `sizes` is an unordered list of package sizes in kilobytes. Return the indices
+  `(i, j)` with `i < j` of two packages whose sizes add up to `budget`. If more
+  than one pair qualifies, return the one that is complete earliest — the one
+  with the smallest `j`. Return `None` when no pair works.
+
+  ```
+  pair_within_budget([40, 10, 30, 60], 70)   # (0, 2)
+  pair_within_budget([40, 10], 70)           # None
+  ```
+
+  The list is not sorted and you may not sort it. One pass is enough.
+hints:
+  - "At each package you are asking a yes/no question about the packages behind you: has one of a specific size already gone past? Nothing else about them matters."
+  - "Subtract the current size from the budget. That difference is the size you need to have already seen — a dict from size to the index it first appeared at answers that in one lookup."
+  - "Check the dict *before* inserting the current size, otherwise a budget of twice one package's size will pair that package with itself. Record only the first index a size appears at, so ties resolve to the earlier partner."
+solutionWalkthrough: |
+  ```python
+  def pair_within_budget(sizes, budget):
+      first_index = {}
+      for j, size in enumerate(sizes):
+          needed = budget - size
+          if needed in first_index:
+              return (first_index[needed], j)
+          if size not in first_index:
+              first_index[size] = j
+      return None
+  ```
+
+  Two decisions are doing the work. Looking up before inserting is what stops a
+  package pairing with itself. Inserting only the *first* occurrence of a size
+  is what makes the answer deterministic when the same size appears repeatedly —
+  the earliest partner is the one reported.
+
+  Turning "find two things that combine" into "look up the one thing that would
+  complete me" is the whole idea, and it costs one dict entry per distinct
+  value. If memory is the binding constraint and the input happens to be sorted,
+  two pointers from the ends do this in constant space instead. Sorting an
+  unsorted list to enable that is a bad trade here: O(n log n) plus destroyed
+  indices, versus O(n) and the indices intact.

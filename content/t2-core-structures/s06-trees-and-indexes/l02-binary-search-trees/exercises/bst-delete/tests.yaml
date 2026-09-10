@@ -1,0 +1,82 @@
+- id: leaf
+  label: Deleting a leaf
+  code: |
+    def walk(n):
+        return [] if n is None else walk(n[1]) + [n[0]] + walk(n[2])
+
+    tree = (50, (30, None, None), (70, None, None))
+    assert walk(bst_delete(tree, 30)) == [50, 70]
+- id: one-child
+  label: Deleting a node with a single child promotes that child
+  code: |
+    def walk(n):
+        return [] if n is None else walk(n[1]) + [n[0]] + walk(n[2])
+
+    tree = (50, (30, (20, None, None), None), None)
+    result = bst_delete(tree, 30)
+    assert walk(result) == [20, 50]
+    assert result[1][0] == 20
+- id: two-children
+  label: Deleting a two-child node promotes the inorder successor
+  code: |
+    def walk(n):
+        return [] if n is None else walk(n[1]) + [n[0]] + walk(n[2])
+
+    tree = (50, (30, None, None), (70, (60, None, None), (80, None, None)))
+    result = bst_delete(tree, 50)
+    assert result[0] == 60
+    assert walk(result) == [30, 60, 70, 80]
+- id: missing
+  label: Deleting a value that is not present changes nothing
+  code: |
+    def walk(n):
+        return [] if n is None else walk(n[1]) + [n[0]] + walk(n[2])
+
+    tree = (50, (30, None, None), (70, None, None))
+    assert walk(bst_delete(tree, 99)) == [30, 50, 70]
+    assert bst_delete(None, 1) is None
+- id: last-node
+  label: Deleting the only node leaves the empty tree
+  code: |
+    assert bst_delete((7, None, None), 7) is None
+- id: successor-with-right-child
+  label: The successor's own right subtree survives
+  hidden: true
+  code: |
+    def walk(n):
+        return [] if n is None else walk(n[1]) + [n[0]] + walk(n[2])
+
+    #        50
+    #      /    \
+    #    30      70
+    #           /
+    #         60
+    #           \
+    #            65
+    tree = (50, (30, None, None), (70, (60, None, (65, None, None)), (80, None, None)))
+    result = bst_delete(tree, 50)
+    assert result[0] == 60
+    assert walk(result) == [30, 60, 65, 70, 80], "65 was dropped with the successor"
+- id: still-a-bst
+  label: Deleting many values in turn keeps the tree ordered
+  hidden: true
+  code: |
+    def insert(n, v):
+        if n is None:
+            return (v, None, None)
+        value, left, right = n
+        if v < value:
+            return (value, insert(left, v), right)
+        if v > value:
+            return (value, left, insert(right, v))
+        return n
+
+    def walk(n):
+        return [] if n is None else walk(n[1]) + [n[0]] + walk(n[2])
+
+    tree = None
+    for v in [50, 30, 70, 20, 40, 60, 80, 35, 45, 65]:
+        tree = insert(tree, v)
+    for v in [30, 70, 50, 20]:
+        tree = bst_delete(tree, v)
+    assert walk(tree) == [35, 40, 45, 60, 65, 80]

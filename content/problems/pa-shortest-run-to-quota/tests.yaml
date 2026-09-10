@@ -1,0 +1,34 @@
+- id: basic
+  label: Finds a two-day run
+  code: |
+    assert shortest_run_to_quota([2, 3, 1, 2, 4, 3], 7) == 2
+- id: unreachable
+  label: Returns 0 when the quota is never met
+  code: |
+    assert shortest_run_to_quota([1, 1, 1], 7) == 0
+- id: single-day
+  label: One big day is enough on its own
+  code: |
+    assert shortest_run_to_quota([9], 7) == 1
+- id: whole-list
+  label: Sometimes every day is needed
+  code: |
+    assert shortest_run_to_quota([1, 2, 3, 4], 10) == 4
+- id: zero-quota-and-empty
+  label: A zero quota, an empty log, and zero-download days
+  hidden: true
+  code: |
+    assert shortest_run_to_quota([1, 2], 0) == 0
+    assert shortest_run_to_quota([], 5) == 0
+    assert shortest_run_to_quota([0, 0, 5], 5) == 1
+- id: keeps-trimming
+  label: The window keeps shrinking while it still clears the quota
+  hidden: true
+  code: |
+    # A run of 8 followed by the exact quota: the answer is the single day.
+    assert shortest_run_to_quota([1, 1, 1, 1, 1, 1, 1, 1, 5], 5) == 1
+    assert shortest_run_to_quota([5, 5, 5], 5) == 1
+    assert shortest_run_to_quota([4, 4, 4], 4) == 1
+    original = [3, 3, 3]
+    shortest_run_to_quota(original, 6)
+    assert original == [3, 3, 3], "the input must not be modified"

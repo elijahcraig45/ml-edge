@@ -1,0 +1,58 @@
+- id: basic
+  label: Keeps the surviving rows across every column
+  code: |
+    batch = {"id": [1, 2, 3], "size_kb": [190, 61, 402]}
+    assert list(filter_batches([batch], "size_kb", 100)) == [
+        {"id": [1, 3], "size_kb": [190, 402]}
+    ]
+- id: all-pass
+  label: A batch where everything passes comes through unchanged
+  code: |
+    batch = {"id": [1, 2], "size_kb": [500, 600]}
+    assert list(filter_batches([batch], "size_kb", 100)) == [
+        {"id": [1, 2], "size_kb": [500, 600]}
+    ]
+- id: several-batches
+  label: Handles a stream of batches
+  code: |
+    b1 = {"id": [1, 2], "size_kb": [10, 200]}
+    b2 = {"id": [3, 4], "size_kb": [300, 20]}
+    assert list(filter_batches([b1, b2], "size_kb", 100)) == [
+        {"id": [2], "size_kb": [200]},
+        {"id": [3], "size_kb": [300]},
+    ]
+- id: empty-input
+  label: No batches in, no batches out
+  code: |
+    assert list(filter_batches([], "size_kb", 100)) == []
+- id: drops-empty-batches
+  label: A batch with no survivors is not emitted
+  hidden: true
+  code: |
+    b1 = {"id": [1, 2], "size_kb": [10, 20]}
+    b2 = {"id": [3], "size_kb": [900]}
+    out = list(filter_batches([b1, b2], "size_kb", 100))
+    assert len(out) == 1, (
+        "emitted %d batches; the one with no surviving rows should be dropped "
+        "so operators above it are not dispatched for nothing" % len(out)
+    )
+    assert out[0] == {"id": [3], "size_kb": [900]}
+- id: columns-stay-aligned
+  label: A column that would pass on its own values is still cut by the filter column
+  hidden: true
+  code: |
+    # `id` values are all > 100, but rows 0 and 2 fail on size_kb and must go.
+    batch = {"id": [500, 600, 700], "size_kb": [10, 900, 20]}
+    out = list(filter_batches([batch], "size_kb", 100))
+    assert out == [{"id": [600], "size_kb": [900]}], (
+        "columns were filtered independently, so the rows no longer line up: %r" % out
+    )
+- id: does-not-mutate-input
+  label: Leaves the input batch untouched
+  hidden: true
+  code: |
+    batch = {"id": [1, 2, 3], "size_kb": [190, 61, 402]}
+    list(filter_batches([batch], "size_kb", 100))
+    assert batch == {"id": [1, 2, 3], "size_kb": [190, 61, 402]}, (
+        "the input batch was modified: %r" % batch
+    )

@@ -1,0 +1,33 @@
+- id: base-cases
+  label: The two base cases
+  code: |
+    assert fib(0) == 0
+    assert fib(1) == 1
+- id: small
+  label: Small values match the sequence
+  code: |
+    assert [fib(i) for i in range(10)] == [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
+- id: fifty-five
+  label: fib(10) is 55
+  code: |
+    assert fib(10) == 55
+- id: twenty-five
+  label: fib(25) is 75025
+  code: |
+    assert fib(25) == 75025
+- id: thirty
+  label: fib(30) is 832040
+  hidden: true
+  code: |
+    assert fib(30) == 832040
+- id: repeated-calls
+  label: Repeated and out-of-order calls stay correct
+  hidden: true
+  code: |
+    # A cache that is written before the recursion completes, or keyed wrongly,
+    # shows up here rather than on a single ascending run.
+    assert fib(20) == 6765
+    assert fib(5) == 5
+    assert fib(20) == 6765
+    assert fib(21) == 10946
+    assert fib(0) == 0

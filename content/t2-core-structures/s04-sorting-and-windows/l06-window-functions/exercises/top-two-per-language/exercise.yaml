@@ -1,0 +1,89 @@
+id: top-two-per-language
+kind: sql
+title: Top two packages in each language
+difficulty: 3
+datasetId: package-registry
+pattern: top-n-per-group
+topics: [window-functions, ranking, qualify]
+timeLimitMs: 15000
+prompt: |
+  For each implementation language, return the **two packages with the most
+  total downloads** across the ten days in `downloads`.
+
+  Three columns named `language`, `name`, `total`, ordered by `language`
+  ascending and `total` descending. Eight rows: four languages, two each.
+
+  ```
+  js     | edgecase | 20200
+  js     | memoize  |  9080
+  python | arrowkit | 92000
+  ...
+  ```
+
+  `LIMIT 2` cannot do this — a `LIMIT` applies to the whole result, not to each
+  group. Number the rows inside each language, then keep the ones numbered 1
+  and 2.
+
+  Break ties inside the window's `ORDER BY` with `name`, so the query returns the
+  same eight rows every time it is run.
+hints:
+  - "Start with the totals: join `packages` to `downloads` and group by language and name. That is the input to the ranking step."
+  - "`row_number() OVER (PARTITION BY language ORDER BY total DESC, name)` numbers each language's packages from 1. You want the rows where that number is at most 2."
+  - "A window function cannot go in `WHERE`, because `WHERE` runs first. DuckDB has `QUALIFY`, which filters after the window functions are computed; the portable alternative is to wrap the query in a subquery and filter on the alias outside."
+solutionWalkthrough: |
+  ```sql
+  WITH totals AS (
+    SELECT p.language, p.name, sum(d.count) AS total
+    FROM packages p
+    JOIN downloads d ON d.package_id = p.id
+    GROUP BY p.language, p.name
+  )
+  SELECT language, name, total
+  FROM totals
+  QUALIFY row_number() OVER (PARTITION BY language ORDER BY total DESC, name) <= 2
+  ORDER BY language, total DESC;
+  ```
+
+  **Two stages, and they cannot be merged.** The aggregate collapses rows to one
+  per package; the window function then ranks those rows without collapsing them
+  further. `GROUP BY` alone cannot express "top two per group" because it has
+  already thrown away the rows you want to keep.
+
+  **Why `QUALIFY` exists.** SQL evaluates `WHERE` before window functions are
+  computed, so `WHERE row_number() OVER (...) <= 2` is a syntax error in every
+  engine. `QUALIFY` is a second filter that runs after them. It is not in the
+  standard — DuckDB, Snowflake, BigQuery and Teradata have it; PostgreSQL and
+  MySQL do not — so the portable form is the subquery:
+
+  ```sql
+  SELECT language, name, total FROM (
+    SELECT language, name, total,
+           row_number() OVER (PARTITION BY language ORDER BY total DESC, name) AS rn
+    FROM totals
+  ) ranked
+  WHERE rn <= 2;
+  ```
+
+  Identical plan, one more level of nesting.
+
+  **`ROW_NUMBER` or `RANK`?** This is a decision, not a detail. `ROW_NUMBER`
+  always returns exactly two rows per language, breaking a tie for second place
+  by whatever the ordering says. `RANK` returns three when two packages tie for
+  second, which is the honest answer to "who is in the top two" and the wrong
+  answer to "give me two rows per language for this layout". Pick deliberately,
+  and add a tiebreaker either way — the `, name` in the window's `ORDER BY` is
+  what stops the query returning different packages on different runs.
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 8
+      message: >-
+        Expected 8 rows: two per language across four languages. Getting 2 means
+        the LIMIT applied to the whole result rather than to each group.
+    - type: predicate
+      sql: >-
+        SELECT (SELECT count(DISTINCT language) FROM __learner) = 4
+        AND (SELECT min(per_language) FROM (SELECT count(*) AS per_language FROM __learner GROUP BY language)) = 2
+      message: Every language should appear exactly twice — js, python, rust and sql.

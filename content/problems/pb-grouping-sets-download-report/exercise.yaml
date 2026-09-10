@@ -1,0 +1,105 @@
+id: pb-grouping-sets-download-report
+kind: sql
+title: Three cuts of the same data, one scan
+difficulty: 4
+pattern: aggregation
+stage: s03-linear-structures
+topics: [grouping-sets, joins]
+datasetId: package-registry
+timeLimitMs: 20000
+prompt: |
+  The download report needs four things: every language on every day, each
+  language's ten-day total, each day's registry-wide total, and one grand total.
+
+  Produce all four in a single query with `GROUPING SETS`. Four columns:
+
+  - `scope` — `language-day`, `language`, `day`, or `total`
+  - `language` — the language, or `(all)` where the language is rolled up
+  - `day` — the date, or NULL where the day is rolled up
+  - `downloads` — the summed count
+
+  55 rows: 40 + 4 + 10 + 1. Order does not matter.
+
+  `ROLLUP (language, day)` is the tempting shortcut and it gives 45 rows. It
+  produces the (language, day) detail, the per-language subtotals and the grand
+  total — but not the per-day totals, because ROLLUP only ever drops columns off
+  the right-hand end of the list.
+hints:
+  - "Write down the four groupings as sets: {language, day}, {language}, {day}, {}. Then ask which of those a left-to-right ROLLUP can reach."
+  - "`GROUPING SETS` takes exactly that list, spelled literally: `GROUP BY GROUPING SETS ((language, day), (language), (day), ())`. The empty parentheses are the grand total."
+  - "Build `scope` from `GROUPING(language)` and `GROUPING(day)` — the pair (0,0), (0,1), (1,0), (1,1) maps one-to-one onto your four scopes."
+solutionWalkthrough: |
+  ```sql
+  SELECT
+    CASE
+      WHEN GROUPING(p.language) = 0 AND GROUPING(d.day) = 0 THEN 'language-day'
+      WHEN GROUPING(p.language) = 0                         THEN 'language'
+      WHEN GROUPING(d.day) = 0                              THEN 'day'
+      ELSE 'total'
+    END AS scope,
+    CASE WHEN GROUPING(p.language) = 1 THEN '(all)' ELSE p.language END AS language,
+    d.day,
+    sum(d.count) AS downloads
+  FROM packages p
+  JOIN downloads d ON d.package_id = p.id
+  GROUP BY GROUPING SETS ((p.language, d.day), (p.language), (d.day), ());
+  ```
+
+  55 rows, and each of the four scopes independently sums to 363,840 — which is
+  the sanity check worth running on any grouping-sets report. If one cut does not
+  reconcile with the others, the grouping list is wrong.
+
+  `ROLLUP (a, b)` is shorthand for the grouping sets `(a, b)`, `(a)`, `()`. It is
+  a *hierarchy*, which is the right tool when the columns nest — country then
+  city then postcode — and the wrong tool the moment you want two independent
+  cuts. `CUBE (a, b)` is the other shorthand and gives all four sets including
+  `(b)`, so `CUBE` would in fact answer this exact question. Naming the sets by
+  hand is still the better habit: `CUBE` over three columns is eight grouping
+  sets, most of which nobody asked for, and the query stops saying what the
+  report is.
+
+  The reason to do this in one statement rather than four UNIONed queries is that
+  the engine scans and hashes the input once and feeds every grouping set from
+  the same pass. Four separate queries means four scans and four hash tables over
+  the same 200 rows — here, nothing; over a billion-row fact table, the
+  difference between a report that runs and one that gets killed.
+
+  The cost you accept is that every grouping set must share one output schema.
+  That is why `day` has to be nullable in the result: there is no date value that
+  means "all days", and inventing one would break the column's type.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 55
+      message: >-
+        Expected 55 rows (40 language-day + 4 language + 10 day + 1 total). 45
+        rows is `ROLLUP`, which cannot produce the per-day totals.
+    - type: syntax
+      pattern: "grouping\\s+sets"
+      negate: false
+      message: >-
+        The four cuts are not a hierarchy, so name them explicitly with
+        `GROUPING SETS` rather than reaching for `ROLLUP`.
+    - type: predicate
+      sql: "SELECT count(*) FILTER (WHERE scope = 'day') = 10 AND count(*) FILTER (WHERE scope = 'language') = 4 AND count(*) FILTER (WHERE scope = 'total') = 1 AND count(*) FILTER (WHERE scope = 'language-day') = 40 FROM __learner"
+      message: >-
+        The scope labels should split 40 / 4 / 10 / 1. Check the mapping from the
+        two `GROUPING` values onto the four names.
+    - type: predicate
+      sql: "SELECT sum(downloads) = 1455360 FROM __learner"
+      message: >-
+        Each of the four cuts covers the same 363,840 downloads, so the whole
+        result sums to four times that.
+    - type: predicate
+      sql: "SELECT count(*) = 0 FROM __learner WHERE language IS NULL"
+      message: >-
+        Rows where the language is rolled up need the literal `(all)`, not a
+        NULL.
+    - type: plan
+      notContains: ["CROSS_PRODUCT"]
+      message: >-
+        Join `downloads` to `packages` on `package_id`; without the condition
+        every download row is paired with every package.

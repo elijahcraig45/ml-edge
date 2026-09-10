@@ -1,0 +1,91 @@
+id: avl-rotations
+kind: python
+title: AVL insert, rotations included
+difficulty: 4
+pattern: self-balancing-tree
+topics: [trees, balancing]
+timeLimitMs: 15000
+prompt: |
+  Nodes are `(value, left, right, height)`. `height(None)` is `0`, and a leaf
+  has height `1`. Two helpers are given to you in the starter: `height(node)`
+  and `make(value, left, right)`, which computes the height for you.
+
+  Implement three functions:
+
+  - `rotate_left(node)` — the node's right child becomes the new root of this
+    subtree.
+  - `rotate_right(node)` — the node's left child becomes the new root.
+  - `avl_insert(node, value)` — a BST insert that rebalances on the way back
+    up, so every node ends with a balance factor in $\{-1, 0, +1\}$. Ignore a
+    value that is already present.
+
+  ```
+  tree = None
+  for v in [1, 2, 3]:
+      tree = avl_insert(tree, v)
+  tree[0]      # 2  — not 1: the Right-Right case rotated it
+  tree[3]      # 2  — height, not 3
+  ```
+
+  Do not import anything. The hidden tests insert 1 through 1,000 in ascending
+  order — the input that turns a plain BST into a 1,000-node chain — and check
+  that every node's stored height is correct and every balance factor is within
+  one.
+hints:
+  - "Write the two rotations first and test them by comparing inorder sequences before and after. A rotation that changes the sorted order is wrong, and nothing built on it can be right."
+  - "Inside a rotation, build the demoted node before the promoted one: the promoted node's height depends on it. `make` reads its children's stored heights, so the order of the two calls matters."
+  - "After the recursive insert, compute bf = height(left) - height(right). bf > 1 is left-heavy; check whether the left child leans right (height(left[1]) < height(left[2])) to tell Left-Right from Left-Left. Mirror it for bf < -1."
+solutionWalkthrough: |
+  ```python
+  def rotate_right(node):
+      value, left, right, _ = node
+      lv, ll, lr, _ = left
+      return make(lv, ll, make(value, lr, right))
+
+  def rotate_left(node):
+      value, left, right, _ = node
+      rv, rl, rr, _ = right
+      return make(rv, make(value, left, rl), rr)
+
+  def rebalance(node):
+      value, left, right, _ = node
+      bf = height(left) - height(right)
+      if bf > 1:
+          if height(left[1]) < height(left[2]):     # Left-Right
+              node = make(value, rotate_left(left), right)
+          return rotate_right(node)
+      if bf < -1:
+          if height(right[2]) < height(right[1]):   # Right-Left
+              node = make(value, left, rotate_right(right))
+          return rotate_left(node)
+      return node
+
+  def avl_insert(node, value):
+      if node is None:
+          return (value, None, None, 1)
+      v, left, right, _ = node
+      if value < v:
+          return rebalance(make(v, avl_insert(left, value), right))
+      if value > v:
+          return rebalance(make(v, left, avl_insert(right, value)))
+      return node
+  ```
+
+  Each rotation is one line of unpacking and one nested `make`. Writing
+  `make(value, lr, right)` *inside* the outer `make` is not stylistic: `make`
+  reads its children's stored heights, so the demoted node has to exist with a
+  correct height before the promoted node is built. Assemble them in the other
+  order and the promoted node records a stale height, the tree keeps passing
+  small tests, and it quietly stops being balanced.
+
+  The two comparisons in `rebalance` are strict inequalities on purpose. When
+  the heavier child's two subtrees are the same height — which happens during
+  deletion, not insertion — the straight rotation is the correct choice, and
+  `<` selects it. A `<=` there would apply a double rotation where a single one
+  was needed and leave the node still unbalanced.
+
+  The alternative to all of this is to rebuild an unbalanced subtree from its
+  sorted contents. That also produces a balanced tree, and it costs $O(k)$ for a
+  subtree of $k$ nodes instead of $O(1)$. Scapegoat trees make exactly that
+  trade — rare, expensive repairs instead of constant cheap ones — and win when
+  reads dominate writes heavily enough that amortised cost is all that matters.

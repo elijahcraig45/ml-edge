@@ -1,0 +1,60 @@
+id: interval-scheduling
+kind: python
+title: The most jobs one machine can run
+difficulty: 2
+pattern: exchange-argument
+topics: [greedy, scheduling]
+timeLimitMs: 15000
+prompt: |
+  Each job is a pair `(start, end)` meaning it occupies the machine over the
+  half-open interval $[\text{start}, \text{end})$ — so a job ending at 5 and one
+  starting at 5 do not conflict. Return the largest number of jobs that can run
+  without overlap.
+
+  ```
+  max_non_overlapping([(0, 10), (1, 2), (3, 4), (5, 6)])   # 3
+  max_non_overlapping([(0, 5), (4, 6), (5, 10)])           # 2
+  max_non_overlapping([(1, 3), (3, 5)])                    # 2
+  max_non_overlapping([])                                  # 0
+  ```
+
+  Input order is arbitrary, and the input list must not be modified.
+
+  The starter uses the earliest-**start** rule, which is the first thing most
+  people try. It returns 1 on the first example, because one ten-hour job at the
+  front blocks everything behind it. Fix the rule, and be ready to say — in one
+  sentence — why the rule you picked can never lose.
+hints:
+  - "The starter fails because it commits to a job that finishes late. What quantity does the rest of the schedule actually depend on after you commit to a job?"
+  - "Sort by finishing time and sweep. Keep the end of the last accepted job; accept the next one when its start is at least that value."
+  - "Half-open intervals mean `start >= last_end` accepts, not `start > last_end`. Initialise `last_end` to negative infinity so the first job is always accepted, rather than special-casing the empty schedule."
+solutionWalkthrough: |
+  ```python
+  def max_non_overlapping(intervals):
+      count, last_end = 0, float("-inf")
+      for start, end in sorted(intervals, key=lambda job: job[1]):
+          if start >= last_end:
+              count += 1
+              last_end = end
+      return count
+  ```
+
+  $\Theta(n \log n)$ for the sort, $\Theta(n)$ for the sweep, and `sorted`
+  returns a new list so the caller's input is untouched — `intervals.sort()`
+  would not, and that is what the immutability test is watching for.
+
+  The one sentence for the interview: **of all the jobs still compatible with
+  what I have scheduled, the one that finishes earliest leaves the machine free
+  earliest, so it leaves at least as many futures open as any alternative.** The
+  proof track turns that into an exchange argument — swap the greedy job into any
+  optimal schedule, observe that it cannot collide with anything the job it
+  replaced did not collide with, and the schedule stays the same size.
+
+  There is a dynamic program for this too. Sort by finishing time and let
+  $f(i) = \max(f(i-1),\, 1 + f(p(i)))$, where $p(i)$ is the last job compatible
+  with job $i$ — the no-two-adjacent recurrence from Lesson 3 with a
+  binary-searched predecessor instead of $i-1$. It is $\Theta(n \log n)$ as well,
+  and it is the right tool the moment the jobs carry *weights*, because then
+  greedy is wrong: one valuable long job can beat three cheap short ones, and no
+  exchange argument survives. Unweighted, greedy; weighted, DP. That distinction
+  is asked about far more often than either algorithm.

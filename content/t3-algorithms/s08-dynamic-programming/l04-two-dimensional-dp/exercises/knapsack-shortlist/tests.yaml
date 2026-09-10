@@ -1,0 +1,35 @@
+- id: no-reuse
+  label: An item cannot be taken twice
+  code: |
+    assert best_cache_value([(3, 10)], 9) == 10
+- id: classic
+  label: The textbook instance
+  code: |
+    assert best_cache_value([(1, 1), (3, 4), (4, 5), (5, 7)], 7) == 9
+- id: registry-rows
+  label: The seven registry packages under a 700 KB budget
+  code: |
+    items = [(190, 92000), (402, 31880), (22, 20200), (512, 11960),
+             (18, 9080), (71, 7210), (154, 6460)]
+    assert best_cache_value(items, 700) == 153160
+- id: degenerate
+  label: No items, no capacity, or nothing that fits
+  code: |
+    assert best_cache_value([], 700) == 0
+    assert best_cache_value([(1, 5)], 0) == 0
+    assert best_cache_value([(5, 9)], 3) == 0
+- id: duplicates-are-separate
+  label: Two identical items are two items
+  hidden: true
+  code: |
+    # Capacity 4 fits two of the three 2 KB entries, so 6 — not 3, and not 9.
+    assert best_cache_value([(2, 3), (2, 3), (2, 3)], 4) == 6
+- id: exact-fit-and-immutability
+  label: An exact fit is found, and the input list is untouched
+  hidden: true
+  code: |
+    items = [(3, 10), (4, 11)]
+    original = list(items)
+    assert best_cache_value(items, 7) == 21
+    assert best_cache_value(items, 9) == 21
+    assert items == original

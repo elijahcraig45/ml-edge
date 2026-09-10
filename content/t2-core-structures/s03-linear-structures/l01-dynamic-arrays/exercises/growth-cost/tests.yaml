@@ -1,0 +1,36 @@
+- id: empty
+  label: No appends means no resizes and no copies
+  code: |
+    assert growth_cost(0) == (0, 0)
+- id: first-append
+  label: The first append allocates but copies nothing
+  code: |
+    assert growth_cost(1) == (1, 0)
+- id: doubling
+  label: 1000 appends under doubling
+  code: |
+    # Capacities 1, 2, 4, ..., 1024 — eleven allocations, and the copies are
+    # 0 + 1 + 2 + ... + 512 = 1023.
+    assert growth_cost(1000, 2) == (11, 1023)
+- id: quadrupling
+  label: A larger factor resizes less often and copies less
+  code: |
+    # Capacities 1, 4, 16, 64, 256, 1024. Copies: 0 + 1 + 4 + 16 + 64 + 256.
+    assert growth_cost(1000, 4) == (6, 341)
+- id: exact-power
+  label: Filling the block exactly does not trigger an extra resize
+  hidden: true
+  code: |
+    assert growth_cost(1024, 2) == (11, 1023)
+    assert growth_cost(1025, 2) == (12, 2047)
+- id: amortized-bound
+  label: Total copies stay below n * factor / (factor - 1)
+  hidden: true
+  code: |
+    # This is the amortized claim, checked rather than asserted in prose:
+    # doubling never copies more than 2n elements in total, tripling never
+    # more than 1.5n. If your loop copies `capacity` instead of `size`, or
+    # copies on every append, this fails.
+    for n in range(1, 400):
+        assert growth_cost(n, 2)[1] < 2 * n
+        assert growth_cost(n, 3)[1] < 1.5 * n

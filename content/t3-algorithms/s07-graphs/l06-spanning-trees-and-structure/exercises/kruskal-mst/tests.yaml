@@ -1,0 +1,53 @@
+- id: eight-node-graph
+  label: Finds the minimum total on an eight-node graph
+  code: |
+    edges = [
+        (2, "arrowkit", "chunker"),   (3, "chunker", "lazyseq"),
+        (1, "arrowkit", "skiplist"),  (7, "chunker", "indexer"),
+        (4, "arrowkit", "graphwalk"), (9, "graphwalk", "dagrun"),
+        (6, "lazyseq", "skiplist"),   (5, "chunker", "quickselect"),
+        (8, "indexer", "quickselect"),
+    ]
+    nodes = sorted({n for _, u, v in edges for n in (u, v)})
+    assert mst_weight(nodes, edges) == 31
+- id: prefers-cheap-edges
+  label: Takes the cheap edges even when the expensive one comes first
+  code: |
+    # A triangle. The MST is the two light edges; the heavy one closes a cycle.
+    edges = [(100, "a", "b"), (1, "a", "c"), (2, "c", "b")]
+    assert mst_weight(["a", "b", "c"], edges) == 3
+- id: disconnected
+  label: Returns None when the graph cannot be spanned
+  code: |
+    assert mst_weight(["a", "b", "c"], [(1, "a", "b")]) is None
+- id: single-node
+  label: One node needs no edges
+  code: |
+    assert mst_weight(["a"], []) == 0
+- id: parallel-edges
+  label: Two edges between the same pair — the cheaper one is used
+  hidden: true
+  code: |
+    assert mst_weight(["a", "b"], [(9, "a", "b"), (4, "a", "b")]) == 4
+- id: self-loop-never-helps
+  label: A self-loop is always rejected
+  hidden: true
+  code: |
+    assert mst_weight(["a", "b"], [(1, "a", "a"), (5, "a", "b")]) == 5
+- id: ties
+  label: Equal weights still produce the right total
+  hidden: true
+  code: |
+    edges = [(1, "a", "b"), (1, "b", "c"), (1, "a", "c"), (1, "c", "d")]
+    assert mst_weight(["a", "b", "c", "d"], edges) == 3
+- id: long-chain-needs-compression
+  label: A 3,000-node chain does not overflow the stack
+  hidden: true
+  code: |
+    # The unit-weight edges build one long chain, then the final edge forces a
+    # find() from the far end of it. A recursive find() raises RecursionError
+    # here; the iterative two-loop version does not.
+    n = 3000
+    nodes = list(range(n))
+    edges = [(1, i, i + 1) for i in range(n - 1)] + [(2, 0, n - 1)]
+    assert mst_weight(nodes, edges) == n - 1

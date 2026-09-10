@@ -1,0 +1,33 @@
+- id: basic
+  label: Finds the longest repeat-free stretch
+  code: |
+    assert longest_unique_run(["a", "b", "c", "a", "b", "d"]) == 4
+- id: all-same
+  label: Every element identical gives a run of one
+  code: |
+    assert longest_unique_run(["x", "x", "x"]) == 1
+- id: empty
+  label: An empty log has a run of zero
+  code: |
+    assert longest_unique_run([]) == 0
+- id: no-repeats
+  label: A log with no repeats is entirely one run
+  code: |
+    assert longest_unique_run([1, 2, 3, 4]) == 4
+- id: stale-sighting
+  label: A duplicate from outside the window does not shrink it
+  hidden: true
+  code: |
+    # After the second "a" the window starts at index 3; the "b" at index 1 is
+    # already behind the left edge and must not drag it back.
+    assert longest_unique_run(["a", "b", "b", "a", "c", "d"]) == 4
+    assert longest_unique_run(["a", "b", "a", "c", "b", "d", "e"]) == 5
+- id: single-and-mixed-types
+  label: One element, and values that are not strings
+  hidden: true
+  code: |
+    assert longest_unique_run(["only"]) == 1
+    assert longest_unique_run([0, 0, 1, 2, 0, 3]) == 4
+    original = [1, 1, 2]
+    longest_unique_run(original)
+    assert original == [1, 1, 2], "the input must not be modified"

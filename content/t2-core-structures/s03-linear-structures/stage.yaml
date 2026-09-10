@@ -1,0 +1,34 @@
+id: s03-linear-structures
+tier: t2-core-structures
+order: 3
+title: "Linear Structures: Contiguous and Linked"
+status: published
+thesis: >-
+  There are two ways to lay a sequence out in memory — one block, or many
+  blocks joined by pointers — and every trade-off in this stage falls out of
+  that choice. A database makes the same choice one floor up: rows packed
+  together, or columns packed together.
+summary: >-
+  Six lessons on sequences. You will prove why a Python list can grow forever
+  and still cost O(1) per append, measure a linked list losing to an array on a
+  traversal the two share an asymptotic bound for, build a ring buffer with the
+  off-by-one that everyone writes the first time, and discover that a Python
+  generator is the exact iterator protocol a query engine uses to move rows
+  between operators. The stage ends on joins — including the fan-out trap,
+  which silently multiplies a SUM and is the most expensive bug in this
+  curriculum.
+outcomes:
+  - Explain why geometric growth makes append O(1) amortized and additive growth does not, and give the accounting argument.
+  - Predict which of an array or a linked list wins a given workload, and name the memory-hierarchy reason rather than the asymptotic one.
+  - Implement a fixed-capacity ring buffer, including the full/empty ambiguity, without using collections.deque.
+  - Write a generator that stays lazy under composition, and describe it as a Volcano-model operator.
+  - Choose between inner, left, full, cross, semi and anti joins from the shape of the question being asked.
+  - Spot a fan-out before you run the query, and fix it by pre-aggregating instead of adding DISTINCT.
+  - Use GROUP BY / HAVING and UNION / INTERSECT / EXCEPT, and say which Python set operation each one is.
+lessons:
+  - l01-dynamic-arrays
+  - l02-linked-lists-and-locality
+  - l03-stacks-queues-deques
+  - l04-generators-and-the-volcano-model
+  - l05-joins-and-fan-out
+  - l06-grouping-and-set-operations

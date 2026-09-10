@@ -1,0 +1,62 @@
+id: pa-widest-chart-block
+kind: python
+title: Largest solid block in a download chart
+difficulty: 4
+pattern: monotonic-stack
+stage: s03-linear-structures
+topics:
+  - arrays
+  - stacks
+timeLimitMs: 20000
+prompt: |
+  A dashboard draws one bar per version, all the same width, with heights given
+  by `heights` (each zero or positive). Find the largest axis-aligned rectangle
+  that fits entirely inside the bars, and return its area. A rectangle spanning
+  bars `i` through `j` has height equal to the shortest bar in that span and
+  width `j - i + 1`.
+
+  ```
+  widest_block([2, 1, 5, 6, 2, 3])   # 10   -> bars 2..3 at height 5
+  widest_block([4])                  # 4
+  widest_block([])                   # 0
+  ```
+
+  Trying every pair of endpoints is O(n²) at best. Aim for one pass.
+hints:
+  - "Turn the question around: instead of asking about spans, ask about bars. Every candidate rectangle has some bar as its shortest bar, so ask how far left and right each bar can stretch before hitting something shorter."
+  - "That is two nearest-smaller queries per bar, and a monotonic stack answers both in one pass. When a bar is popped, the bar arriving now is its right boundary and the new stack top is its left boundary."
+  - "Keep indices on a stack with non-decreasing heights. On popping index `top` at position `i`, the width is `i - stack[-1] - 1` if the stack is non-empty and `i` otherwise. Run one extra iteration with a height of 0 to flush whatever is still on the stack."
+solutionWalkthrough: |
+  ```python
+  def widest_block(heights):
+      best = 0
+      stack = []
+      for i in range(len(heights) + 1):
+          height = 0 if i == len(heights) else heights[i]
+          while stack and heights[stack[-1]] >= height:
+              top = stack.pop()
+              width = i if not stack else i - stack[-1] - 1
+              area = heights[top] * width
+              if area > best:
+                  best = area
+          stack.append(i)
+      return best
+  ```
+
+  The reframing does all the work: "largest rectangle" is a question about
+  spans, of which there are O(n²), but every rectangle worth considering is
+  pinned by its shortest bar, of which there are n. Each bar contributes exactly
+  one candidate, computed when it is popped.
+
+  `i - stack[-1] - 1` is where this goes wrong most often. After the pop, the
+  new stack top is the nearest bar to the left that is strictly shorter, so the
+  rectangle occupies everything strictly between it and `i`. If the stack is
+  empty, nothing to the left was shorter and the rectangle reaches the start,
+  giving width `i`.
+
+  The sentinel iteration at `i == len(heights)` with height 0 exists so that
+  bars still on the stack at the end — a rising series leaves all of them there
+  — get measured. Without it, `[1, 2, 3]` returns 0.
+
+  O(n) time and O(n) memory. There is no faster answer: you have to look at
+  every bar, and the stack never holds more than one entry per bar.

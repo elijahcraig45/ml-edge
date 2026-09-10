@@ -1,0 +1,110 @@
+id: disjoint-set
+kind: python
+title: Union-find that survives a chain
+difficulty: 3
+pattern: union-find
+topics: [union-find, amortized-analysis]
+timeLimitMs: 20000
+prompt: |
+  Complete `DisjointSet` over the integers `0 .. n-1`. Keep the forest in
+  `self.parent`, a list where a root points at itself.
+
+  - `find(x)` — the root of `x`'s set, **compressing the path** you walked.
+  - `union(a, b)` — merge the two sets. Return `True` if they were separate and
+    have now been merged, `False` if they were already the same set.
+  - `connected(a, b)` — `True` if they share a root.
+  - `self.count` — the number of distinct sets. It starts at `n` and drops by
+    one on each successful union.
+
+  ```
+  ds = DisjointSet(5)
+  ds.union(0, 1)      # True
+  ds.union(1, 0)      # False — already together
+  ds.connected(0, 1)  # True
+  ds.count            # 4
+  ```
+
+  **This exercise has a complexity budget.** The starter is correct: it climbs
+  to the root and attaches one root under the other. It is also the version that
+  turns 30,000 sequential unions into a 30,000-long chain, and the budget
+  rejects it. You need both fixes — attach by rank, and flatten the path inside
+  `find`.
+hints:
+  - "The starter's `union` always attaches root_a under root_b. Union (0,1), then (1,2), then (2,3): draw the forest after three unions and you will see why every later find is a walk."
+  - "Keep a `rank` list alongside `parent`. Attach the lower-ranked root under the higher-ranked one, and only bump the rank when the two are equal."
+  - "In `find`, walk to the root first, then walk the same path a second time repointing every node at the root. Do not write it recursively — the chain in the budget is 30,000 deep and Python's recursion limit is 1,000."
+solutionWalkthrough: |
+  ```python
+  class DisjointSet:
+      def __init__(self, n):
+          self.parent = list(range(n))
+          self.rank = [0] * n
+          self.count = n
+
+      def find(self, x):
+          root = x
+          while self.parent[root] != root:
+              root = self.parent[root]
+          while self.parent[x] != root:
+              self.parent[x], x = root, self.parent[x]
+          return root
+
+      def union(self, a, b):
+          root_a, root_b = self.find(a), self.find(b)
+          if root_a == root_b:
+              return False
+          if self.rank[root_a] < self.rank[root_b]:
+              root_a, root_b = root_b, root_a
+          self.parent[root_b] = root_a
+          if self.rank[root_a] == self.rank[root_b]:
+              self.rank[root_a] += 1
+          self.count -= 1
+          return True
+
+      def connected(self, a, b):
+          return self.find(a) == self.find(b)
+  ```
+
+  The swap in `union` is worth reading twice. Rather than branching three ways
+  on which rank is larger, it normalises so that `root_a` is the taller tree and
+  then has a single attachment line. The rank increment then only has to handle
+  the tie, which is the only case where the tree actually got taller.
+
+  `self.parent[x], x = root, self.parent[x]` is the compression loop, and the
+  simultaneous assignment matters: the right-hand side is evaluated before
+  either name is rebound, so `x` moves to its *old* parent rather than to the
+  root it was just repointed at. Written as two statements in the wrong order it
+  silently terminates after one node.
+
+  Either optimisation alone would pass this budget — union by rank caps the
+  height at $\log_2 n$, and compression alone gives the same bound amortised.
+  What the budget rejects is having neither, which on the sequential unions in
+  the setup builds one chain of 30,000 nodes and makes every `find` a walk down
+  it. That is the whole reason this structure has a reputation for being
+  effectively free: the naive version is not merely slower by a constant, it is
+  a different complexity class.
+
+# Enforces the stated complexity claim. The starter is correct, so only a
+# budget can reject it.
+#
+# Wall-clock rather than line events: the naive find loops in Python and would
+# also be caught by an op counter, but wall-clock keeps the threshold in the
+# same units as the measurement quoted below.
+complexityBudget:
+  setup: |
+    pairs = [(i, i + 1) for i in range(29999)]
+    probes = list(range(0, 30000, 7))
+  call: |
+    ds = DisjointSet(30000)
+    for a, b in pairs:
+        ds.union(a, b)
+    for p in probes:
+        ds.find(p)
+  # Measured on CPython 3: rank + compression ~9ms, the naive starter ~1280ms.
+  # 200ms sits 22x above one and 6x below the other.
+  maxMs: 200
+  message: >-
+    Correct, but the forest degenerated into a chain: 30,000 sequential unions
+    left every element pointing at the next, so each find walks the whole
+    structure. Attach the shorter tree under the taller one (union by rank), and
+    repoint the path at the root inside find (path compression).

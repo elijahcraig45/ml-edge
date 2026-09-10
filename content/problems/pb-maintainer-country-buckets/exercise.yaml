@@ -1,0 +1,72 @@
+id: pb-maintainer-country-buckets
+kind: sql
+title: Grouping when the key is missing
+difficulty: 2
+pattern: null-semantics
+stage: s01-ground-floor
+topics: [aggregation, coalesce]
+datasetId: package-registry
+timeLimitMs: 15000
+prompt: |
+  Two maintainers never disclosed a country. `GROUP BY country` will happily put
+  them together in a group — NULLs group with each other even though they do not
+  *compare* equal to each other — but the group comes back labelled NULL, and a
+  NULL label is not something a report can print.
+
+  Return one row per country bucket:
+
+  - `country` — the ISO code, or the literal string `undisclosed` for the
+    maintainers who did not say
+  - `maintainers` — how many are in the bucket
+  - `first_joined` — the earliest `joined_at` in the bucket
+
+  Order does not matter. No row in your output may have a NULL `country`.
+hints:
+  - "`GROUP BY` already does the right thing here — all the NULLs land in one group. The problem is what that group is called."
+  - "Replace the value before it becomes a grouping key, not after. If you group on the raw column and patch the label in the SELECT list, you are relying on the engine to let you."
+  - "`coalesce(country, 'undisclosed')` returns its first non-NULL argument. Group by that expression and select the same expression."
+solutionWalkthrough: |
+  ```sql
+  SELECT
+    coalesce(country, 'undisclosed') AS country,
+    count(*)                         AS maintainers,
+    min(joined_at)                   AS first_joined
+  FROM maintainers
+  GROUP BY coalesce(country, 'undisclosed');
+  ```
+
+  Five buckets: FI, GB, NL, US, and `undisclosed` with two people in it.
+
+  There are two separate NULL rules colliding here and it is worth keeping them
+  apart. In a `WHERE` clause, `NULL = NULL` is UNKNOWN, so equality never matches
+  a missing value. In `GROUP BY`, `DISTINCT`, and `UNION`, NULLs are treated as
+  *not distinct from* each other, so they collapse into a single group. Both
+  behaviours are in the standard and they are not contradictory — grouping asks
+  "are these indistinguishable?", equality asks "are these the same value?".
+
+  Grouping by the `coalesce` expression rather than by the raw column is the
+  part that matters. DuckDB would also accept `GROUP BY country` here and let the
+  aliased expression through, but that only works because the mapping happens to
+  be one-to-one. Group on the expression you are reporting and the query stays
+  correct when someone later buckets three codes into one region.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 5
+      message: >-
+        Expected 5 buckets: FI, GB, NL, US and one for the undisclosed
+        maintainers.
+    - type: predicate
+      sql: "SELECT count(*) = 0 FROM __learner WHERE country IS NULL"
+      message: >-
+        One of your rows still has a NULL country. The undisclosed bucket has to
+        carry a printable label.
+    - type: predicate
+      sql: "SELECT maintainers = 2 FROM __learner WHERE country = 'undisclosed'"
+      message: >-
+        The `undisclosed` bucket should hold 2 maintainers. If it holds 1, the
+        NULLs did not group together; if it is missing, the label was never
+        applied.

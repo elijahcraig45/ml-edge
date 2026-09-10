@@ -1,0 +1,38 @@
+- id: worked-example
+  label: Twelve kilobytes takes three blocks
+  code: |
+    assert fewest_blocks(12, (1, 3, 4)) == 3
+- id: greedy-would-fail
+  label: Six takes two blocks, not three
+  code: |
+    # Greedy takes the largest block first: 4 + 1 + 1 = three blocks.
+    # The optimum is 3 + 3.
+    assert fewest_blocks(6, (1, 3, 4)) == 2
+- id: impossible
+  label: An unreachable target returns -1
+  code: |
+    assert fewest_blocks(7, (5,)) == -1
+- id: zero
+  label: An empty payload needs no blocks
+  code: |
+    assert fewest_blocks(0, (1, 3, 4)) == 0
+- id: exact-single
+  label: A target that is one block exactly
+  code: |
+    assert fewest_blocks(5, (5,)) == 1
+- id: dead-end-branch
+  label: A size that fits but leads nowhere still returns -1
+  hidden: true
+  code: |
+    # 15 fits inside 20 but leaves 5, which neither size can fill;
+    # 7 + 7 = 14 and 7 + 7 + 7 = 21. Nothing reaches 20.
+    assert fewest_blocks(20, (15, 7)) == -1
+- id: unreachable-inside-reachable
+  label: Unreachable intermediate states must not pollute the table
+  hidden: true
+  code: |
+    # Every odd target is unreachable with even sizes; the even ones must
+    # still come out right rather than inheriting a bogus sentinel.
+    assert fewest_blocks(9, (2, 4)) == -1
+    assert fewest_blocks(10, (2, 4)) == 3
+    assert fewest_blocks(8, (2, 4)) == 2

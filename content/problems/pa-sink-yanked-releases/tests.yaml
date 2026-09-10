@@ -1,0 +1,45 @@
+- id: basic
+  label: Yanked releases move to the end
+  code: |
+    data = ["1.0", None, "1.1", None, "2.0"]
+    sink_yanked(data)
+    assert data == ["1.0", "1.1", "2.0", None, None]
+- id: order-preserved
+  label: Surviving releases keep their relative order
+  code: |
+    data = [None, "c", "a", None, "b"]
+    sink_yanked(data)
+    assert data == ["c", "a", "b", None, None]
+- id: returns-none
+  label: The function mutates and returns nothing
+  code: |
+    data = ["1.0", None]
+    assert sink_yanked(data) is None
+    assert data == ["1.0", None]
+- id: nothing-yanked
+  label: A list with no holes is unchanged
+  code: |
+    data = ["a", "b", "c"]
+    sink_yanked(data)
+    assert data == ["a", "b", "c"]
+- id: all-yanked-and-empty
+  label: All-None and empty lists
+  hidden: true
+  code: |
+    data = [None, None, None]
+    sink_yanked(data)
+    assert data == [None, None, None]
+    data = []
+    sink_yanked(data)
+    assert data == []
+- id: length-preserved
+  label: Nothing is dropped and the length never changes
+  hidden: true
+  code: |
+    data = [None, "x"]
+    sink_yanked(data)
+    assert data == ["x", None]
+    data = ["a", None, "a", None, "a"]
+    sink_yanked(data)
+    assert len(data) == 5
+    assert data == ["a", "a", "a", None, None]

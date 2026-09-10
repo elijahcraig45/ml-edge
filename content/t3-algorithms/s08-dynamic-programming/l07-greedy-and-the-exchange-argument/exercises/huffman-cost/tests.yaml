@@ -1,0 +1,38 @@
+- id: classic
+  label: The textbook alphabet costs 224 bits
+  code: |
+    assert huffman_cost([5, 9, 12, 13, 16, 45]) == 224
+- id: registry-batches
+  label: The ten daily batches from the merging lesson
+  code: |
+    assert huffman_cost([812, 892, 972, 1052, 692, 772, 852, 932, 1012, 1092]) == 30368
+- id: degenerate
+  label: Zero or one symbol needs no bits
+  code: |
+    assert huffman_cost([]) == 0
+    assert huffman_cost([7]) == 0
+- id: two-symbols
+  label: Two symbols each take one bit
+  code: |
+    assert huffman_cost([1, 1]) == 2
+    assert huffman_cost([3, 100]) == 103
+- id: uniform
+  label: Four equal frequencies give a balanced tree
+  code: |
+    assert huffman_cost([10, 10, 10, 10]) == 80
+- id: order-independent
+  label: The answer does not depend on the input order
+  hidden: true
+  code: |
+    base = [4, 1, 3, 2]
+    assert huffman_cost(base) == 19
+    for permuted in ([1, 2, 3, 4], [3, 4, 2, 1], [2, 3, 1, 4]):
+        assert huffman_cost(permuted) == 19, permuted
+- id: no-mutation
+  label: The caller's list is not reordered
+  hidden: true
+  code: |
+    freqs = [45, 5, 13, 12, 16, 9]
+    original = list(freqs)
+    assert huffman_cost(freqs) == 224
+    assert freqs == original, freqs

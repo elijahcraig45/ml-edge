@@ -1,0 +1,31 @@
+- id: basic
+  label: Counts two overlapping stretches
+  code: |
+    assert runs_summing_to([1, 2, 3], 3) == 2
+- id: negatives
+  label: Handles cancelling changes
+  code: |
+    assert runs_summing_to([1, -1, 1, -1], 0) == 4
+- id: empty
+  label: An empty list has no stretches
+  code: |
+    assert runs_summing_to([], 0) == 0
+- id: none-match
+  label: Returns zero when nothing hits the target
+  code: |
+    assert runs_summing_to([1, 2, 3], 100) == 0
+- id: starts-at-day-zero
+  label: Stretches beginning on the first day are counted
+  hidden: true
+  code: |
+    assert runs_summing_to([5], 5) == 1
+    assert runs_summing_to([3, 4, 7], 7) == 2
+- id: zeros-and-repeats
+  label: Runs of zeros, and a repeated running total
+  hidden: true
+  code: |
+    assert runs_summing_to([0, 0, 0], 0) == 6
+    assert runs_summing_to([2, -2, 2, -2, 2], 2) == 6
+    original = [1, -1, 1]
+    runs_summing_to(original, 0)
+    assert original == [1, -1, 1], "the input must not be modified"

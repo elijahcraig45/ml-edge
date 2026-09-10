@@ -1,0 +1,109 @@
+- id: shape
+  label: The instance has 3m vertices and asks for an m-clique
+  code: |
+    n, edges, k = sat_to_clique([(1, -2, 3), (-1, 2, 3), (1, 2, -3)])
+    assert n == 9 and k == 3
+    assert all(u < v for u, v in edges), "edges must be stored as (u, v) with u < v"
+
+- id: edge-rule
+  label: Same clause never adjacent, complementary literals never adjacent
+  code: |
+    n, edges, k = sat_to_clique([(1, -2, 3), (-1, 2, 3)])
+    assert (0, 1) not in edges and (0, 2) not in edges, "no edges inside a clause"
+    assert (3, 4) not in edges, "no edges inside a clause"
+    assert (0, 3) not in edges, "x1 and -x1 are complementary"
+    assert (1, 4) not in edges, "-x2 and x2 are complementary"
+    assert (0, 4) in edges and (2, 5) in edges
+
+- id: yes-instances-preserved
+  label: Every satisfiable formula maps to a graph that has an m-clique
+  code: |
+    from itertools import combinations
+    YES = [
+        [(1, 2, 3)],
+        [(1, -2, 3), (-1, 2, 3)],
+        [(1, 1, 1), (-1, 2, 2)],
+        [(1, 2, 3), (-1, -2, -3), (1, -2, 3)],
+        [(1, -1, 2)],
+        [(1, 2, 2), (-1, 2, 2), (1, -2, -2), (-1, -2, 3)],
+    ]
+    def has_clique(n, edges, k):
+        e = {(min(u, v), max(u, v)) for u, v in edges}
+        return any(all((min(u, v), max(u, v)) in e for u, v in combinations(sub, 2))
+                   for sub in combinations(range(n), k))
+    for clauses in YES:
+        n, edges, k = sat_to_clique(clauses)
+        assert has_clique(n, edges, k), ("satisfiable formula lost its clique", clauses)
+
+- id: no-instances-preserved
+  label: Every unsatisfiable formula maps to a graph with no m-clique
+  code: |
+    from itertools import combinations
+    NO = [
+        [(1, 1, 1), (-1, -1, -1)],
+        [(1, 2, 2), (1, -2, -2), (-1, 2, 2), (-1, -2, -2)],
+        [(1, 1, 1), (2, 2, 2), (-1, -2, -2), (-1, -1, 2), (1, -2, -2)],
+    ]
+    def has_clique(n, edges, k):
+        e = {(min(u, v), max(u, v)) for u, v in edges}
+        return any(all((min(u, v), max(u, v)) in e for u, v in combinations(sub, 2))
+                   for sub in combinations(range(n), k))
+    for clauses in NO:
+        n, edges, k = sat_to_clique(clauses)
+        assert not has_clique(n, edges, k), ("unsatisfiable formula gained a clique", clauses)
+
+- id: certificate-verifies
+  label: The transformed certificate really is a clique of size m
+  code: |
+    from itertools import combinations
+    CASES = [
+        ([(1, 2, 3)], {1: True, 2: False, 3: False}),
+        ([(1, -2, 3), (-1, 2, 3)], {1: True, 2: True, 3: False}),
+        ([(1, 1, 1), (-1, 2, 2)], {1: True, 2: True}),
+        ([(1, 2, 3), (-1, -2, -3), (1, -2, 3)], {1: True, 2: False, 3: False}),
+        ([(1, -1, 2)], {1: False, 2: False}),
+    ]
+    for clauses, assignment in CASES:
+        n, edges, k = sat_to_clique(clauses)
+        cert = set(assignment_to_clique(clauses, assignment))
+        e = {(min(u, v), max(u, v)) for u, v in edges}
+        assert len(cert) == k, ("certificate is the wrong size", clauses, cert)
+        assert all(0 <= v < n for v in cert), ("vertex out of range", clauses, cert)
+        assert all((min(u, v), max(u, v)) in e for u, v in combinations(sorted(cert), 2)), \
+            ("certificate is not a clique", clauses, cert)
+
+- id: one-vertex-per-clause
+  label: The certificate takes exactly one vertex from each clause
+  hidden: true
+  code: |
+    clauses = [(1, 2, 3), (-1, -2, -3), (1, -2, 3)]
+    cert = set(assignment_to_clique(clauses, {1: True, 2: False, 3: False}))
+    assert sorted(v // 3 for v in cert) == [0, 1, 2]
+
+- id: mapper-is-oblivious
+  label: Two formulas with the same clause shape map to the same graph
+  hidden: true
+  code: |
+    # These differ only by renaming variable 3 -> 4. A structural reduction cannot
+    # tell them apart; a reduction that secretly solves the formula might.
+    a = sat_to_clique([(1, -2, 3), (-1, 2, 3)])
+    b = sat_to_clique([(1, -2, 4), (-1, 2, 4)])
+    assert a == b
+
+- id: single-clause
+  label: A one-clause formula needs a 1-clique and has no edges
+  hidden: true
+  code: |
+    n, edges, k = sat_to_clique([(1, 2, 3)])
+    assert n == 3 and k == 1 and edges == set()
+    cert = set(assignment_to_clique([(1, 2, 3)], {1: False, 2: True, 3: False}))
+    assert cert == {1}
+
+- id: tautological-clause
+  label: A clause containing a literal and its negation is handled by the rule
+  hidden: true
+  code: |
+    n, edges, k = sat_to_clique([(1, -1, 2), (1, -1, 2)])
+    # vertex 0 is x1 of clause 0, vertex 4 is -x1 of clause 1: complementary.
+    assert (0, 4) not in edges
+    assert (0, 3) in edges and (1, 4) in edges

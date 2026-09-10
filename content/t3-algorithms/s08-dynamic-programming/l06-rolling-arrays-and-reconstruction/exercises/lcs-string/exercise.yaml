@@ -1,0 +1,80 @@
+id: lcs-string
+kind: python
+title: Return the subsequence, not its length
+difficulty: 3
+pattern: path-reconstruction
+topics: [dynamic-programming, strings, reconstruction]
+timeLimitMs: 15000
+prompt: |
+  Return the longest common subsequence of `a` and `b` **as a string**.
+
+  ```
+  longest_common_subsequence("AGGTAB", "GXTXAYB")       # "GTAB"
+  longest_common_subsequence("quickselect", "quicksort") # "quickst"
+  longest_common_subsequence("abc", "def")               # ""
+  ```
+
+  Optimal answers are not unique, so the tie-break is part of the
+  specification. Backtrack from `dp[len(a)][len(b)]` and at each step:
+
+  - if `a[i-1] == b[j-1]`, take that character and move diagonally;
+  - otherwise move **up** (decrement `i`) when `dp[i-1][j] >= dp[i][j-1]`;
+  - otherwise move left.
+
+  Ties go up. With that rule `("aabbcc", "abcabc")` gives `"aabc"`; the
+  other tie-break gives `"abcc"`, which is equally optimal and is not what the
+  tests want.
+
+  The starter computes the length with a rolling row. That is the correct
+  algorithm for a question nobody asked, and the compression is exactly what
+  makes the real question unanswerable — the neighbours you would compare during
+  the backtrack were overwritten rows ago.
+hints:
+  - "Stop compressing. Build the full (len(a)+1) x (len(b)+1) table first; the backtrack reads cells from every row of it."
+  - "Walk backwards from i = len(a), j = len(b) while both are positive. Matching characters are the only ones that join the answer, and they move you diagonally."
+  - "You are collecting characters from the end of the string forwards, so reverse before joining. `''.join(reversed(out))` — building the string by prepending works too and is quadratic in the answer's length."
+solutionWalkthrough: |
+  ```python
+  def longest_common_subsequence(a, b):
+      n, m = len(a), len(b)
+      dp = [[0] * (m + 1) for _ in range(n + 1)]
+      for i in range(1, n + 1):
+          for j in range(1, m + 1):
+              if a[i - 1] == b[j - 1]:
+                  dp[i][j] = dp[i - 1][j - 1] + 1
+              else:
+                  dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
+
+      out, i, j = [], n, m
+      while i > 0 and j > 0:
+          if a[i - 1] == b[j - 1]:
+              out.append(a[i - 1])
+              i, j = i - 1, j - 1
+          elif dp[i - 1][j] >= dp[i][j - 1]:
+              i -= 1
+          else:
+              j -= 1
+      return "".join(reversed(out))
+  ```
+
+  The fill is unchanged from the value-only version. Everything new is in the
+  second loop, and it costs $O(n + m)$ steps and no extra memory — the table you
+  already built is the record of the decisions.
+
+  The backtrack is asking one question at every cell: *which predecessor could
+  have produced this value?* When the characters match there is only one honest
+  answer, because $dp[i][j] = dp[i-1][j-1] + 1$ and nothing else can reach that
+  number. When they differ, the value came from whichever neighbour is larger —
+  and when they are equal, both are valid, which is where the tie-break earns its
+  place in the specification.
+
+  A common wrong turn is to take the match greedily *and* then compare
+  neighbours, or to compare neighbours first and only take matches when the
+  neighbours tie. Both produce shorter strings on inputs with repeated
+  characters. If the characters match, the diagonal is optimal — that is a fact
+  about the recurrence, not a heuristic.
+
+  If the table will not fit in memory, Hirschberg's algorithm gets you the same
+  string in $\Theta(\min(n,m))$ space at twice the time. It may return a
+  different optimal subsequence, because it breaks ties by choosing the split
+  column, not by choosing a direction.

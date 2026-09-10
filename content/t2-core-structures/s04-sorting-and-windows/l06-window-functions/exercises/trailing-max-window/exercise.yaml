@@ -1,0 +1,89 @@
+id: trailing-max-window
+kind: sql
+title: Sliding-window maximum, the declarative half
+difficulty: 3
+datasetId: package-registry
+pattern: window-frame
+topics: [window-functions, frames]
+timeLimitMs: 15000
+prompt: |
+  The same computation as the Python exercise, written as a frame.
+
+  For every row of `downloads`, return that package's **highest daily download
+  count over that day and the four days before it** — a five-day trailing
+  maximum, reset per package.
+
+  Four columns, named `package_id`, `day`, `count`, `max_5d`, ordered by
+  `package_id` then `day`. All 200 rows.
+
+  ```
+  package_id = 20:
+  770, 850, 490, 570, 650, 730, 810, 450, 530, 610
+   ->  770, 850, 850, 850, 850, 850, 810, 810, 810, 810
+  ```
+
+  Look at day 7 for package 20 above: `max_5d` is 810, **not** 850. The 850 on
+  day 2 has fallen out of the window. A query that returns 850 there has computed
+  a running maximum over the whole history, which is what you get when you write
+  an `ORDER BY` inside `OVER` and let the engine pick the frame for you.
+
+  Say the frame out loud.
+hints:
+  - "You need `max(count) OVER (...)`, with `PARTITION BY` so one package's history never leaks into another's, and `ORDER BY day` so \"the four days before\" means something."
+  - "`ORDER BY` alone is not enough. The default frame is RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW — everything from the start of the partition — which gives a cumulative maximum, not a trailing one."
+  - "Add `ROWS BETWEEN 4 PRECEDING AND CURRENT ROW`. Four preceding rows plus the current row is a five-day window; the engine clips it automatically at the start of each partition."
+solutionWalkthrough: |
+  ```sql
+  SELECT package_id, day, count,
+         max(count) OVER (
+           PARTITION BY package_id
+           ORDER BY day
+           ROWS BETWEEN 4 PRECEDING AND CURRENT ROW
+         ) AS max_5d
+  FROM downloads
+  ORDER BY package_id, day;
+  ```
+
+  **The frame is the exercise.** Drop `ROWS BETWEEN 4 PRECEDING AND CURRENT ROW`
+  and the query still runs, still returns 200 rows, and is wrong on 38 of them —
+  every row where the highest value in the package's whole history sits more than
+  four days back. Nothing warns you. That is why the rule is: if you write
+  `ORDER BY` inside `OVER`, write the frame too.
+
+  **`4 PRECEDING`, not `5`.** The frame includes the current row, so a five-day
+  window is four preceding plus the current one. The engine clips the frame at
+  the partition boundary, so the first four days of each package see shorter
+  windows rather than reaching into the previous package.
+
+  **`PARTITION BY package_id` is not optional.** Without it the whole table is one
+  partition, `ORDER BY day` puts twenty packages on each day, and "four preceding
+  rows" means four arbitrary rows from other packages.
+
+  **What the engine does with this.** It sorts by `(package_id, day)` and makes
+  one pass, carrying a monotonic deque of candidate maxima — precisely the
+  structure the Python exercise asks you to write by hand. `MAX` over a moving
+  frame cannot use the subtract-the-departing-value trick that `SUM` uses,
+  because you cannot un-maximise; the deque exists to answer "what is the largest
+  thing still in the window" without rescanning it.
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: syntax
+      pattern: "\\brows\\b"
+      message: >-
+        This needs an explicit ROWS frame. An OVER clause with ORDER BY and no
+        frame gets the RANGE UNBOUNDED PRECEDING default, which is a cumulative
+        maximum rather than a trailing one.
+    - type: rowcount
+      equals: 200
+      message: >-
+        Expected all 200 rows of `downloads` — 20 packages times 10 days. A
+        window function attaches a value to every row; it does not collapse them.
+    - type: predicate
+      sql: >-
+        SELECT (SELECT max_5d FROM __learner WHERE package_id = 20 AND day = DATE '2024-03-07') = 810
+      message: >-
+        On 2024-03-07 package 20 should report 810, not 850. Getting 850 means
+        the frame reaches back to the start of the partition instead of stopping
+        four rows back.

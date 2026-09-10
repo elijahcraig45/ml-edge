@@ -1,0 +1,89 @@
+id: pa-min-nightly-bandwidth
+kind: python
+title: Smallest nightly bandwidth cap
+difficulty: 4
+pattern: binary-search
+stage: s04-sorting-and-windows
+topics:
+  - arrays
+  - greedy
+timeLimitMs: 15000
+prompt: |
+  A mirror must upload `sizes` — a list of package sizes, in the given order —
+  over at most `nights` nights. Each night it uploads a contiguous block of the
+  remaining packages, and it cannot split a package across two nights. Nights
+  may go unused.
+
+  Find the smallest per-night cap that still gets everything uploaded in time.
+
+  ```
+  min_nightly_cap([7, 2, 5, 10, 8], 2)   # 18   -> [7,2,5] then [10,8]
+  min_nightly_cap([7, 2, 5, 10, 8], 5)   # 10
+  min_nightly_cap([], 3)                 # 0
+  ```
+
+  Return `None` when `nights` is zero or negative. Note there is nothing to
+  sort and nothing to look up — the thing you are searching is the answer
+  itself.
+hints:
+  - "You cannot construct the best split directly, but you can answer a much easier question: given a fixed cap, how many nights does a greedy fill actually need? Answering that turns the problem into a search."
+  - "Nights-needed is monotonic in the cap: raise the cap and the number of nights can only fall. So the caps that work form a contiguous upper range, and you are looking for its lower edge — a binary search over values, not over indices."
+  - "Search between `max(sizes)` (below that, one package never fits) and `sum(sizes)` (one night for everything). For each candidate cap, walk the list adding to the current night and starting a new one whenever the cap would be exceeded."
+solutionWalkthrough: |
+  ```python
+  def min_nightly_cap(sizes, nights):
+      if nights <= 0:
+          return None
+      if not sizes:
+          return 0
+
+      def nights_needed(cap):
+          used = 1
+          running = 0
+          for size in sizes:
+              if running + size > cap:
+                  used += 1
+                  running = size
+              else:
+                  running += size
+          return used
+
+      lo, hi = max(sizes), sum(sizes)
+      while lo < hi:
+          mid = (lo + hi) // 2
+          if nights_needed(mid) <= nights:
+              hi = mid
+          else:
+              lo = mid + 1
+      return lo
+  ```
+
+  The move is to stop searching for the answer and start *testing* answers.
+  Checking one cap is a linear greedy pass; that check is monotonic, so binary
+  search applies to the answer range even though there is no sorted array
+  anywhere in the problem. The recognition trigger is a question of the form
+  "smallest X such that something is still possible".
+
+  Both bounds have to be justified or the search is wrong rather than merely
+  slow. `max(sizes)` is the floor because a cap below the largest package makes
+  the task impossible, not just tight; `sum(sizes)` is a ceiling because it
+  always finishes in one night. Starting at `lo = 1` still works and wastes a
+  few iterations; starting at `hi = max(sizes)` silently returns a cap that
+  cannot upload anything.
+
+  Cost is O(n log(sum)) — a handful of linear passes. The alternative, an exact
+  dynamic program over splits, is O(n² · nights) and only worth it if you also
+  need the split itself rather than the cap.
+complexityBudget:
+  setup: |
+    data = [(i * 7919) % 40000 + 1 for i in range(2000)]
+  call: |
+    min_nightly_cap(data, 1000)
+  # Measured on CPython 3.13: the binary search takes ~2ms, walking the cap up
+  # one unit at a time from max(sizes) takes ~720ms. 100ms is 50x above one and
+  # 7x below the other.
+  maxMs: 100
+  message: >-
+    Correct, but too slow: this tried caps one at a time. The set of workable
+    caps is contiguous, so binary search the range between max(sizes) and
+    sum(sizes) instead of walking it.

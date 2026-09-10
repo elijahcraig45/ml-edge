@@ -1,0 +1,33 @@
+id: s06-trees-and-indexes
+tier: t2-core-structures
+order: 6
+title: "Trees and Indexes"
+status: published
+thesis: >-
+  An index is a data structure your database maintains for you. You should be
+  able to build it.
+summary: >-
+  Eight lessons that start with a binary tree and end with a query plan. You
+  will write all four traversals twice — once with recursion and once with a
+  stack you can see — implement AVL rotations and a heap from scratch, prove
+  the two theorems that make those structures worth using, and then meet the
+  same ideas again as B+ trees, CREATE INDEX, and the left-prefix rule. The
+  stage closes with union-find, which is a forest of trees that only point
+  upward and the cheapest useful structure there is.
+outcomes:
+  - Walk a binary tree in all four orders, recursively and with an explicit stack, and say what the stack is holding.
+  - Implement BST search, insert and delete — including the two-child case — and explain how sorted input degenerates a BST into a linked list.
+  - Rebalance with the four AVL rotation cases and state the height bound the rotations buy.
+  - Build a binary heap on a flat array and prove that bottom-up heapify costs O(n), not O(n log n).
+  - Explain why `LIKE 'abc%'` can use a B-tree index and `LIKE '%abc'` cannot, and demonstrate it in a query plan.
+  - Read an execution plan, write sargable predicates, and order the columns of a composite index correctly.
+  - Implement union-find with union by rank and path compression, and say what each of the two optimisations buys on its own.
+lessons:
+  - l01-binary-trees-and-traversal
+  - l02-binary-search-trees
+  - l03-rotations-and-avl
+  - l04-heaps
+  - l05-tries-and-prefix-search
+  - l06-b-trees-and-external-memory
+  - l07-sql-indexes
+  - l08-union-find

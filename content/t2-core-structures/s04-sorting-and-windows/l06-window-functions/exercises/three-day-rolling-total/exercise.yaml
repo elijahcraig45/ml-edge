@@ -1,0 +1,102 @@
+id: three-day-rolling-total
+kind: sql
+title: A rolling three-day total, at row grain
+difficulty: 4
+datasetId: package-registry
+pattern: window-frame
+topics: [window-functions, frames, rows-vs-range]
+timeLimitMs: 15000
+prompt: |
+  Attach to **every row** of `downloads` the total downloads across the *whole
+  registry* for that day and the two days before it.
+
+  Four columns named `day`, `package_id`, `count`, `rolling_3d`, ordered by `day`
+  then `package_id`. All 200 rows.
+
+  The first three days of the registry total 36620, 36460 and 36300, so:
+
+  ```
+  2024-03-01  ->  36620            (one day available)
+  2024-03-02  ->  73080            (two days)
+  2024-03-03  -> 109380            (three days)
+  ```
+
+  Every row sharing a day gets the same `rolling_3d`, because the number
+  describes the day rather than the row.
+
+  This is the mirror image of the running-total exercise. There, counting
+  physical rows was the right answer. Here, twenty rows share each day, so "the
+  two days before" cannot be counted in rows at all — a three-row frame reaches
+  back about a seventh of a day. Say what you mean in the frame.
+hints:
+  - "`ROWS BETWEEN 2 PRECEDING AND CURRENT ROW` is the wrong frame here. Work out how many physical rows three days actually is before you try to fix it."
+  - "There are twenty rows per day, so three days is sixty rows — and you cannot hardcode that, because the number of packages changes. You need a frame that counts *values of the sort key* rather than rows."
+  - "`RANGE BETWEEN 2 PRECEDING AND CURRENT ROW` over `ORDER BY day` means \"every row whose day is within two days of this one, up to and including today\". DuckDB also accepts the explicit `INTERVAL 2 DAY PRECEDING` spelling."
+solutionWalkthrough: |
+  ```sql
+  SELECT day, package_id, count,
+         sum(count) OVER (
+           ORDER BY day
+           RANGE BETWEEN 2 PRECEDING AND CURRENT ROW
+         ) AS rolling_3d
+  FROM downloads
+  ORDER BY day, package_id;
+  ```
+
+  **This is the case where `RANGE` is the correct answer and `ROWS` is the bug** —
+  the exact reverse of the running-total exercise, with the same data and the
+  same shape of mistake. That is the point of doing both. Neither frame is the
+  safe default; they answer different questions, and the question here is about
+  *days*, which is what the sort key measures.
+
+  Swap in `ROWS BETWEEN 2 PRECEDING AND CURRENT ROW` and every one of the 200
+  rows is wrong. Three physical rows out of twenty per day is about three hours
+  of registry activity, not three days, and the answer changes if a package is
+  added.
+
+  **The peer behaviour is a feature here.** `RANGE` includes every row tied with
+  the current row on the sort key, which is precisely why all twenty of a day's
+  rows report the same total. In the running-total exercise that peer inclusion
+  was the silent bug. Same mechanism, opposite verdict — and the only way to know
+  which you want is to say what the number is supposed to mean.
+
+  **The alternative, and why the frame is usually better.** You can aggregate to
+  daily totals first and join back:
+
+  ```sql
+  WITH daily AS (SELECT day, sum(count) AS total FROM downloads GROUP BY day),
+  rolled AS (
+    SELECT day, sum(total) OVER (ORDER BY day ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS rolling_3d
+    FROM daily
+  )
+  SELECT d.day, d.package_id, d.count, r.rolling_3d
+  FROM downloads d JOIN rolled r ON r.day = d.day
+  ORDER BY d.day, d.package_id;
+  ```
+
+  Identical output, and once the grain is one row per day, `ROWS` is correct
+  again — the sort key is unique there. It reads the table twice and materialises
+  an intermediate, but it is what you write on an engine whose `RANGE` support is
+  limited to `UNBOUNDED`, which is still common. Knowing both spellings is worth
+  more than a preference between them.
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 200
+      message: Expected all 200 rows of `downloads`, each carrying the day's rolling total.
+    - type: predicate
+      sql: >-
+        SELECT (SELECT count(DISTINCT rolling_3d) FROM __learner WHERE day = DATE '2024-03-03') = 1
+        AND (SELECT max(rolling_3d) FROM __learner WHERE day = DATE '2024-03-03') = 109380
+      message: >-
+        Every row of 2024-03-03 should read 109380 — the totals for 03-01, 03-02
+        and 03-03 added together. Different values within one day mean the frame
+        is counting rows instead of days.
+    - type: predicate
+      sql: >-
+        SELECT (SELECT max(rolling_3d) FROM __learner WHERE day = DATE '2024-03-01') = 36620
+      message: >-
+        On the first day only one day is available, so rolling_3d is that day's
+        own total, 36620.

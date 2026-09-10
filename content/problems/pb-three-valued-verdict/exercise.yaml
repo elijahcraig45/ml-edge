@@ -1,0 +1,80 @@
+id: pb-three-valued-verdict
+kind: sql
+title: All three truth values, counted
+difficulty: 3
+pattern: null-semantics
+stage: s01-ground-floor
+topics: [case, aggregation]
+datasetId: package-registry
+timeLimitMs: 15000
+prompt: |
+  `license = 'MIT'` does not return a boolean. It returns one of three things:
+  TRUE, FALSE, or UNKNOWN. Prove it by counting how many packages land in each.
+
+  Return exactly three rows and two columns:
+
+  - `verdict` — the strings `true`, `false`, `unknown`
+  - `packages` — how many packages the expression evaluates to that way
+
+  Every one of the 20 packages must be counted exactly once. Order does not
+  matter.
+
+  The tempting shape is `CASE WHEN license = 'MIT' THEN 'true' ELSE 'false' END`,
+  which quietly reports 11 FALSE rows. Only 7 packages are actually known not to
+  be MIT.
+hints:
+  - "A two-branch CASE can only produce two answers. You are being asked for three."
+  - "`CASE` takes the first branch whose condition is TRUE. A condition that evaluates to UNKNOWN is not taken — which means the UNKNOWN rows fall through to whatever comes last."
+  - "Write the FALSE case explicitly as `WHEN license <> 'MIT' THEN 'false'`, and let `ELSE` catch only the rows where neither comparison was TRUE. Those are exactly the NULLs."
+solutionWalkthrough: |
+  ```sql
+  SELECT
+    CASE
+      WHEN license = 'MIT'  THEN 'true'
+      WHEN license <> 'MIT' THEN 'false'
+      ELSE 'unknown'
+    END      AS verdict,
+    count(*) AS packages
+  FROM packages
+  GROUP BY 1;
+  ```
+
+  Nine TRUE, seven FALSE, four UNKNOWN. Twenty in total.
+
+  The three branches are not redundant. `license = 'MIT'` is TRUE for nine rows
+  and UNKNOWN for four; `license <> 'MIT'` is TRUE for seven and UNKNOWN for the
+  same four. `CASE` only takes a branch whose condition is TRUE, so the four
+  rows where both comparisons are UNKNOWN fall through to `ELSE` — which is how
+  you get a bucket for the third truth value out of an expression that can only
+  ever hand you TRUE or not-TRUE.
+
+  This is the shape to reach for whenever a nullable column feeds a
+  classification. The two-branch version is not merely imprecise, it is
+  *directionally* wrong: it inflates whichever bucket sits in the `ELSE`, and
+  which bucket that is depends on the order someone happened to write the
+  branches in. A reviewer cannot see the bug by reading the output — 11 is a
+  perfectly plausible number.
+
+  DuckDB will also give you the same three buckets from
+  `GROUP BY license = 'MIT'` plus a `coalesce` on the label, because grouping
+  treats NULLs as one group. That is shorter, and it is worse: the reader has to
+  already know the three-valued rule to see why there are three groups instead of
+  two.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 3
+      message: >-
+        Expected 3 rows — one per truth value. Two rows means the UNKNOWN
+        packages were folded into the FALSE bucket.
+    - type: predicate
+      sql: "SELECT sum(packages) = 20 FROM __learner"
+      message: Every package must be counted exactly once, and there are 20 of them.
+    - type: predicate
+      sql: "SELECT count(*) = 1 FROM __learner WHERE verdict = 'unknown' AND packages = 4"
+      message: >-
+        Four packages have no license, so `license = 'MIT'` is UNKNOWN for four
+        rows. The `false` bucket should hold 7, not 11.

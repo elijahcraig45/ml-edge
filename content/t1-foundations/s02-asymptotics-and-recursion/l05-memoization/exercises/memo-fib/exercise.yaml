@@ -1,0 +1,87 @@
+id: memo-fib
+kind: python
+title: Collapse an exponential recursion with a cache you write yourself
+difficulty: 3
+pattern: memoization
+topics: [memoization, recursion]
+timeLimitMs: 30000
+prompt: |
+  Write `fib(n)` returning the $n$-th Fibonacci number, with `fib(0) == 0` and
+  `fib(1) == 1`.
+
+  The obvious recursion is correct and it is not enough. **This exercise has a
+  complexity budget**: after the correctness tests pass, your function is called
+  with `n = 34` under a wall-clock ceiling. The naive version takes roughly half
+  a second there and will be rejected; a memoized one takes microseconds.
+
+  `functools` is blocked, so `@cache` and `@lru_cache` are not available. Build
+  the table yourself — this is the one time you should, because the decorator
+  hides exactly the thing you are meant to see.
+
+  ```
+  fib(0)   # 0
+  fib(1)   # 1
+  fib(10)  # 55
+  fib(30)  # 832040
+  ```
+hints:
+  - "Every call to `fib(n-1)` recomputes the entire subtree that `fib(n-2)` needs. Nothing in the recursion remembers a result it already has. What would you have to keep so that each value of `n` is computed at most once?"
+  - "A dictionary from `n` to the answer, living outside the function so it survives between calls. Check it before recursing; fill it after."
+  - "Seed it with the base cases — `{0: 0, 1: 1}` — and the recursive branch stops needing an `if n < 2` guard at all. Store the result before returning it, not after."
+solutionWalkthrough: |
+  ```python
+  _memo = {0: 0, 1: 1}
+
+  def fib(n):
+      if n not in _memo:
+          _memo[n] = fib(n - 1) + fib(n - 2)
+      return _memo[n]
+  ```
+
+  Four lines, and the growth class changed from $\Theta(\varphi^n)$ to
+  $\Theta(n)$.
+
+  Seeding `_memo` with the base cases rather than writing `if n < 2: return n` is
+  a small thing that pays twice. There is one exit path instead of two, and the
+  base cases are stated as *data* — which is what they are, and which makes them
+  trivial to extend if the recurrence changes.
+
+  The order inside the `if` is the part to be careful about. `_memo[n]` is
+  assigned *before* the return, so by the time the outer call resumes, the value
+  is already banked. Computing the result into a local variable and returning it
+  without storing it is a real and common bug: the function stays correct and
+  stays exponential, and the tests would still pass. The budget is what catches
+  it.
+
+  **Where this stops working.** The cache is module-level and never cleared, so
+  it holds every $n$ you have ever asked for. For Fibonacci that is fine — you
+  wanted all of them anyway. For a function of two unbounded arguments it is a
+  memory leak, which is why `lru_cache` takes a `maxsize` and why bounding the
+  key space is a precondition rather than an optimisation.
+
+  **Where it still breaks.** `fib(100000)` raises `RecursionError` even memoized,
+  because top-down memoization still holds one stack frame per level. The
+  bottom-up loop — two variables, no recursion, $\Theta(1)$ space — has no such
+  limit, and that is the version Stage 8 will build.
+
+forbid:
+  - "functools"
+  - "lru_cache"
+
+# Enforces the claim that a correct-but-exponential answer is not acceptable.
+# Both versions return the right number, so only a budget can separate them.
+#
+# Measured under CPython 3.13 on this machine: the naive recursion takes ~460 ms
+# for fib(34); the memoized version takes ~0.02 ms. A 60 ms ceiling sits about
+# 8x below the naive time and three orders of magnitude above the memoized one,
+# so it separates them on a slow CI runner and under Pyodide alike.
+complexityBudget:
+  setup: |
+    target = 34
+  call: |
+    fib(target)
+  maxMs: 60
+  message: >-
+    Correct, but exponential: this recomputed the same subproblems about 18
+    million times to reach fib(34). Keep a dictionary of results outside the
+    function and check it before recursing.

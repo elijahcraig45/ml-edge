@@ -1,0 +1,36 @@
+- id: basic
+  label: Ranks by downloads, then year
+  code: |
+    packages = [("b", 10, 2020), ("a", 10, 2019), ("c", 99, 2021)]
+    assert rank_packages(packages) == ["c", "a", "b"]
+- id: downloads-dominate
+  label: Downloads outrank everything else
+  code: |
+    packages = [("zzz", 5, 1999), ("aaa", 4, 1998)]
+    assert rank_packages(packages) == ["zzz", "aaa"]
+- id: empty
+  label: An empty registry ranks to nothing
+  code: |
+    assert rank_packages([]) == []
+- id: name-breaks-the-last-tie
+  label: Identical downloads and year fall back to the name
+  code: |
+    packages = [("beta", 7, 2020), ("alpha", 7, 2020)]
+    assert rank_packages(packages) == ["alpha", "beta"]
+- id: names-stay-ascending
+  label: Names still sort A to Z among packages tied on everything else
+  hidden: true
+  code: |
+    packages = [("c", 1, 2000), ("a", 1, 2000), ("b", 1, 2000)]
+    assert rank_packages(packages) == ["a", "b", "c"]
+    # A single reverse=True over the whole key would give ["c", "b", "a"].
+    packages = [("z", 2, 2000), ("a", 2, 2000), ("m", 3, 2000)]
+    assert rank_packages(packages) == ["m", "a", "z"]
+- id: single-and-untouched
+  label: One package, zero downloads, and an untouched input
+  hidden: true
+  code: |
+    assert rank_packages([("solo", 0, 2024)]) == ["solo"]
+    original = [("b", 1, 2000), ("a", 1, 2000)]
+    rank_packages(original)
+    assert original == [("b", 1, 2000), ("a", 1, 2000)], "the input must not be modified"

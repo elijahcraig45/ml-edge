@@ -1,0 +1,56 @@
+- id: basic
+  label: Regroups ragged batches into full ones
+  code: |
+    batches = [{"id": [1, 2, 3]}, {"id": [4]}, {"id": [5, 6, 7, 8]}]
+    assert list(rebatch(batches, 3)) == [
+        {"id": [1, 2, 3]}, {"id": [4, 5, 6]}, {"id": [7, 8]}
+    ]
+- id: multiple-columns
+  label: Keeps every column aligned
+  code: |
+    batches = [{"id": [1, 2], "n": ["a", "b"]}, {"id": [3], "n": ["c"]}]
+    assert list(rebatch(batches, 2)) == [
+        {"id": [1, 2], "n": ["a", "b"]},
+        {"id": [3], "n": ["c"]},
+    ]
+- id: empty-input
+  label: An empty stream yields nothing
+  code: |
+    assert list(rebatch([], 4)) == []
+- id: input-bigger-than-size
+  label: One large input batch produces several output batches
+  code: |
+    assert list(rebatch([{"id": [1, 2, 3, 4, 5]}], 2)) == [
+        {"id": [1, 2]}, {"id": [3, 4]}, {"id": [5]}
+    ]
+- id: exact-multiple
+  label: A row count that divides exactly does not leave a trailing empty batch
+  hidden: true
+  code: |
+    out = list(rebatch([{"id": [1, 2]}, {"id": [3, 4]}], 2))
+    assert out == [{"id": [1, 2]}, {"id": [3, 4]}], (
+        "expected two full batches and nothing else, got %r" % out
+    )
+- id: empty-batches-in-the-stream
+  label: Empty input batches are absorbed, not passed through
+  hidden: true
+  code: |
+    batches = [{"id": []}, {"id": [1, 2, 3]}, {"id": []}]
+    out = list(rebatch(batches, 2))
+    assert out == [{"id": [1, 2]}, {"id": [3]}], out
+- id: streams-large-input
+  label: Emits before the whole stream has been read
+  hidden: true
+  code: |
+    pulled = [0]
+    def source():
+        for start in range(0, 100000, 10):
+            pulled[0] += 1
+            yield {"id": list(range(start, start + 10))}
+    it = rebatch(source(), 100)
+    first = next(iter(it))
+    assert len(first["id"]) == 100, len(first["id"])
+    assert pulled[0] <= 12, (
+        "read %d input batches before emitting the first output batch; this "
+        "operator must stream, not collect" % pulled[0]
+    )

@@ -18,23 +18,28 @@ const geistMono = Geist_Mono({
 const siteUrl = "https://mle-edge.dev";
 
 export const metadata: Metadata = {
-  title: "The ML Edge",
+  title: {
+    default: "The ML Edge — DS&A in Python and SQL",
+    template: "%s · The ML Edge",
+  },
   description:
-    "An engineer's console for learning streaks, daily foundations drills, curriculum tracking, and AI news.",
+    "A free data structures and algorithms curriculum from first principles to graduate level, taught in Python and SQL, with every exercise runnable and auto-graded in your browser.",
   applicationName: "The ML Edge",
   metadataBase: new URL(siteUrl),
   keywords: [
-    "machine learning",
-    "data science",
-    "ml engineering",
-    "interactive curriculum",
+    "data structures and algorithms",
+    "dsa course",
+    "python algorithms",
+    "sql window functions",
     "technical interview prep",
-    "ai news",
+    "leetcode practice",
+    "query optimization",
+    "interactive curriculum",
   ],
   openGraph: {
-    title: "The ML Edge",
+    title: "The ML Edge — DS&A in Python and SQL",
     description:
-      "Daily AI signals, authored ML/DS&A curriculum, and a large foundations question bank in one engineer-focused console.",
+      "Every data structure has a relational twin. Learn both together, from first principles to graduate level, with runnable auto-graded exercises.",
     url: siteUrl,
     siteName: "The ML Edge",
     images: [
@@ -50,9 +55,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "The ML Edge",
+    title: "The ML Edge — DS&A in Python and SQL",
     description:
-      "Daily AI signals, authored ML/DS&A curriculum, and a large foundations question bank in one engineer-focused console.",
+      "Every data structure has a relational twin. Learn both together, from first principles to graduate level, with runnable auto-graded exercises.",
     images: ["/og-dashboard.png"],
   },
 };
@@ -68,6 +73,12 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full">
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-indigo-500 focus:px-4 focus:py-2 focus:text-sm focus:text-white"
+        >
+          Skip to content
+        </a>
         <Providers>
           <div className="min-h-screen bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(99,102,241,0.15),transparent)] bg-slate-950 text-slate-100">
             <div className="mx-auto flex min-h-screen max-w-7xl gap-0 lg:gap-8 px-0 lg:px-6 py-0 lg:py-6">
@@ -76,7 +87,7 @@ export default function RootLayout({
                 <div className="px-4 pt-4 lg:hidden">
                   <MobileConsoleNav />
                 </div>
-                <main className="flex-1 overflow-hidden lg:rounded-2xl lg:border lg:border-white/8 lg:bg-slate-900/40 lg:shadow-xl lg:shadow-black/20">
+                <main id="main" className="flex-1 overflow-hidden lg:rounded-2xl lg:border lg:border-white/8 lg:bg-slate-900/40 lg:shadow-xl lg:shadow-black/20">
                   {children}
                 </main>
               </div>

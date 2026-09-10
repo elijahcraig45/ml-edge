@@ -1,0 +1,31 @@
+- id: basic
+  label: Finds a run in shuffled input
+  code: |
+    assert longest_build_run([102, 4, 101, 3, 2, 103]) == 3
+- id: duplicates
+  label: Repeats do not lengthen a run
+  code: |
+    assert longest_build_run([7, 7, 7]) == 1
+- id: empty
+  label: No builds means no run
+  code: |
+    assert longest_build_run([]) == 0
+- id: one-long-run
+  label: A single unbroken run is the whole list
+  code: |
+    assert longest_build_run([5, 3, 4, 1, 2]) == 5
+- id: negatives-and-single
+  label: Negative build numbers, and a single build
+  hidden: true
+  code: |
+    assert longest_build_run([-3, -2, 0, -1, 5]) == 4
+    assert longest_build_run([42]) == 1
+    assert longest_build_run([10, 30, 20]) == 1
+- id: duplicates-inside-a-run
+  label: A repeat inside a run is counted once
+  hidden: true
+  code: |
+    assert longest_build_run([1, 2, 2, 3, 3, 3, 4]) == 4
+    original = [3, 1, 2]
+    longest_build_run(original)
+    assert original == [3, 1, 2], "the input must not be modified"

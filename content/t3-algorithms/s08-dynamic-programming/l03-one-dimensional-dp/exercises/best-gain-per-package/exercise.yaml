@@ -1,0 +1,91 @@
+id: best-gain-per-package
+kind: sql
+title: The one-transaction DP as a window function
+difficulty: 3
+datasetId: package-registry
+pattern: window-function
+topics: [dynamic-programming, sql]
+timeLimitMs: 20000
+prompt: |
+  For every package, find the largest gain you could make by "buying" its
+  download count on one day and "selling" it on a **later** day — the same
+  dynamic program you wrote as a Python loop a moment ago, expressed as a single
+  statement.
+
+  Return two columns, `name` and `best_gain`, sorted by `best_gain` descending
+  and then by `name`. If a package's counts only fall, its best gain is `0`.
+
+  The starter takes the obvious shortcut: `max(count) - min(count)`. Run it and
+  compare. For `memoize` it gets 400, which is right. For `indexer` it gets 400,
+  which is wrong — the true answer is 320, because `indexer`'s maximum comes
+  *before* its minimum, and the shortcut happily sells on a day you had not
+  bought yet.
+
+  Ordering is part of the question, so the comparison is order-sensitive, and
+  the grader requires a window function.
+hints:
+  - "The recurrence is `cheapest(i) = min(cheapest(i-1), a[i])` and then `gain(i) = a[i] - cheapest(i)`. The first of those is a running minimum, and running aggregates are what a window frame computes."
+  - "`min(count) OVER (PARTITION BY package_id ORDER BY day ROWS UNBOUNDED PRECEDING)` gives you the cheapest price up to and including each day. Subtract it from that day's count to get the gain from selling on that day."
+  - "You cannot nest a window function inside an aggregate in one level. Compute the running minimum in a CTE or subquery, then `GROUP BY` the package outside it and take `max(count - cheapest_so_far)`."
+solutionWalkthrough: |
+  ```sql
+  WITH running AS (
+    SELECT package_id,
+           count,
+           min(count) OVER (PARTITION BY package_id
+                            ORDER BY day
+                            ROWS UNBOUNDED PRECEDING) AS cheapest_so_far
+    FROM downloads
+  )
+  SELECT p.name,
+         max(r.count - r.cheapest_so_far) AS best_gain
+  FROM running r
+  JOIN packages p ON p.id = r.package_id
+  GROUP BY p.name
+  ORDER BY best_gain DESC, p.name;
+  ```
+
+  Three parts, each doing one job.
+
+  `PARTITION BY package_id` is the loop reset. Without it the running minimum
+  bleeds across packages and you get the cheapest day of any package, which is a
+  much larger and entirely meaningless number.
+
+  `ORDER BY day ROWS UNBOUNDED PRECEDING` is the DP's direction and its frame:
+  every row from the start of this package up to and including this one. That
+  frame *is* the prefix the recurrence reads. Leave the frame clause off and
+  DuckDB defaults to `RANGE UNBOUNDED PRECEDING`, which happens to give the same
+  answer here because `day` has no duplicates within a package — but the two
+  differ the moment your ordering column has ties, and being explicit costs one
+  line.
+
+  The outer `max(count - cheapest_so_far)` is the second half of the recurrence,
+  $g(i) = \max(g(i-1), a_i - m(i))$, done as an aggregate rather than a running
+  one, because you only want the final value.
+
+  The shortcut in the starter is not merely imprecise. `max(count) - min(count)`
+  answers a question with no time in it, so it is free to sell before it buys.
+  On nine of the twenty packages the minimum happens to fall before the maximum
+  and the two answers agree exactly; on the other eleven the shortcut is too
+  high. A check that passes on nearly half the data and is quietly wrong on the
+  rest is how this class of bug reaches production.
+
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 20
+      message: Every one of the 20 packages should appear, including those whose best gain is small.
+    - type: syntax
+      pattern: "\\bover\\b\\s*\\("
+      message: >-
+        This exercise is about expressing the DP as a window function. Use an
+        OVER clause with a running minimum rather than a self-join or a
+        correlated subquery.
+    - type: predicate
+      sql: "SELECT count(*) = 9 FROM __learner WHERE best_gain = 400"
+      message: >-
+        Exactly 9 packages reach a best gain of 400. If you got more, the
+        running minimum is probably not partitioned by package, or you used
+        max(count) - min(count), which allows selling before buying.

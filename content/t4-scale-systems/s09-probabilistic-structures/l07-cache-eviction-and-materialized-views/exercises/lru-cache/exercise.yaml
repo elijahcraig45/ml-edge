@@ -1,0 +1,94 @@
+id: lru-cache
+kind: python
+title: An LRU cache that is actually O(1)
+difficulty: 3
+pattern: cache-eviction
+topics: [caching, lru, hash-map]
+timeLimitMs: 40000
+prompt: |
+  The starter is a **correct** LRU cache. It passes every correctness test and
+  it is too slow, because `list.remove` and `list.pop(0)` are both linear in the
+  cache size and both run on every access — so enlarging the cache slows every
+  operation down.
+
+  Rewrite it so `get` and `put` are $O(1)$, keeping the same behaviour:
+
+  - `get(key)` returns the value, or `None` if absent, and **counts as a use**.
+  - `put(key, value)` inserts or updates, and evicts the least recently used
+    entry when the cache is over capacity.
+
+  ```
+  c = LRUCache(2)
+  c.put("a", 1); c.put("b", 2)
+  c.get("a")            # 1 — "a" is now the most recent
+  c.put("c", 3)         # evicts "b", not "a"
+  c.get("b")            # None
+  ```
+
+  A **complexity budget** runs 60,000 operations against a 30,000-entry cache.
+  The list version takes about 1.5 seconds and fails; an $O(1)$ version takes
+  about 10 milliseconds.
+
+  Python dicts have preserved insertion order since 3.7, and that is a language
+  guarantee, not an implementation detail. You do not need a linked list.
+hints:
+  - "You need two things at once: constant-time lookup by key, and a notion of which key is oldest. A dict already gives you both — its keys are in insertion order."
+  - "`d.pop(key)` then `d[key] = value` moves a key to the end in O(1). That is 'mark as most recently used'."
+  - "`next(iter(d))` reads the first key without building a list of all of them. That is 'the least recently used entry', and `del d[that]` evicts it."
+solutionWalkthrough: |
+  ```python
+  def get(self, key):
+      if key not in self.store:
+          return None
+      value = self.store.pop(key)
+      self.store[key] = value        # re-insert => now the newest
+      return value
+
+  def put(self, key, value):
+      if key in self.store:
+          self.store.pop(key)
+      elif len(self.store) >= self.capacity:
+          del self.store[next(iter(self.store))]
+      self.store[key] = value
+  ```
+
+  The whole change is that ordering now lives in the dict instead of in a
+  separate list. Pop-and-reinsert is move-to-end; `next(iter(...))` is
+  peek-at-oldest. Both are constant time, and neither touches the other 29,999
+  entries. `collections.OrderedDict` exposes the same two operations under the
+  names `move_to_end` and `popitem(last=False)`, and is worth using when you
+  want the intent to be obvious to a reader.
+
+  In a language without ordered dictionaries this is a hash map from key to node
+  plus a doubly-linked list of nodes, and the reason for the *doubly* linked
+  list is exactly this operation: to unlink a node from the middle in $O(1)$ you
+  must know its predecessor.
+
+  Two details the hidden tests pin down. `get` must count as a use — a cache
+  where reads do not refresh recency is FIFO with extra steps. And membership
+  must be tested with `in`, not truthiness: `if self.store.get(key):` treats a
+  cached `0`, `""` or `None` as a miss, which is a real bug that survives most
+  test suites because most cached values happen to be truthy.
+
+  Where this stops being the right structure: under concurrency. Every `get`
+  here **writes** to the shared dict, so readers contend with each other. That
+  is what CLOCK is for, and it is the next exercise.
+
+complexityBudget:
+  setup: |
+    import random
+    rnd = random.Random(0)
+    requests = [rnd.randrange(40000) for _ in range(60000)]
+  call: |
+    cache = LRUCache(30000)
+    for key in requests:
+        if cache.get(key) is None:
+            cache.put(key, key)
+  # Measured on CPython: the dict version takes ~9ms, the list version ~1500ms.
+  # 400ms sits 44x above one and 3.7x below the other, so it separates them with
+  # room for a slow runner or the extra overhead of Pyodide.
+  maxMs: 400
+  message: >-
+    Correct, but linear per operation: list.remove and list.pop(0) both scan or
+    shift the whole list of keys on every access. Keep the recency order inside
+    an insertion-ordered dict instead, so a hit costs one pop and one insert.

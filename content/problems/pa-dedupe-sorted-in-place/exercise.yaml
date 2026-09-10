@@ -1,0 +1,59 @@
+id: pa-dedupe-sorted-in-place
+kind: python
+title: Compact a sorted version list in place
+difficulty: 3
+pattern: two-pointers
+stage: s04-sorting-and-windows
+topics:
+  - arrays
+  - in-place
+timeLimitMs: 10000
+prompt: |
+  `versions` is a list of version numbers sorted ascending, with repeats.
+  Rewrite the front of the list so that it holds each distinct value once, in
+  the same order, and return how many distinct values there were. Whatever is
+  left beyond that prefix does not matter.
+
+  ```
+  data = [1, 1, 2, 4, 4, 4]
+  n = compact_versions(data)   # n == 3
+  data[:n]                   # [1, 2, 4]
+  ```
+
+  You must modify the caller's list — do not return a new one. Allocating a
+  set, a dict, or a second list defeats the exercise, so `set(`,
+  `dict.fromkeys` and `sorted(` are rejected.
+hints:
+  - "Equal values are adjacent, because the list is sorted. That means you never have to look further back than the last value you decided to keep."
+  - "Use two indices over the same list: one that reads every position, and one that marks where the next kept value should be written. They advance at different rates."
+  - "Start the write index at 1 and read from index 1. Write `versions[read]` to `versions[write]` only when it differs from `versions[write - 1]`, then bump `write`. Return `write`. An empty list returns 0 before the loop starts."
+solutionWalkthrough: |
+  ```python
+  def compact_versions(versions):
+      if not versions:
+          return 0
+      write = 1
+      for read in range(1, len(versions)):
+          if versions[read] != versions[write - 1]:
+              versions[write] = versions[read]
+              write += 1
+      return write
+  ```
+
+  Comparing against `versions[write - 1]` rather than `versions[read - 1]` is
+  the detail that matters. The last *kept* value is the correct thing to compare
+  against; the previous *read* value happens to be the same only because the
+  input is sorted. Write it the other way and the function breaks the moment
+  you reuse the pattern on data that is grouped but not sorted.
+
+  Because `write` never overtakes `read`, every write lands on a slot that has
+  already been read. That is what makes overwriting the list safe, and it is the
+  general licence for in-place compaction: a read pointer that leads a write
+  pointer can destroy everything behind it.
+
+  This is O(n) time and O(1) space. It is only available because the input is
+  sorted; on unsorted input you are back to a set and the extra memory it costs.
+forbid:
+  - "set("
+  - "dict.fromkeys"
+  - "sorted("

@@ -1,0 +1,33 @@
+- id: two-nights
+  label: Splits five packages over two nights
+  code: |
+    assert min_nightly_cap([7, 2, 5, 10, 8], 2) == 18
+- id: one-night-each
+  label: Enough nights means the cap is the largest package
+  code: |
+    assert min_nightly_cap([7, 2, 5, 10, 8], 5) == 10
+- id: single-night
+  label: One night means the cap is the total
+  code: |
+    assert min_nightly_cap([7, 2, 5, 10, 8], 1) == 32
+- id: empty
+  label: Nothing to upload needs no bandwidth
+  code: |
+    assert min_nightly_cap([], 3) == 0
+- id: degenerate-nights
+  label: Zero and negative nights, and more nights than packages
+  hidden: true
+  code: |
+    assert min_nightly_cap([1, 2], 0) is None
+    assert min_nightly_cap([1, 2], -1) is None
+    assert min_nightly_cap([7, 2, 5], 99) == 7
+- id: all-equal-and-single
+  label: Equal sizes, one package, and an untouched input
+  hidden: true
+  code: |
+    assert min_nightly_cap([4, 4, 4, 4], 2) == 8
+    assert min_nightly_cap([4, 4, 4], 2) == 8
+    assert min_nightly_cap([9], 4) == 9
+    original = [3, 1, 4]
+    min_nightly_cap(original, 2)
+    assert original == [3, 1, 4], "the input must not be modified"

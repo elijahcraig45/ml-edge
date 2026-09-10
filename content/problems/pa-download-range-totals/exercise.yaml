@@ -1,0 +1,60 @@
+id: pa-download-range-totals
+kind: python
+title: Answer a lot of date-range totals
+difficulty: 2
+pattern: prefix-sum
+stage: s01-ground-floor
+topics:
+  - arrays
+timeLimitMs: 20000
+prompt: |
+  `daily` holds one download count per day. `ranges` is a list of `(start, end)`
+  index pairs, both ends **inclusive** and both guaranteed to be inside the
+  list. Return a list with one total per range, in the order asked.
+
+  ```
+  range_totals([1, 2, 3, 4], [(0, 1), (1, 3), (2, 2)])   # [3, 9, 3]
+  range_totals([1, 2, 3, 4], [])                          # []
+  ```
+
+  **This one has a complexity budget.** Adding up each range on demand is
+  correct and will be rejected: the checker asks 6,000 wide ranges over 100,000
+  days.
+hints:
+  - "The ranges overlap heavily, so the same days get added over and over. What could you compute once, in a single pass over `daily`, that turns any one range into a fixed amount of work?"
+  - "Build a running-total array: `prefix[i]` is the sum of the first `i` days. Then the total for days `s..e` is the difference of two entries in it."
+  - "Make `prefix` one longer than `daily` with `prefix[0] = 0`. That off-by-one is what lets `prefix[e + 1] - prefix[s]` work for `s == 0` without a special case."
+solutionWalkthrough: |
+  ```python
+  def range_totals(daily, ranges):
+      prefix = [0] * (len(daily) + 1)
+      for i, count in enumerate(daily):
+          prefix[i + 1] = prefix[i] + count
+      return [prefix[end + 1] - prefix[start] for start, end in ranges]
+  ```
+
+  One pass to build, one subtraction per question. The cost moves from
+  `queries * range_width` to `n + queries`, which is the entire reason this
+  structure exists: it pays a fixed setup cost to make an unbounded number of
+  later questions cheap.
+
+  Two things end that deal. If `daily` changes between queries the prefix array
+  is stale, and rebuilding it per update costs O(n) — that is the point where a
+  Fenwick tree, with O(log n) updates and O(log n) queries, takes over. And on
+  floats, `prefix[e + 1] - prefix[s]` subtracts two large numbers that may be
+  nearly equal, so the answer for a short range late in a long series can lose
+  most of its significant digits. Integers have no such problem, which is why
+  this is the standard trick for counts and a hazard for measurements.
+complexityBudget:
+  setup: |
+    data = [(i * 7919) % 997 for i in range(100000)]
+    spans = [((i * 13) % 100000, min(99999, (i * 13) % 100000 + 20000)) for i in range(6000)]
+  call: |
+    range_totals(data, spans)
+  # Measured on CPython 3.13: the prefix-sum solution takes ~6ms, summing each
+  # range on demand ~640ms. 80ms is 13x above one and 8x below the other.
+  maxMs: 80
+  message: >-
+    Correct, but too slow: this re-added the days inside every range, so the
+    work grows with the number of ranges times their width. Build one running-
+    total array first and answer each range with a single subtraction.

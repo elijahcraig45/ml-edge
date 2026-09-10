@@ -1,0 +1,83 @@
+id: lis-fast
+kind: python
+title: Longest increasing subsequence, fast enough to ship
+difficulty: 3
+pattern: patience-lis
+topics: [dynamic-programming, binary-search]
+timeLimitMs: 30000
+prompt: |
+  Return the length of the longest **strictly** increasing subsequence of
+  `values`. A subsequence keeps the original order but need not be contiguous.
+
+  ```
+  longest_increasing([3, 10, 2, 1, 20, 4, 6, 21, 5])   # 4  (3, 4, 6, 21)
+  longest_increasing([2, 2, 3, 3, 4])                  # 3  (2, 3, 4)
+  longest_increasing([5, 4, 3])                        # 1
+  longest_increasing([])                               # 0
+  ```
+
+  Strictly increasing: equal values cannot both be used.
+
+  The starter is the $\Theta(n^2)$ version from the lesson. It is correct, and
+  it will fail this exercise.
+
+  **There is a complexity budget.** The performance check runs 12,000 values.
+  The quadratic solution takes roughly 2.7 seconds on that; the
+  $\Theta(n \log n)$ one takes about a millisecond. There is no middle ground to
+  aim for — you need the version that indexes by length rather than by
+  position.
+hints:
+  - "The quadratic version searches earlier positions for the best length. Flip the table around: index by length, and store the smallest value that can end a subsequence of that length."
+  - "Keep an array `tails` where `tails[k]` is the smallest possible last element of an increasing subsequence of length k+1. It is strictly increasing, which is what lets you binary search it. The answer is its length."
+  - "For each value x: `k = bisect_left(tails, x)`. If k is past the end, append x. Otherwise overwrite `tails[k] = x`. `bisect_left` rather than `bisect_right` is what makes the result strictly increasing rather than non-decreasing."
+solutionWalkthrough: |
+  ```python
+  from bisect import bisect_left
+
+  def longest_increasing(values):
+      tails = []
+      for x in values:
+          k = bisect_left(tails, x)
+          if k == len(tails):
+              tails.append(x)
+          else:
+              tails[k] = x
+      return len(tails)
+  ```
+
+  Both versions compute the same quantity; only the indexing differs. The
+  quadratic one stores "best length ending at position $i$" and has to search
+  all earlier positions to extend. This one stores "smallest tail for length
+  $k+1$" and finds the right slot with a binary search, because the array is
+  sorted — and it is sorted for a reason about the problem, not by accident: a
+  length-5 increasing subsequence contains a length-4 one ending strictly lower,
+  so `tails[4] > tails[3]` always. If that were not true, the binary search
+  would be silently wrong rather than slow.
+
+  `bisect_left` is the strictness. It returns the first index whose entry is
+  $\ge x$, so an equal value overwrites its own slot rather than extending the
+  array; a duplicate cannot lengthen a strictly increasing subsequence.
+  Switching to `bisect_right` gives you the longest *non-decreasing*
+  subsequence, which is a different and equally common question. Knowing that
+  the difference between the two problems is one letter of one function name is
+  worth more than memorising either.
+
+  What you give up: `tails` is a table of bounds, not a witness. It usually is
+  not even a subsequence of the input. Returning the actual subsequence needs a
+  parallel array of parent indices, and that is Lesson 6.
+
+# Measured with CPython 3.13 on the authoring machine, n = 12,000:
+#   quadratic version: ~2680 ms
+#   patience version:  ~1.3 ms
+# 300 ms is ~9x below the quadratic solution and ~230x above the fast one, so
+# the gap survives Pyodide's interpreter overhead and a busy CI runner.
+complexityBudget:
+  setup: |
+    big = [(i * 7919 + 13) % 100003 for i in range(12000)]
+  call: |
+    longest_increasing(big)
+  maxMs: 300
+  message: >-
+    Correct, but quadratic: for each element this searches every earlier
+    element. Index the DP by subsequence length instead of by position — the
+    resulting array is sorted, so the search becomes a binary search.

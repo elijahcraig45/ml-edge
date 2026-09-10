@@ -1,0 +1,95 @@
+id: clique-to-vertex-cover
+kind: python
+title: "Karp reduction: clique to vertex cover"
+difficulty: 4
+pattern: reduction
+topics: [np-hard, reduction, graphs]
+timeLimitMs: 20000
+prompt: |
+  The second link in the chain. Clique asks for a set where **every** pair is
+  joined; vertex cover asks for a set that **touches** every edge. Complementing
+  the graph turns one into the other, and complementing the set turns one
+  certificate into the other.
+
+  **Instance formats.** A clique instance is `(n, edges, k)`; a vertex-cover
+  instance is `(n, edges, k)` too, read as "is there a cover of size at most
+  `k`?". `edges` is a collection of `(u, v)` pairs with `u < v`; vertices are
+  `0 .. n-1`. Graphs are simple: no self-loops, no repeated edges.
+
+  **Write two functions.**
+
+  `clique_to_vertex_cover(n, edges, k)` returns the vertex-cover instance whose
+  answer is the same as the clique instance's.
+
+  `clique_to_cover_certificate(n, edges, k, clique)` takes a clique of size `k`
+  in the original graph and returns a vertex cover of size at most `k'` in the
+  graph you produced.
+
+  ```
+  clique_to_vertex_cover(4, [(0,1),(1,2),(2,3),(3,0)], 2)
+  # (4, {(0,2), (1,3)}, 2)
+
+  clique_to_cover_certificate(4, [(0,1),(1,2),(2,3),(3,0)], 2, {0, 1})
+  # {2, 3}   -- {0,1} is an edge of the 4-cycle, so it is a 2-clique
+  ```
+
+  Two facts do all the work, and both are worth checking on paper before you
+  write anything:
+
+  - $S$ is a clique in $G$ $\iff$ $S$ is an independent set in $\overline{G}$.
+  - $S$ is independent in $H$ $\iff$ $V \setminus S$ is a vertex cover of $H$.
+
+  Watch the boundary cases. `k = 0` and `k = n` both have to come out right, and
+  a graph with no edges is not a special case if the construction is written
+  from the definition.
+hints:
+  - "The vertex set does not change. Only the edges and the number change."
+  - "Complement: every pair (u, v) with u < v that is NOT an edge of G becomes an edge. `itertools.combinations(range(n), 2)` enumerates the pairs in exactly that form."
+  - "A clique of size k becomes an independent set of size k in the complement, and the complement of an independent set is a cover. So k' = n - k, and the certificate is set(range(n)) - clique."
+solutionWalkthrough: |
+  ```python
+  from itertools import combinations
+
+  def clique_to_vertex_cover(n, edges, k):
+      present = {(min(u, v), max(u, v)) for u, v in edges}
+      complement = {(u, v) for u, v in combinations(range(n), 2)
+                    if (u, v) not in present}
+      return n, complement, n - k
+
+  def clique_to_cover_certificate(n, edges, k, clique):
+      return set(range(n)) - set(clique)
+  ```
+
+  **The proof, in both directions.**
+
+  *Yes to yes.* Let $S$ be a $k$-clique in $G$. Every pair inside $S$ is an edge
+  of $G$, so no pair inside $S$ is an edge of $\overline{G}$. Take any edge
+  $(u, v)$ of $\overline{G}$: at least one of $u, v$ is outside $S$, so
+  $V \setminus S$ touches it. That set has size $n - k$, so
+  $\overline{G}$ has a cover of size at most $n - k$.
+
+  *No to no*, in contrapositive form. Let $C$ be a cover of $\overline{G}$ with
+  $|C| \le n - k$. Then $V \setminus C$ has at least $k$ vertices and contains no
+  edge of $\overline{G}$ — otherwise $C$ would have missed that edge. So every
+  pair inside $V \setminus C$ is an edge of $G$: a clique of size at least $k$,
+  and any $k$ of its vertices form a $k$-clique.
+
+  **Why `n - k` is the whole reduction.** The graph transformation is
+  mechanical. The interesting content is that a *maximisation* question becomes a
+  *minimisation* question, with $k \mapsto n - k$ flipping the direction. This is
+  the standard reason a Karp reduction says nothing about approximability:
+  vertex cover has a 2-approximation and maximum clique has no constant-factor
+  approximation at all unless P = NP, even though these two instances are the
+  same object.
+
+  **Cost.** Building the complement is $\Theta(n^2)$ regardless of how sparse
+  $G$ is, which is polynomial and therefore fine — but it is the reason nobody
+  uses this reduction as an *algorithm*. A sparse graph with a million vertices
+  has a complement with half a trillion edges. Reductions are proofs; treating
+  one as an implementation strategy is a separate decision.
+
+  **The boundary cases.** With `k = 0` the clique instance is trivially yes (the
+  empty set is a clique) and `k' = n`, so the cover instance is trivially yes
+  too — every graph has a cover of size $n$. With `k = n` the clique instance
+  asks whether $G$ is complete, and `k' = 0` asks whether $\overline{G}$ has no
+  edges. Same question. The construction did not need to know about either case.

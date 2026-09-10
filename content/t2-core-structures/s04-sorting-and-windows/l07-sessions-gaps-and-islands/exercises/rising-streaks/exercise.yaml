@@ -1,0 +1,109 @@
+id: rising-streaks
+kind: sql
+title: The longest rising streak per package
+difficulty: 5
+datasetId: package-registry
+pattern: gaps-and-islands
+topics: [window-functions, sessionization, gaps-and-islands]
+timeLimitMs: 15000
+prompt: |
+  Call a day **rising** for a package when its download count is strictly higher
+  than the day before. For each package, return the length of its **longest run
+  of consecutive rising days**.
+
+  Two columns named `package_id` and `longest_rising_run`, ordered by
+  `package_id`. Twenty rows.
+
+  Worked example — package 3's ten days are
+
+  ```
+  3400, 3040, 3120, 3200, 3280, 3360, 3000, 3080, 3160, 3240
+  ```
+
+  Day 1 has no previous day, so it is not rising. Day 2 falls. Days 3, 4, 5 and 6
+  all rise — that is a run of **4**. Day 7 falls, and days 8, 9, 10 rise, a run
+  of 3. The answer for package 3 is 4.
+
+  This needs three ideas stacked: `LAG` to get the previous day's count, a
+  boundary flag over the rising days that survive the filter, and a cumulative
+  sum to turn those boundaries into run ids. Then it is a `GROUP BY` twice.
+hints:
+  - "Peel it in layers. First produce, for every row, the change from the previous day. Then keep only the rows where the change is positive — those are your rising days, and they have gaps in them."
+  - "Among the rising days, a new run starts wherever the gap to the previous rising day is not exactly one, or where there is no previous rising day at all (`LAG` gives NULL, and `NULL = 1` is UNKNOWN, so an `ELSE 1` branch catches it)."
+  - "Cumulative-sum that flag with `sum(...) OVER (PARTITION BY package_id ORDER BY day ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)` to get a run id, then `count(*)` per run and `max(...)` per package. You cannot nest one window function inside another, so each layer needs its own CTE."
+solutionWalkthrough: |
+  ```sql
+  WITH deltas AS (
+    SELECT package_id, day,
+           count - lag(count) OVER (PARTITION BY package_id ORDER BY day) AS change
+    FROM downloads
+  ),
+  rising AS (
+    SELECT package_id, day FROM deltas WHERE change > 0
+  ),
+  flagged AS (
+    SELECT package_id, day,
+           CASE WHEN day - lag(day) OVER (PARTITION BY package_id ORDER BY day) = 1
+                THEN 0 ELSE 1 END AS starts_run
+    FROM rising
+  ),
+  numbered AS (
+    SELECT package_id, day,
+           sum(starts_run) OVER (PARTITION BY package_id ORDER BY day
+                                 ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS run_id
+    FROM flagged
+  ),
+  runs AS (
+    SELECT package_id, run_id, count(*) AS days
+    FROM numbered GROUP BY package_id, run_id
+  )
+  SELECT package_id, max(days) AS longest_rising_run
+  FROM runs
+  GROUP BY package_id
+  ORDER BY package_id;
+  ```
+
+  Five layers, and each one does exactly one thing. That is the shape to aim for:
+  a gaps-and-islands query written as a single expression is unreadable and
+  usually wrong.
+
+  **`WHERE change > 0` before the boundary flag, not after.** The filter is what
+  creates the gaps. The second `LAG` runs over the surviving rows, so "the
+  previous rising day" may be two or five days back — and that is precisely the
+  signal a run has ended. Filtering after the flag would compare each rising day
+  to its calendar neighbour instead, which is a different question.
+
+  **`change > 0` also drops the first day of every package**, because its `LAG`
+  is NULL and `NULL > 0` is UNKNOWN, which `WHERE` discards. That matches the
+  definition: a day with nothing before it cannot be rising.
+
+  **Two window functions, two CTEs.** DuckDB — and most engines — refuse
+  `sum(... lag(...) OVER ...) OVER ...`: a window function cannot be nested
+  inside another, because the second needs the first's output as its input. Each
+  window pass gets its own layer.
+
+  **Why not the `row_number` trick.** It would work here — the rising days are
+  consecutive integers-with-gaps — and `day - row_number()` would replace the
+  `flagged` and `numbered` layers with one expression. It is shorter. It also
+  stops working the moment "consecutive" is not a step of exactly one, which is
+  why the `LAG` form is the one worth having in your fingers.
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 20
+      message: Expected one row per package — all 20 of them.
+    - type: predicate
+      sql: >-
+        SELECT (SELECT longest_rising_run FROM __learner WHERE package_id = 3) = 4
+      message: >-
+        Package 3's answer is 4, the run over days 3 to 6. Getting 7 means you
+        counted all its rising days rather than the longest consecutive run.
+    - type: predicate
+      sql: >-
+        SELECT (SELECT max(longest_rising_run) FROM __learner) = 5
+        AND (SELECT min(longest_rising_run) FROM __learner) = 4
+      message: >-
+        Every package's longest rising run is either 4 or 5 days. A value of 10
+        means the gaps between rising days were not detected.

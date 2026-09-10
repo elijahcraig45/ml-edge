@@ -1,0 +1,28 @@
+- id: basic
+  label: Groups anagrams together in first-seen order
+  code: |
+    got = group_anagrams(["stop", "arrowkit", "pots", "tops", "kit"])
+    assert got == [["stop", "pots", "tops"], ["arrowkit"], ["kit"]], got
+- id: empty
+  label: An empty input gives an empty list
+  code: |
+    assert group_anagrams([]) == []
+- id: no-anagrams
+  label: Words with no partners each get their own group
+  code: |
+    assert group_anagrams(["a", "b", "c"]) == [["a"], ["b"], ["c"]]
+- id: duplicates-stay-together
+  label: Identical strings land in the same group
+  hidden: true
+  code: |
+    assert group_anagrams(["ab", "ba", "ab"]) == [["ab", "ba", "ab"]]
+    assert group_anagrams(["", ""]) == [["", ""]]
+- id: order-and-case
+  label: Group order follows first appearance, and case matters
+  hidden: true
+  code: |
+    # "zz" appears first, so its group comes first even though "aa" sorts lower.
+    assert group_anagrams(["zz", "aa", "zz"]) == [["zz", "zz"], ["aa"]]
+    # "Stop" and "stop" are not anagrams of each other: 'S' != 's'.
+    got = group_anagrams(["Stop", "stop", "pots"])
+    assert got == [["Stop"], ["stop", "pots"]], got

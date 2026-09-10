@@ -1,0 +1,53 @@
+id: pa-flatten-nested-manifest
+kind: python
+title: Flatten a nested manifest
+difficulty: 1
+pattern: recursion
+stage: s01-ground-floor
+topics:
+  - arrays
+timeLimitMs: 10000
+prompt: |
+  A manifest groups package names into lists, and those lists can contain
+  further lists, to any depth. Return every name in a single flat list, in the
+  order they are encountered reading left to right.
+
+  ```
+  flatten_manifest(["a", ["b", ["c", "d"]], "e"])   # ["a", "b", "c", "d", "e"]
+  flatten_manifest([])                               # []
+  flatten_manifest([[], [[]]])                       # []
+  ```
+
+  Only lists are groups. Anything that is not a list is a name, including
+  numbers and `None`. Return a new list; do not modify the input.
+hints:
+  - "Every element is one of two things, and the answer for the list is the answers for its elements joined together. You only have to say what to do with a single element."
+  - "If the element is a list, the flattened version of it belongs here — which is the same function you are writing. If it is not, it is a name and goes straight in."
+  - "`isinstance(item, list)` is the test. Use `result.extend(flatten_manifest(item))` for a group and `result.append(item)` for a name; the empty list needs no special case because the loop just does not run."
+solutionWalkthrough: |
+  ```python
+  def flatten_manifest(manifest):
+      result = []
+      for item in manifest:
+          if isinstance(item, list):
+              result.extend(flatten_manifest(item))
+          else:
+              result.append(item)
+      return result
+  ```
+
+  `extend` versus `append` is the whole difference between a correct answer and
+  a list of lists. The recursive call already returns something flat, so its
+  contents belong at this level, not the list itself.
+
+  Testing with `isinstance(item, list)` rather than "does it have a length" is
+  deliberate: a string has a length and iterating one gives characters, so a
+  duck-typed check turns `"abc"` into `["a", "b", "c"]`. This is where the
+  cost of Python's uniform treatment of sequences actually bites.
+
+  Time is O(n) in the total number of items. The hidden cost is that each level
+  allocates a fresh list, so a manifest nested a thousand deep builds a thousand
+  intermediate lists and a thousand stack frames. A generator that `yield from`s
+  the recursive call avoids the intermediate lists and keeps the frames; an
+  explicit stack avoids both, at the cost of code that no longer looks like the
+  data.

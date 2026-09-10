@@ -1,0 +1,72 @@
+id: batches
+kind: python
+title: Batch a stream without draining it
+difficulty: 3
+pattern: generator
+topics: [generators, laziness]
+timeLimitMs: 10000
+forbid:
+  - "itertools.batched"
+  - "batched("
+  - "islice"
+prompt: |
+  Yield consecutive batches from an iterable, as lists of up to `size` items.
+
+  ```
+  list(batches([1, 2, 3, 4, 5], 2))   # [[1, 2], [3, 4], [5]]
+  list(batches([], 3))                # []
+  ```
+
+  Raise `ValueError` if `size` is less than 1.
+
+  **It must stay lazy.** `batches` has to pull exactly the items it needs for
+  the batch it is about to hand over, and then stop until asked again. The
+  starter builds the whole answer first, which means it cannot run on an
+  endless stream and it holds every item in memory at once — both of which
+  defeat the reason batching exists.
+
+  A hidden test attaches a source that raises if it is drained past six items,
+  and asks for the first two batches.
+hints:
+  - "A function with `yield` in its body is a generator function: calling it runs no code at all and returns an object that runs your body a piece at a time. That is the whole mechanism you need."
+  - "Accumulate into a list. When it reaches `size`, yield it and start a fresh one. Do not reuse the same list object — the caller now holds a reference to it."
+  - "After the loop ends there may be a partial batch left. Yield it only if it is non-empty, or an input whose length divides evenly will produce a trailing `[]`."
+solutionWalkthrough: |
+  ```python
+  def batches(source, size):
+      if size < 1:
+          raise ValueError("size must be at least 1")
+      batch = []
+      for item in source:
+          batch.append(item)
+          if len(batch) == size:
+              yield batch
+              batch = []          # a NEW list, not batch.clear()
+      if batch:
+          yield batch
+  ```
+
+  Three details, each of which is a real bug if you get it wrong.
+
+  **`batch = []` rather than `batch.clear()`.** The caller is holding the list
+  you just yielded. Clearing it empties the object they are looking at, and the
+  bug shows up as "all my batches are empty" or "every batch is the last one",
+  depending on when they look. Yield ownership, do not lend it.
+
+  **`if batch:` at the end.** Without the guard, an input of length 4 with size
+  2 emits `[[1,2],[3,4],[]]`. With it, the ragged tail works and the even case
+  stays clean.
+
+  **The `ValueError` fires later than you think.** Nothing in a generator
+  function's body executes until the first `next()`. So `batches(data, 0)`
+  returns happily and only raises when someone iterates it — possibly in a
+  different function, with a traceback that points at the loop rather than the
+  bad argument. The standard fix, when it matters, is a thin non-generator
+  wrapper that validates and then returns the inner generator.
+
+  **What you have built.** `batches` pulls one item at a time from its input and
+  pushes one batch at a time to its output, using memory proportional to `size`
+  rather than to the length of the stream. That is a **pipeline operator**, and
+  it is the same shape as every operator in a query plan. This particular one
+  has a name over there too: it is the boundary between tuple-at-a-time and
+  vectorized execution.

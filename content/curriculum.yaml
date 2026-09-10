@@ -1,0 +1,51 @@
+version: "2.0.0"
+title: Data Structures & Algorithms, in Python and SQL
+
+tiers:
+  - id: t1-foundations
+    title: "Tier I — Foundations"
+    audience: >-
+      Start here with no assumptions. You will leave able to say what a program
+      costs, prove a bound rather than guess it, and read a table as the set of
+      rows it actually is.
+    stages:
+      - s01-ground-floor
+      - s02-asymptotics-and-recursion
+
+  - id: t2-core-structures
+    title: "Tier II — Core Structures"
+    audience: >-
+      The structures everything else is built from, each taught alongside the
+      database machinery that turns out to be the same idea at scale.
+    stages:
+      - s03-linear-structures
+      - s04-sorting-and-windows
+      - s05-hashing-and-aggregation
+      - s06-trees-and-indexes
+
+  - id: t3-algorithms
+    title: "Tier III — Algorithms"
+    audience: >-
+      Search and optimisation over the structures you have built, and the point
+      where SQL's expressive limits become the interesting part.
+    stages:
+      - s07-graphs
+      - s08-dynamic-programming
+
+  - id: t4-scale-systems
+    title: "Tier IV — Scale and Systems"
+    audience: >-
+      What changes when exactness is unaffordable, and what a query engine is
+      really doing with the plan it chose. Build one and find out.
+    stages:
+      - s09-probabilistic-structures
+      - s10-query-execution
+
+  - id: t5-graduate
+    title: "Tier V — Graduate"
+    audience: >-
+      Intractability, approximation with proved ratios, and the analysis
+      techniques that let you say something true about an algorithm nobody can
+      run to completion.
+    stages:
+      - s11-intractability

@@ -1,0 +1,82 @@
+id: bfs-shortest-path
+kind: python
+title: Shortest path in an unweighted graph
+difficulty: 3
+pattern: bfs
+topics: [graphs, queues]
+timeLimitMs: 10000
+prompt: |
+  `graph` is a dict mapping each node to a list of its out-neighbours. Return a
+  path from `start` to `goal` with the **fewest edges**, as a list of nodes
+  beginning with `start` and ending with `goal`.
+
+  ```
+  g = {"a": ["b", "z"], "b": ["c"], "c": ["d"], "d": ["e"],
+       "e": ["f"], "z": ["f"], "f": []}
+  shortest_path(g, "a", "f")   # ["a", "z", "f"]
+  ```
+
+  Rules for the awkward cases:
+
+  - `start == goal` returns `[start]`.
+  - No path, or either node missing from `graph`, returns `None`.
+  - When several shortest paths exist, return the one BFS finds when it walks
+    each node's neighbours in the order the adjacency list gives them.
+
+  The graph may contain cycles. Your function must still return.
+hints:
+  - "BFS reaches every node by a fewest-edge route, but the traversal itself only tells you *that* a node was reached. You need to record something extra at the moment of discovery to be able to reconstruct the route afterwards."
+  - "Keep a `parent` dict: when you first discover `nxt` from `node`, set `parent[nxt] = node`. That dict doubles as the visited set — `nxt in parent` is your `nxt in seen`."
+  - "Once you reach the goal, walk backwards through `parent` until you hit the start (whose parent you can store as `None`), then reverse the list. Do not try to build paths forward in the queue — that copies a list per node and blows up the memory."
+solutionWalkthrough: |
+  ```python
+  from collections import deque
+
+  def shortest_path(graph, start, goal):
+      if start not in graph or goal not in graph:
+          return None
+      if start == goal:
+          return [start]
+
+      parent = {start: None}
+      queue = deque([start])
+      while queue:
+          node = queue.popleft()
+          for nxt in graph[node]:
+              if nxt in parent:
+                  continue
+              parent[nxt] = node
+              if nxt == goal:
+                  path = [goal]
+                  while parent[path[-1]] is not None:
+                      path.append(parent[path[-1]])
+                  path.reverse()
+                  return path
+              queue.append(nxt)
+      return None
+  ```
+
+  Two things earn their place here.
+
+  **`parent` is the visited set.** There is no separate `seen`. A node has a
+  parent exactly when it has been discovered, so one dict does both jobs and
+  they cannot drift apart. That is a small thing, and it is the kind of small
+  thing that stops a bug.
+
+  **Storing a parent instead of a path.** The tempting version enqueues the path
+  so far — `queue.append(path + [nxt])` — and it is genuinely easier to read.
+  It also allocates a new list for every node it discovers, so on a graph with
+  a million nodes and paths of length 50 it copies fifty million elements. The
+  parent chain stores one pointer per node and reconstructs the path once, at
+  the end, in time proportional to its length.
+
+  **Returning at discovery, not at dequeue.** The check `if nxt == goal` fires
+  the moment the goal is *reached*, not when it comes off the queue. Both are
+  correct for unweighted BFS — the distance is already final at discovery, which
+  is precisely what the proof track establishes. Returning early just skips a
+  level's worth of pointless work.
+
+  That last sentence is exactly the thing that stops being true when edges have
+  weights. In Dijkstra a node's distance is *not* final when you first reach it,
+  only when you pop it, and forgetting that is the single most common way to
+  write a shortest-path function that returns confidently wrong numbers.

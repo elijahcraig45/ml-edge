@@ -1,0 +1,95 @@
+id: trie-autocomplete
+kind: python
+title: A trie that can autocomplete
+difficulty: 3
+pattern: trie
+topics: [tries, strings]
+timeLimitMs: 15000
+prompt: |
+  Build a trie with four methods. The `Node` class is given in the starter.
+
+  - `insert(word)` — add a word.
+  - `contains(word)` — `True` only if `word` was inserted, not merely if its
+    path exists.
+  - `starts_with(prefix)` — `True` if any stored word begins with `prefix`. The
+    empty prefix is a prefix of everything, including of nothing at all: on an
+    empty trie it is `True`.
+  - `keys_with_prefix(prefix)` — every stored word beginning with `prefix`, in
+    sorted order. `keys_with_prefix("")` returns all of them.
+
+  ```
+  t = Trie()
+  for w in ["arrow", "arrowkit", "array"]:
+      t.insert(w)
+  t.contains("arr")                 # False — a prefix, not a word
+  t.starts_with("arr")              # True
+  t.keys_with_prefix("arro")        # ["arrow", "arrowkit"]
+  ```
+
+  Do not keep a separate list of the inserted words. `keys_with_prefix` must
+  walk the subtree under the prefix — that is the property this exercise is
+  about, and a hidden test checks that the walk starts at the prefix rather
+  than filtering everything.
+hints:
+  - "Insert, contains and starts_with all share one loop: follow one child per character. Write that descent once and return the node it lands on, or None."
+  - "`contains` needs the node AND its is_word flag. `starts_with` needs only the node. That one difference is the whole distinction between a word and a prefix."
+  - "For keys_with_prefix, find the prefix node first, then traverse its subtree carrying the text built so far. A stack of (text, node) pairs is enough — this is lesson 1's iterative traversal with the accumulated string along for the ride."
+solutionWalkthrough: |
+  ```python
+  class Trie:
+      def __init__(self):
+          self.root = Node()
+
+      def _descend(self, text):
+          node = self.root
+          for ch in text:
+              if ch not in node.children:
+                  return None
+              node = node.children[ch]
+          return node
+
+      def insert(self, word):
+          node = self.root
+          for ch in word:
+              node = node.children.setdefault(ch, Node())
+          node.is_word = True
+
+      def contains(self, word):
+          node = self._descend(word)
+          return node is not None and node.is_word
+
+      def starts_with(self, prefix):
+          return self._descend(prefix) is not None
+
+      def keys_with_prefix(self, prefix):
+          node = self._descend(prefix)
+          if node is None:
+              return []
+          out, stack = [], [(prefix, node)]
+          while stack:
+              text, current = stack.pop()
+              if current.is_word:
+                  out.append(text)
+              for ch, child in current.children.items():
+                  stack.append((text + ch, child))
+          return sorted(out)
+  ```
+
+  `_descend` is the whole trie. Three of the four methods are one line each on
+  top of it, and the fourth uses it to find where to start walking. When three
+  methods differ only in what they do with the node they land on, that is a
+  sign the descent is the real abstraction.
+
+  `setdefault` in `insert` is doing something specific: create the child if it
+  is missing, and either way hand back the child. Written as a check-then-assign
+  it is three lines and one more chance to look up `node.children[ch]` twice.
+
+  Sorting at the end of `keys_with_prefix` costs $O(k \log k)$ in the number of
+  matches. Traversing children in sorted order instead — `sorted(current.children)`
+  with a stack pushed in reverse — produces sorted output directly and costs a
+  sort per node rather than one sort at the end. Which is cheaper depends on the
+  fan-out; the version above is easier to be sure of.
+
+  What this structure buys is the same thing an index buys: you never touch a
+  key that cannot match. The cost is one node per distinct prefix, which is why
+  production tries collapse single-child chains into radix edges.

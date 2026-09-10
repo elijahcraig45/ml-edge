@@ -1,0 +1,87 @@
+id: approx-quantile-error
+kind: sql
+title: Where the t-digest is accurate
+difficulty: 3
+datasetId: package-registry
+pattern: quantile-sketch
+topics: [t-digest, quantiles, aggregation]
+timeLimitMs: 15000
+prompt: |
+  Compare the sketch to the truth at three quantile levels of
+  `downloads.count`, and see where the gap is.
+
+  Return **three rows**, one per level — 0.50, 0.90, 0.99 — with four columns:
+
+  - `q` — the level, as a `DOUBLE` (write `0.50::DOUBLE`, so all three branches
+    agree on a type)
+  - `exact_value` — `quantile_cont`, rounded to 2 decimals
+  - `approx_value` — `approx_quantile`, which is a t-digest
+  - `abs_error` — the absolute difference, rounded to 2 decimals
+
+  Ordered by `q` ascending.
+
+  You cannot parameterise the level: `quantile_cont(x, q)` requires a **constant**
+  and rejects a column with *"QUANTILE can only take constant parameters"*. So
+  this is three `SELECT`s joined by `UNION ALL` — which is exactly how a real
+  percentile report gets written.
+
+  `count` is a column name and a function name, so write `"count"`.
+hints:
+  - "Write the 0.50 branch completely first, run it, and confirm you get one row of four columns. Then copy it twice and change the level."
+  - "`UNION ALL` requires the same column count and compatible types in every branch. Casting the literal with `::DOUBLE` keeps the level column from being a DECIMAL in one branch and something else in another."
+  - "`ORDER BY q` goes once, at the very end — it applies to the whole union, not to the last branch."
+solutionWalkthrough: |
+  ```sql
+  SELECT 0.50::DOUBLE AS q,
+         round(quantile_cont("count", 0.50), 2) AS exact_value,
+         approx_quantile("count", 0.50)         AS approx_value,
+         round(abs(approx_quantile("count", 0.50) - quantile_cont("count", 0.50)), 2) AS abs_error
+  FROM downloads
+  UNION ALL
+  SELECT 0.90::DOUBLE, round(quantile_cont("count", 0.90), 2), approx_quantile("count", 0.90),
+         round(abs(approx_quantile("count", 0.90) - quantile_cont("count", 0.90)), 2)
+  FROM downloads
+  UNION ALL
+  SELECT 0.99::DOUBLE, round(quantile_cont("count", 0.99), 2), approx_quantile("count", 0.99),
+         round(abs(approx_quantile("count", 0.99) - quantile_cont("count", 0.99)), 2)
+  FROM downloads
+  ORDER BY q;
+  ```
+
+  The error column is the interesting one, and it is not monotone:
+
+  | q | exact | approx | abs error | relative |
+  | --- | --- | --- | --- | --- |
+  | 0.50 | 1075 | 1076 | 1 | 0.1% |
+  | 0.90 | 3510 | 3950 | 440 | 12.5% |
+  | 0.99 | 9320.4 | 9340 | 19.6 | 0.2% |
+
+  p90 is by far the worst, and p99 is nearly exact. That is t-digest doing what
+  it was designed to do. It keeps small centroids near $q = 0$ and $q = 1$ and
+  lets centroids near the middle grow, so resolution is highest at the
+  extremes. p90 sits in the awkward region: past the dense middle, not yet in
+  the fine-grained tail — and it is landing inside one wide centroid whose
+  interpolation is coarse.
+
+  Two things to take from this. Which percentile you ask for changes how much
+  you should trust the answer, and the sketch's accuracy profile is a design
+  choice you can look up rather than a mystery. If you need a reliable p90
+  specifically, either raise the digest's compression parameter or use a
+  fixed-bucket histogram with a bucket boundary where you actually care.
+
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: syntax
+      pattern: "approx_quantile"
+      message: The approx_value column has to come from approx_quantile — that is the t-digest.
+    - type: rowcount
+      equals: 3
+      message: One row per quantile level, and there are three levels.
+    - type: predicate
+      sql: "SELECT max(abs_error) > 100 AND min(abs_error) < 5 FROM __learner"
+      message: >-
+        Expected the errors to vary a lot across levels — about 1 at the median
+        and several hundred at p90. If every error is 0 you compared the exact
+        answer to itself.

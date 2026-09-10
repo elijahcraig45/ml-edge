@@ -1,0 +1,45 @@
+- id: bipartite-path
+  label: Colours a package/maintainer graph
+  code: |
+    g = {"p1": ["m1", "m2"], "m1": ["p1"], "m2": ["p1", "p2"], "p2": ["m2"]}
+    c = two_colouring(g)
+    assert c is not None
+    assert all(c[u] != c[v] for u in g for v in g[u])
+- id: triangle
+  label: A triangle has no two-colouring
+  code: |
+    assert two_colouring({"a": ["b", "c"], "b": ["a", "c"], "c": ["a", "b"]}) is None
+- id: even-cycle
+  label: An even cycle is fine
+  code: |
+    g = {1: [2, 4], 2: [1, 3], 3: [2, 4], 4: [3, 1]}
+    c = two_colouring(g)
+    assert c is not None and c[1] == c[3] and c[2] == c[4] and c[1] != c[2]
+- id: starts-at-zero
+  label: The first node of each component is coloured 0
+  code: |
+    c = two_colouring({"a": ["b"], "b": ["a"]})
+    assert c == {"a": 0, "b": 1}
+- id: disconnected-components
+  label: Every component is coloured, not just the first
+  hidden: true
+  code: |
+    # The first component is bipartite; the second is a triangle. The answer is
+    # None, and a solution that stops after one BFS will miss it.
+    g = {"a": ["b"], "b": ["a"], "x": ["y", "z"], "y": ["x", "z"], "z": ["x", "y"]}
+    assert two_colouring(g) is None
+- id: isolated-nodes
+  label: Isolated nodes each get colour 0
+  hidden: true
+  code: |
+    assert two_colouring({"a": [], "b": [], "c": []}) == {"a": 0, "b": 0, "c": 0}
+- id: empty-graph
+  label: An empty graph has an empty colouring
+  hidden: true
+  code: |
+    assert two_colouring({}) == {}
+- id: self-loop
+  label: A self-loop is an odd cycle of length one
+  hidden: true
+  code: |
+    assert two_colouring({"a": ["a"]}) is None

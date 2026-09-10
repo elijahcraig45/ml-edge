@@ -1,0 +1,59 @@
+id: two-key-release-board
+kind: python
+title: Two keys, one of them descending and a string
+difficulty: 3
+pattern: stable-sort-composition
+topics: [sorting, stability]
+timeLimitMs: 10000
+prompt: |
+  Build a release board. Each row is a dict with `language`, `name` and
+  `version`. Return the rows ordered by:
+
+  1. `language`, ascending;
+  2. then `name`, **descending**, inside each language.
+
+  ```
+  release_board([
+      {"language": "rust",   "name": "bitmask",  "version": "1.0.0"},
+      {"language": "python", "name": "arrowkit", "version": "1.4.2"},
+      {"language": "python", "name": "chunker",  "version": "3.0.0"},
+  ])
+  # python/chunker, python/arrowkit, rust/bitmask
+  ```
+
+  The obvious tuple key does not work here. You cannot write `-name` for a
+  string, so `key=lambda r: (r["language"], -r["name"])` is not available to
+  you. Use the property of `sorted` that makes two passes compose.
+
+  Return a new list. The input list must not be reordered.
+hints:
+  - "You are allowed two calls to `sorted`. The question is which key each one uses, and which order they go in."
+  - "`sorted` is stable: rows that compare equal keep the relative order they had going in. So whatever a second pass cannot distinguish, it leaves alone."
+  - "Sort by the *less* significant key first (`name`, with `reverse=True`), then by the more significant key (`language`). The second pass groups by language and stability preserves the name ordering inside each group."
+solutionWalkthrough: |
+  ```python
+  def release_board(rows):
+      by_name_desc = sorted(rows, key=lambda r: r["name"], reverse=True)
+      return sorted(by_name_desc, key=lambda r: r["language"])
+  ```
+
+  Least significant key first, most significant key last. The order feels
+  backwards the first time you write it, and it is worth understanding *why*
+  rather than memorising it: the last sort you run is the only one whose
+  ordering is guaranteed to survive intact. Every earlier pass survives only
+  inside the groups the later pass considers equal.
+
+  `reverse=True` rather than `list(reversed(...))` matters. `reverse=True` is
+  still stable — equal elements keep their input order — whereas reversing the
+  output flips the ties as well. Here the difference shows up only when two rows
+  share a language *and* a name, which is exactly the hidden test.
+
+  The alternative is a single pass with a tuple key, and it is the better answer
+  when it is available: `key=lambda r: (r["language"], -r["size"])` is one sort
+  instead of two. It dies the moment the descending key is not a number. A few
+  codebases reach for a `functools.cmp_to_key` comparator at that point; two
+  stable passes are less code and cannot be written wrong.
+
+  Cost: two $n \log n$ sorts instead of one. That is a factor of two, not a
+  change of complexity class, and it buys you a rule you can apply to any number
+  of keys in any mix of directions.

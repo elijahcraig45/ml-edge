@@ -1,0 +1,35 @@
+id: s11-intractability
+tier: t5-graduate
+order: 11
+title: "Intractability: What to Do When No Algorithm Will Save You"
+status: published
+thesis: >-
+  Some problems have no efficient algorithm, and probably never will. The
+  graduate skill is not finding one anyway — it is proving the problem is hard,
+  then choosing precisely which guarantee to give up.
+summary: >-
+  Six lessons on the edge of what computation can do. You will state P, NP and
+  NP-completeness precisely enough to argue with, write Karp reductions as code
+  that a test suite grades, prove approximation ratios rather than assert them,
+  analyse randomised algorithms and amortised data structures three different
+  ways, and build adversaries that force lower bounds. The SQL half is the same
+  material where it actually bites: join ordering is NP-hard, which is why every
+  planner you have ever used switches to a heuristic somewhere between ten and
+  twelve relations; conjunctive query containment is NP-complete; and the AGM
+  bound proves that the binary join algorithm inside every classical engine is
+  asymptotically wrong for cyclic queries.
+outcomes:
+  - State what P, NP, NP-complete and NP-hard mean in terms of verifiers and certificates, without using the phrase "not polynomial".
+  - Write a Karp reduction as executable code, in the correct direction, and demonstrate it preserves yes-instances and no-instances.
+  - Prove an approximation ratio for a specific algorithm, and check the bound empirically against a brute-force optimum.
+  - Analyse a randomised algorithm's success probability and turn it into a repetition count for a stated confidence.
+  - Analyse the same data structure by aggregate, accounting and potential methods, and say which one you would reach for.
+  - Construct an adversary argument for a lower bound, and explain how it differs from a decision-tree argument.
+  - Explain why a query planner gives up on optimality, and what the AGM bound says about the join algorithm underneath it.
+lessons:
+  - l01-p-np-and-certificates
+  - l02-reductions
+  - l03-approximation-and-ratios
+  - l04-randomized-algorithms
+  - l05-amortized-and-competitive
+  - l06-lower-bounds-and-adversaries

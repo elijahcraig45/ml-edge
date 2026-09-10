@@ -1,0 +1,67 @@
+id: group-anagrams
+kind: python
+title: Group by a canonical key
+difficulty: 2
+pattern: hash-map-grouping
+topics: [hashing, strings]
+timeLimitMs: 10000
+prompt: |
+  Group package names that are permutations of each other's characters.
+
+  ```
+  group_anagrams(["stop", "arrowkit", "pots", "tops", "kit"])
+  # [["stop", "pots", "tops"], ["arrowkit"], ["kit"]]
+  ```
+
+  Two orderings are part of the answer:
+
+  - groups appear in the order their **first** member appeared in the input;
+  - within a group, members appear in input order.
+
+  Both fall out for free from the right implementation, which is a hint in
+  itself.
+
+  Case matters: `"Stop"` and `"stop"` are not anagrams. The empty string is a
+  valid name and groups with other empty strings.
+hints:
+  - "A dict compares keys with `==`. The names of two anagrams are not equal, so the name cannot be the key. What *is* equal for two anagrams and different for two non-anagrams?"
+  - "Sort the characters of each name. `\"stop\"` and `\"pots\"` both become `\"opst\"`, which is a key."
+  - "`sorted(name)` gives a list, and lists are unhashable. `\"\".join(sorted(name))` gives a string, and `tuple(sorted(name))` also works — the requirement is that the canonical form be immutable."
+solutionWalkthrough: |
+  ```python
+  def group_anagrams(names):
+      groups = {}
+      for name in names:
+          key = "".join(sorted(name))
+          groups.setdefault(key, []).append(name)
+      return list(groups.values())
+  ```
+
+  Both orderings come from the language, not from your code. `groups.values()`
+  walks the dict in **insertion order**, which since Python 3.7 is guaranteed —
+  and insertion order is exactly first-appearance order, because a key is
+  inserted the first time one of its members is seen. Within each group,
+  `append` preserves input order. A version that sorts the output at the end is
+  doing work that was already done, and gets the group order wrong.
+
+  `setdefault` is the compact form of "get the list, creating it if absent".
+  `collections.defaultdict(list)` reads better in longer code; both perform one
+  lookup rather than the two that `if key not in groups` costs.
+
+  **The canonical form has to be hashable**, which is why `sorted(name)` alone
+  fails with `unhashable type: 'list'` — the same rule from Stage 1, and for the
+  same reason: a dict computes a slot from the key's contents, so the contents
+  must not be able to change.
+
+  **Where the cost is.** Sorting a name of length $k$ is $O(k \log k)$, so the
+  whole thing is $O(nk\log k)$. The alternative canonical form is a 26-element
+  tuple of letter counts, which is $O(k)$ per name and gives $O(nk)$. Worth
+  naming in an interview; rarely worth writing, because `sorted` runs in C, $k$
+  is small, and the count tuple stops working the moment the alphabet is not 26
+  ASCII letters.
+
+  The move generalises past anagrams, and that is the part to keep: whenever the
+  grouping relation is not equality, build something that *is* equal exactly
+  when the relation holds, and hash on that. Case-insensitive grouping
+  canonicalises with `.lower()`; geographic bucketing with integer division;
+  release versions ignoring build metadata by splitting on `+`.

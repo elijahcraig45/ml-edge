@@ -1,0 +1,51 @@
+- id: one-of-each
+  label: Splits an ascending run and a descending run
+  code: |
+    got = normalized_runs([(1, "a"), (2, "b"), (9, "c"), (8, "d"), (7, "e"), (4, "f")])
+    assert got == [
+        [(1, "a"), (2, "b"), (9, "c")],
+        [(4, "f"), (7, "e"), (8, "d")],
+    ], got
+- id: fully-sorted
+  label: Already-ascending input is a single run
+  code: |
+    rows = [(1, "a"), (1, "b"), (5, "c"), (9, "d")]
+    assert normalized_runs(rows) == [rows]
+- id: fully-descending
+  label: Strictly descending input is one run, reversed
+  code: |
+    got = normalized_runs([(9, "a"), (5, "b"), (1, "c")])
+    assert got == [[(1, "c"), (5, "b"), (9, "a")]]
+- id: empty-and-single
+  label: Empty and one-element inputs
+  code: |
+    assert normalized_runs([]) == []
+    assert normalized_runs([(3, "only")]) == [[(3, "only")]]
+- id: several-runs
+  label: Alternating shape produces several runs
+  code: |
+    got = normalized_runs([(5, "a"), (1, "b"), (6, "c"), (2, "d"), (7, "e")])
+    assert got == [
+        [(1, "b"), (5, "a")],
+        [(2, "d"), (6, "c")],
+        [(7, "e")],
+    ], got
+- id: ties-never-descend
+  label: Equal sizes must not be swept into a reversed run
+  hidden: true
+  code: |
+    # A descending run must be STRICTLY descending. If you extend it with <=,
+    # this becomes one run of three, gets reversed, and "b" jumps ahead of "a".
+    got = normalized_runs([(5, "a"), (5, "b"), (3, "c")])
+    assert got == [[(5, "a"), (5, "b")], [(3, "c")]], got
+- id: covers-input-exactly
+  label: Concatenating the runs returns every element exactly once
+  hidden: true
+  code: |
+    rows = [(v, str(i)) for i, v in enumerate([3, 3, 1, 4, 4, 9, 2, 2, 8, 0])]
+    runs = normalized_runs(rows)
+    flat = [row for run in runs for row in run]
+    assert len(flat) == len(rows)
+    assert set(flat) == set(rows)
+    for run in runs:
+        assert [r[0] for r in run] == [r[0] for r in sorted(run, key=lambda r: r[0])]

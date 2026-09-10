@@ -1,0 +1,78 @@
+id: btree-lookup
+kind: python
+title: Count the pages a B-tree lookup reads
+difficulty: 3
+pattern: b-tree
+topics: [trees, external-memory]
+timeLimitMs: 10000
+prompt: |
+  A B-tree node is a dict: `{"keys": [sorted keys], "children": [nodes]}`. A
+  node with $k$ keys has $k+1$ children, or an empty `children` list if it is a
+  leaf.
+
+  Write two functions.
+
+  `btree_search(root, key)` returns the tuple `(found, pages_read)`.
+  `pages_read` counts the nodes you looked at — one per block transfer, which
+  is the only cost the external-memory model recognises. Stop as soon as the key
+  is found: keys can live in internal nodes, not only in leaves.
+
+  `levels(rows, fanout)` returns how many levels a tree with that fan-out needs
+  to address `rows` entries. A single level holds `fanout` entries, so
+  `levels(512, 512)` is 1 and `levels(513, 512)` is 2.
+
+  ```
+  root = {"keys": [30, 60], "children": [a, b, c]}   # a, b, c are leaves
+  btree_search(root, 30)     # (True, 1)   — found without descending
+  btree_search(root, 45)     # (False, 2)  — root, then the middle leaf
+  levels(100_000_000, 512)   # 3
+  ```
+hints:
+  - "Inside one node, find how many keys are strictly less than your key. That count is both the position to check for an exact match and the index of the child to descend into."
+  - "`bisect.bisect_left(keys, key)` gives you that count. A plain loop is fine too — it happens in memory, so the model charges nothing for it."
+  - "For `levels`, multiply rather than taking a logarithm: start with capacity = fanout and one level, and keep multiplying by fanout until capacity reaches rows. Floating-point logs are wrong at the boundaries you will be tested on."
+solutionWalkthrough: |
+  ```python
+  import bisect
+
+  def btree_search(root, key):
+      node, pages = root, 0
+      while node is not None:
+          pages += 1
+          keys = node["keys"]
+          i = bisect.bisect_left(keys, key)
+          if i < len(keys) and keys[i] == key:
+              return (True, pages)
+          if not node["children"]:
+              return (False, pages)
+          node = node["children"][i]
+      return (False, pages)
+
+  def levels(rows, fanout):
+      height, capacity = 1, fanout
+      while capacity < rows:
+          capacity *= fanout
+          height += 1
+      return height
+  ```
+
+  One index does two jobs. `bisect_left` returns the number of keys smaller than
+  the target, which is exactly where an equal key would sit *and* exactly which
+  child covers the gap — because a node with $k$ keys has $k+1$ children, and
+  child $i$ holds everything between key $i-1$ and key $i$. Writing the two
+  lookups separately is how off-by-one bugs get in.
+
+  The search is a loop rather than a recursion for the same reason the B-tree
+  exists: the interesting quantity is the number of nodes visited, and making
+  that an explicit counter rather than a stack depth keeps it in view.
+
+  `levels` multiplies instead of calling `math.log`. `math.log(512**3, 512)`
+  can come back as `2.9999999999999996`, and a ceiling of that is 3 by luck
+  rather than by argument. Integer multiplication is exact, and the boundary
+  cases — a tree exactly full, one entry over — are the ones you actually care
+  about when you are deciding whether the second level fits in cache.
+
+  What the page count teaches: `btree_search` on the three-level tree in the
+  tests reads 3 pages, and a balanced binary tree over the same key count would
+  read one page per level of a much taller tree. The comparisons the B-tree does
+  inside each node are more numerous and free.

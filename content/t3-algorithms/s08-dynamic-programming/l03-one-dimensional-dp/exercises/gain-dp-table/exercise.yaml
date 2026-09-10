@@ -1,0 +1,85 @@
+id: gain-dp-table
+kind: sql
+title: Materialise the DP table in SQL
+difficulty: 3
+datasetId: package-registry
+pattern: window-function
+topics: [dynamic-programming, sql]
+timeLimitMs: 20000
+prompt: |
+  Produce the whole dynamic-programming table for one package, one row per day,
+  the way you would print it from a Python loop.
+
+  For `memoize` (`package_id = 13`), return four columns in this order:
+
+  - `day`
+  - `downloads` — that day's count
+  - `cheapest_so_far` — the running minimum, $m(i)$
+  - `best_gain_so_far` — the running best gain, $g(i) = \max(g(i-1), a_i - m(i))$
+
+  Ten rows, ordered by `day`.
+
+  The starter puts today's gain in the last column instead of the best gain so
+  far. Look at day 5 in its output: the price has just collapsed to 692, so
+  today's gain is 0 — but the best gain available *by that point* is still 240,
+  because $g$ never goes down. That difference is the whole reason $g$ has a
+  recurrence rather than a formula.
+hints:
+  - "The third column is the running minimum you have already written: `min(count) OVER (ORDER BY day ROWS UNBOUNDED PRECEDING)`."
+  - "The fourth column is a running maximum of `count - cheapest_so_far`. That is a window function applied to a value that is itself a window function, and SQL will not let you nest them in a single SELECT."
+  - "Compute `cheapest_so_far` in a CTE, then select from that CTE and apply `max(count - cheapest_so_far) OVER (ORDER BY day ROWS UNBOUNDED PRECEDING)` in the outer query. Two levels of window, two levels of query."
+solutionWalkthrough: |
+  ```sql
+  WITH running AS (
+    SELECT day,
+           count,
+           min(count) OVER (ORDER BY day ROWS UNBOUNDED PRECEDING) AS cheapest_so_far
+    FROM downloads
+    WHERE package_id = 13
+  )
+  SELECT day,
+         count AS downloads,
+         cheapest_so_far,
+         max(count - cheapest_so_far) OVER (ORDER BY day
+                                            ROWS UNBOUNDED PRECEDING) AS best_gain_so_far
+  FROM running
+  ORDER BY day;
+  ```
+
+  The two-level structure is not a workaround for a syntax restriction; it
+  mirrors the two lines of the recurrence. $m$ is computed over the raw input.
+  $g$ is computed over $m$'s output. SQL evaluates window functions after the
+  `WHERE` and `GROUP BY` of their own query block, so a window function's result
+  is not available to another window function in the same block, and each new
+  level of the recurrence costs you a level of query.
+
+  That is the honest limit of the technique. A DP that reads its own output once
+  costs one extra subquery. A DP that reads its own output $n$ times — where $n$
+  depends on the data rather than on the recurrence — cannot be written this way
+  at all, no matter how many levels you stack, because you would have to know
+  how many levels to write before seeing the data. That is precisely the case a
+  recursive CTE exists for, and Lesson 5 takes it up.
+
+  Compare the output against the Python loop from the lesson. Identical columns,
+  identical numbers, no loop in sight. The engine ran the recurrence; you
+  described it.
+
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 10
+      message: memoize has ten days of download data, so the DP table has ten rows.
+    - type: predicate
+      sql: "SELECT max(best_gain_so_far) = 400 AND min(best_gain_so_far) = 0 FROM __learner"
+      message: >-
+        The running best gain should start at 0 on day 1 and finish at 400 on
+        day 10. If your last row is not 400, check that the outer window is a
+        running MAX and not this day's gain alone.
+    - type: predicate
+      sql: "SELECT count(*) = 0 FROM (SELECT best_gain_so_far, lag(best_gain_so_far) OVER (ORDER BY day) AS prev FROM __learner) WHERE prev IS NOT NULL AND best_gain_so_far < prev"
+      message: >-
+        best_gain_so_far must never decrease — g(i) = max(g(i-1), ...) is
+        monotone by construction. A column that dips has today's gain in it
+        rather than the best gain so far.

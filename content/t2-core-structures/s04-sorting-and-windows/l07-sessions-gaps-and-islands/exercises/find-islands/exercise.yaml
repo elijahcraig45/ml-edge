@@ -1,0 +1,75 @@
+id: find-islands
+kind: python
+title: Sessionise a sorted event stream
+difficulty: 3
+pattern: gaps-and-islands
+topics: [sessionization, one-pass]
+timeLimitMs: 10000
+prompt: |
+  `timestamps` is a list of event times in **ascending order**, as integers.
+  Group them into sessions: a new session begins whenever an event is more than
+  `max_gap` after the previous one. Return a list of sessions, each a list of
+  timestamps, in order.
+
+  ```
+  sessionize([0, 5, 9, 40, 41, 43, 100, 101], 10)
+  # [[0, 5, 9], [40, 41, 43], [100, 101]]
+  ```
+
+  Details that the tests check:
+
+  - A gap of exactly `max_gap` does **not** start a new session. The rule is
+    strictly greater than.
+  - Repeated timestamps are allowed, and a gap of zero never breaks a session.
+  - An empty input returns `[]`.
+  - `max_gap` may be `0`, in which case only identical timestamps stay together.
+
+  One pass, one comparison per event. This is the Python twin of `LAG` plus a
+  cumulative `SUM`.
+hints:
+  - "You never need to look further back than one event. What is the only piece of history you need while deciding where the current event goes?"
+  - "Keep the sessions you have built so far. The last timestamp of the last session is your `LAG`; compare the current event against it."
+  - "If the difference is within `max_gap`, append to the session already open. Otherwise start a new one. The `if`/`else` is the SQL `CASE`, and starting a new list is the cumulative sum incrementing."
+solutionWalkthrough: |
+  ```python
+  def sessionize(timestamps, max_gap):
+      sessions = []
+      for t in timestamps:
+          if sessions and t - sessions[-1][-1] <= max_gap:
+              sessions[-1].append(t)
+          else:
+              sessions.append([t])
+      return sessions
+  ```
+
+  Line for line, this is the SQL query from the lesson:
+
+  | SQL | Python |
+  | --- | --- |
+  | `lag(day) OVER (ORDER BY day)` | `sessions[-1][-1]` |
+  | `CASE WHEN gap > max_gap THEN 1 ELSE 0 END` | the `if` / `else` |
+  | cumulative `SUM` of that flag | appending a new list instead of extending |
+  | `GROUP BY session_id` | the sessions being lists in the first place |
+
+  **`sessions and ...` handles the first event.** With no session open there is
+  nothing to compare against, so the `else` branch opens one. That is the same
+  role the NULL from `LAG` plays in SQL: the first row of a partition always
+  starts a session, and in both languages it falls out of the boundary condition
+  rather than needing a special case.
+
+  **`<= max_gap`, not `<`.** "More than `max_gap` apart" is strict, so a gap of
+  exactly `max_gap` stays inside the session. This is the kind of boundary that
+  a spec leaves ambiguous and that decides whether a 30-minute timeout closes a
+  session at 30:00 or 30:01. Ask; then write it down in a test.
+
+  **Cost.** One pass, one subtraction and one comparison per event: $\Theta(n)$,
+  and it needs the input sorted for exactly the reason lesson 5 gave — a pointer
+  that only moves forward. Unsorted input costs a sort first, which is the
+  $n\log n$ that the SQL version's `ORDER BY` inside `OVER` is also paying.
+
+  **A note on what you would return in production.** Lists of raw events get
+  large. The usual output is one row per session — start, end, event count — which
+  is the `GROUP BY session_id` step, and it lets you throw the events away as you
+  go rather than holding them all in memory. Rewriting this to emit
+  `(start, end, n)` tuples in constant memory is a five-line change and a good
+  habit.

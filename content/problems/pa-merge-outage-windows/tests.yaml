@@ -1,0 +1,32 @@
+- id: unsorted-overlap
+  label: Merges a chain of overlaps given out of order
+  code: |
+    assert merge_outages([(5, 8), (1, 3), (2, 6)]) == [(1, 8)]
+- id: touching
+  label: Windows that touch at a single minute merge
+  code: |
+    assert merge_outages([(1, 3), (3, 5)]) == [(1, 5)]
+- id: disjoint
+  label: Windows with a gap stay separate
+  code: |
+    assert merge_outages([(1, 3), (4, 5)]) == [(1, 3), (4, 5)]
+- id: empty
+  label: No outages merge to no outages
+  code: |
+    assert merge_outages([]) == []
+- id: swallowed-window
+  label: A window entirely inside another does not shrink it
+  hidden: true
+  code: |
+    assert merge_outages([(1, 10), (2, 3)]) == [(1, 10)]
+    assert merge_outages([(2, 3), (1, 10), (4, 5)]) == [(1, 10)]
+- id: single-and-identical
+  label: One window, identical windows, zero-length windows, untouched input
+  hidden: true
+  code: |
+    assert merge_outages([(4, 9)]) == [(4, 9)]
+    assert merge_outages([(2, 2), (2, 2)]) == [(2, 2)]
+    assert merge_outages([(-5, -3), (-4, 0)]) == [(-5, 0)]
+    original = [(3, 4), (1, 2)]
+    merge_outages(original)
+    assert original == [(3, 4), (1, 2)], "the input must not be modified"

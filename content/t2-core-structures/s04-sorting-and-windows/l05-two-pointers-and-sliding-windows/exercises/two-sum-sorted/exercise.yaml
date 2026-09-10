@@ -1,0 +1,70 @@
+id: two-sum-sorted
+kind: python
+title: Two pointers on a sorted release list
+difficulty: 2
+pattern: two-pointers
+topics: [two-pointers, sorted-input]
+timeLimitMs: 10000
+forbid:
+  - "set("
+  - "dict("
+  - "Counter"
+prompt: |
+  `sizes` is a list of artifact sizes **already sorted ascending**. Return the
+  indices `(i, j)` of two *different* entries whose sizes add up to `target`,
+  with `i < j`. Return `None` if no such pair exists.
+
+  ```
+  find_pair([18, 22, 44, 61, 95, 130, 190], 320)   # (5, 6)   130 + 190
+  find_pair([18, 22, 44], 7)                       # None
+  ```
+
+  Rules:
+
+  - If more than one pair works, return the one with the **smallest `i`**.
+  - Use $O(1)$ extra space. Hash-based collections are unavailable, and you do
+    not need them: the list is sorted, and that is worth more than a hash set
+    here.
+  - Duplicate sizes are allowed. Two entries with the same size at different
+    indices are two different entries.
+hints:
+  - "Start with one pointer at each end. Their sum is the largest sum available with that left element, and the smallest available with that right element."
+  - "If the sum is too small, the only way to increase it is to move the left pointer right. If it is too large, move the right pointer left. If they meet, there is no pair."
+  - "When the sum is too small, you are not merely skipping one pair — `sizes[hi]` was the best partner `sizes[lo]` could ever have, so every remaining pair using `lo` is also too small. That is why `lo` never has to come back."
+solutionWalkthrough: |
+  ```python
+  def find_pair(sizes, target):
+      lo, hi = 0, len(sizes) - 1
+      while lo < hi:
+          total = sizes[lo] + sizes[hi]
+          if total == target:
+              return (lo, hi)
+          if total < target:
+              lo += 1
+          else:
+              hi -= 1
+      return None
+  ```
+
+  **The correctness argument is the exercise, not the code.** When
+  `sizes[lo] + sizes[hi] < target`, `sizes[hi]` is the largest value still
+  available, so no remaining partner can lift `sizes[lo]` to the target. Every
+  pair containing `lo` is dead, and `lo` advances permanently. Symmetrically for
+  the other branch. Each step permanently retires one index, so the loop runs at
+  most $n$ times.
+
+  That also explains why this returns the smallest valid `i`: `lo` is only ever
+  advanced past a value that has been proved impossible.
+
+  **Where it breaks.** Both branches use sortedness. On an unsorted list the
+  claim "`sizes[hi]` is the largest remaining" is false, and the algorithm
+  silently returns `None` for inputs that do have a pair. This is the failure
+  mode to watch for — not slowness, wrongness.
+
+  **The alternative, and when to prefer it.** On unsorted input the linear
+  answer is a hash set: walk once, and for each value ask whether
+  `target - value` has been seen. That is $O(n)$ time and $O(n)$ space, and it
+  needs no sort. Two pointers is $O(n)$ time and $O(1)$ space but demands sorted
+  input, so paying $n\log n$ to sort purely to enable it is a loss — unless the
+  data arrives sorted anyway, or you are going to run many queries against the
+  same array, or memory is the binding constraint.

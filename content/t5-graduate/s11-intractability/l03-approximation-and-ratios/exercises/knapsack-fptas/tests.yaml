@@ -1,0 +1,97 @@
+- id: classic
+  label: The textbook instance
+  code: |
+    assert knapsack_fptas([60, 100, 120], [10, 20, 30], 50, 0.5) == 220
+
+- id: nothing-fits
+  label: Items heavier than the capacity are ignored
+  code: |
+    assert knapsack_fptas([5], [10], 3, 0.5) == 0
+    assert knapsack_fptas([], [], 10, 0.5) == 0
+    assert knapsack_fptas([9, 9], [11, 12], 10, 0.5) == 0
+
+- id: feasible
+  label: The reported value is achievable within the capacity
+  code: |
+    from itertools import combinations
+    def exact(values, weights, capacity):
+        best = 0
+        n = len(values)
+        for r in range(n + 1):
+            for sub in combinations(range(n), r):
+                if sum(weights[i] for i in sub) <= capacity:
+                    best = max(best, sum(values[i] for i in sub))
+        return best
+    CASES = [
+        ([60, 100, 120], [10, 20, 30], 50),
+        ([1, 2, 3, 4, 5], [5, 4, 3, 2, 1], 7),
+        ([10, 10, 10], [3, 3, 3], 6),
+        ([100, 1, 1, 1], [10, 1, 1, 1], 3),
+    ]
+    for values, weights, capacity in CASES:
+        got = knapsack_fptas(values, weights, capacity, 0.3)
+        assert got <= exact(values, weights, capacity), ("claimed more than optimal", values)
+
+- id: ratio-holds
+  label: Never below (1 - epsilon) times the brute-force optimum
+  code: |
+    import random
+    from itertools import combinations
+    def exact(values, weights, capacity):
+        best = 0
+        n = len(values)
+        for mask in range(1 << n):
+            w = v = 0
+            for i in range(n):
+                if mask >> i & 1:
+                    w += weights[i]
+                    v += values[i]
+            if w <= capacity and v > best:
+                best = v
+        return best
+    random.seed(0)
+    for _ in range(40):
+        n = random.randint(1, 11)
+        values = [random.randint(1, 60) for _ in range(n)]
+        weights = [random.randint(1, 20) for _ in range(n)]
+        capacity = random.randint(0, 40)
+        eps = random.choice([0.1, 0.25, 0.5])
+        got = knapsack_fptas(values, weights, capacity, eps)
+        opt = exact(values, weights, capacity)
+        assert got <= opt, ("above optimal", got, opt)
+        assert got >= (1 - eps) * opt - 1e-9, ("below the guarantee", got, opt, eps)
+
+- id: true-value-not-scaled
+  label: The return value is the real total, not the rounded one
+  hidden: true
+  code: |
+    # Two items, both fit. Scaled values would be small integers; the answer is 407.
+    assert knapsack_fptas([203, 204], [1, 1], 2, 0.5) == 407
+
+- id: zero-values
+  label: All-zero values return zero rather than dividing by zero
+  hidden: true
+  code: |
+    assert knapsack_fptas([0, 0], [1, 1], 5, 0.5) == 0
+
+- id: exactly-at-capacity
+  label: An item weighing exactly the capacity is usable
+  hidden: true
+  code: |
+    assert knapsack_fptas([7], [5], 5, 0.5) == 7
+    assert knapsack_fptas([7], [5], 4, 0.5) == 0
+
+- id: tight-epsilon-is-exact-here
+  label: A small epsilon recovers the optimum on a small instance
+  hidden: true
+  code: |
+    from itertools import combinations
+    values = [21, 33, 47, 12, 58]
+    weights = [3, 5, 7, 2, 9]
+    capacity = 14
+    best = 0
+    for r in range(6):
+        for sub in combinations(range(5), r):
+            if sum(weights[i] for i in sub) <= capacity:
+                best = max(best, sum(values[i] for i in sub))
+    assert knapsack_fptas(values, weights, capacity, 0.01) == best

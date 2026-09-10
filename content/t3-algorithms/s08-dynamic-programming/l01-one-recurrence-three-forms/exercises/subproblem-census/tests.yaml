@@ -1,0 +1,32 @@
+- id: worked-example
+  label: The lesson's example reports 817 calls over 16 distinct arguments
+  code: |
+    assert census(12, (1, 3, 4)) == (817, 16)
+- id: small-target
+  label: Target 10 reports 313 calls over 14 distinct arguments
+  code: |
+    assert census(10, (1, 3, 4)) == (313, 14)
+- id: zero-target
+  label: Target zero is still one call
+  code: |
+    assert census(0, (1, 3, 4)) == (1, 1)
+- id: single-size
+  label: A single block size gives a straight chain of calls
+  code: |
+    # f(7) -> f(2) -> f(-3): three calls, three distinct arguments.
+    assert census(7, (5,)) == (3, 3)
+- id: negatives-counted
+  label: Overshoot arguments are counted as distinct states
+  hidden: true
+  code: |
+    # f(6) -> f(4) -> f(2) -> f(0). No overshoot, so exactly four of each.
+    assert census(6, (2,)) == (4, 4)
+    # f(3) -> f(1) -> f(-1): the negative argument is a real, distinct state.
+    assert census(3, (2,)) == (3, 3)
+- id: ratio-grows
+  label: The calls-to-states ratio grows with the target
+  hidden: true
+  code: |
+    small_calls, small_states = census(10, (1, 3, 4))
+    big_calls, big_states = census(20, (1, 3, 4))
+    assert (big_calls / big_states) > 10 * (small_calls / small_states)

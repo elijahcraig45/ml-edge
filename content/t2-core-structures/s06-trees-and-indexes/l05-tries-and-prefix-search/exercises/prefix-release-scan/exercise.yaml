@@ -1,0 +1,72 @@
+id: prefix-release-scan
+kind: sql
+title: A prefix scan the optimiser can use
+difficulty: 3
+datasetId: package-registry
+pattern: trie
+topics: [tries, query-plans, sargability]
+timeLimitMs: 15000
+prompt: |
+  Return every release in the `1.x` line — every row of `versions` whose
+  `version` string starts with `1.`.
+
+  Three columns named `package_id`, `version` and `published_at`, sorted by
+  `version` then `package_id`. There are 10 such rows.
+
+  The starter returns exactly those rows using `substr`. It is correct and it is
+  the version an index cannot help with, because the engine has no idea what
+  `substr` does to the sort order.
+
+  This exercise is graded on its **execution plan**. Write the predicate so that
+  DuckDB turns it into a *range* on `version` — the plan's filter must contain
+  `version>=` and must not mention `substr`. Two predicates get you there: a
+  prefix `LIKE`, or the range written out by hand.
+hints:
+  - "A prefix constrains the beginning of the string, and string comparison reads left to right. What does that make the set of matching values, in sort order?"
+  - "`version LIKE '1.%'` is the short way. DuckDB rewrites it into bounds automatically."
+  - "The long way is the same thing spelled out: `version >= '1.' AND version < '1/'`. The upper bound is the prefix with its final character bumped to the next one — '.' is character 46, '/' is 47."
+solutionWalkthrough: |
+  ```sql
+  SELECT package_id, version, published_at
+  FROM versions
+  WHERE version LIKE '1.%'
+  ORDER BY version, package_id;
+  ```
+
+  The plan for this query filters with `version>='1.' AND version<'1/'`. DuckDB
+  recognised the prefix pattern and converted it into two bounds — which is a
+  seek and a scan on any ordered structure, and the reason prefix search is the
+  one wildcard search that is cheap.
+
+  The `substr` version in the starter returns identical rows and plans
+  `(substr(version, 1, 2) = '1.')`, an expression the engine must evaluate
+  against every row it reads. That is not a smaller difference than it looks:
+  the range form can skip whole blocks of the table, and the function form has
+  to look at all of them.
+
+  Writing the bounds by hand — `version >= '1.' AND version < '1/'` — is
+  accepted here and is genuinely useful when the pattern is not literally a
+  prefix, such as a date range standing in for `year(created_at) = 2021`. The
+  upper bound has to be *strictly less than* the bumped prefix, never `<=`, or
+  you pull in the value `'1/'` itself.
+
+  This is the trie's prefix subtree in the other representation. The trie walks
+  to the node for `1.` and reads its subtree; the ordered index seeks to `'1.'`
+  and reads forward until it passes `'1/'`. Same set of keys, same reason it is
+  cheap: keys that share a prefix are stored together.
+
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 10
+      message: Expected 10 rows — every version string beginning with "1.".
+    - type: plan
+      contains: ["version>="]
+      notContains: ["substr"]
+      message: >-
+        The rows are right but the predicate is not a range. The plan has to
+        show a lower bound on `version` itself — write `version LIKE '1.%'`, or
+        spell out `version >= '1.' AND version < '1/'`. Wrapping the column in
+        a function hides the ordering from the optimiser.

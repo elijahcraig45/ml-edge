@@ -1,0 +1,37 @@
+- id: zero
+  label: The empty mask has one submask
+  code: |
+    assert submasks(0) == [0]
+- id: small-masks
+  label: Enumerates submasks in descending order
+  code: |
+    assert submasks(0b101) == [5, 4, 1, 0]
+    assert submasks(0b111) == [7, 6, 5, 4, 3, 2, 1, 0]
+    assert submasks(0b1000) == [8, 0]
+- id: count-is-two-to-the-popcount
+  label: A mask with k set bits yields exactly 2**k submasks
+  code: |
+    for mask in (0b1011, 0b10101010, 0b1111111):
+        assert len(submasks(mask)) == 2 ** bin(mask).count("1"), mask
+- id: every-element-is-a-submask
+  label: Every value returned is a subset of the mask, with no repeats
+  hidden: true
+  code: |
+    mask = 0b1010110
+    got = submasks(mask)
+    assert got[0] == mask and got[-1] == 0
+    assert all(s & mask == s for s in got)
+    assert got == sorted(got, reverse=True)
+    assert len(set(got)) == len(got)
+- id: total-work-is-three-to-the-n
+  label: Summed over all masks of n bits, the total count is 3**n
+  hidden: true
+  code: |
+    n = 10
+    total = 0
+    mask = (1 << n) - 1
+    m = 0
+    while m <= mask:
+        total += len(submasks(m))
+        m += 1
+    assert total == 3 ** n, total

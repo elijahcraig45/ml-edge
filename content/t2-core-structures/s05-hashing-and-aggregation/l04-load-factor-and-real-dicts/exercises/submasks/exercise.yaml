@@ -1,0 +1,71 @@
+id: submasks
+kind: python
+title: Enumerate every submask
+difficulty: 3
+pattern: bitmask
+topics: [bitsets, enumeration]
+timeLimitMs: 20000
+prompt: |
+  Return every submask of `mask` — every integer whose set bits are a subset of
+  `mask`'s set bits — in **strictly descending order**, ending with `0`.
+
+  ```
+  submasks(0)        # [0]
+  submasks(0b101)    # [5, 4, 1, 0]
+  submasks(0b111)    # [7, 6, 5, 4, 3, 2, 1, 0]
+  ```
+
+  A mask with $k$ set bits has exactly $2^k$ submasks, and your loop must
+  perform that many iterations — not `mask + 1`. For `0b1000000000` those are
+  2 and 513, and the gap is the entire reason this trick exists.
+
+  **`range(` and `itertools` are not available**, which rules out filtering
+  every integer below the mask. You need the identity that takes one submask
+  directly to the next.
+hints:
+  - "Given a submask `s`, you want the largest submask strictly smaller than `s`. Think about what subtracting 1 from `s` does to its bits."
+  - "`s - 1` clears the lowest set bit of `s` and turns on every bit below it. Some of those bits may not be in `mask` — get rid of them."
+  - "`s = (s - 1) & mask`. The loop cannot use `while s > 0`, because 0 is itself a submask and must be emitted; append first, then break when `s == 0`."
+solutionWalkthrough: |
+  ```python
+  def submasks(mask):
+      out = []
+      s = mask
+      while True:
+          out.append(s)
+          if s == 0:
+              break
+          s = (s - 1) & mask
+      return out
+  ```
+
+  Why `(s - 1) & mask` lands exactly on the next submask, with nothing skipped
+  and nothing repeated: subtracting one borrows through the lowest set bit of
+  `s`, clearing it and setting every bit below it. That produces the largest
+  integer smaller than `s` that agrees with `s` above that bit. ANDing with
+  `mask` keeps only the bits the mask allows, and since the bits above the
+  borrow were already inside `mask` and are unchanged, the result is the largest
+  *submask* strictly below `s`. Descending by "largest thing strictly smaller"
+  enumerates the whole set, in order, once each.
+
+  The loop shape matters. `while s > 0` terminates before emitting 0, and 0 is a
+  legitimate submask — the empty subset. Emitting first and breaking on zero is
+  the standard form; the alternative is a `do-while`, which Python does not
+  have.
+
+  **The cost identity.** Run this over every mask of $n$ bits and the total
+  number of iterations is $3^n$, not $4^n$. Count pairs $(s, m)$ with
+  $s \subseteq m$: each of the $n$ bit positions is independently in $s$, in
+  $m$ but not $s$, or in neither — three choices, $n$ positions. The hidden test
+  checks it for $n = 10$: 59,049 iterations rather than $4^{10} \approx 10^6$.
+
+  That factor is what makes "for every subset, for every sub-subset" dynamic
+  programming tractable. Subset-sum splitting, travelling-salesman over subsets,
+  and set-cover DP all run this loop, and all of them are $3^n$ algorithms that
+  a naive nested loop over pairs of masks would make $4^n$. At $n = 20$ that is
+  3.5 billion against a trillion — the difference between an overnight run and
+  a decade.
+forbid:
+  - "range("
+  - itertools
+  - combinations

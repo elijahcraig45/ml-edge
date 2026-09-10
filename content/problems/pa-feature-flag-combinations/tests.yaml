@@ -1,0 +1,39 @@
+- id: two-features
+  label: Four combinations in the required order
+  code: |
+    assert feature_sets(["a", "b"]) == [[], ["a"], ["b"], ["a", "b"]]
+- id: empty
+  label: No features still yields the empty combination
+  code: |
+    assert feature_sets([]) == [[]]
+- id: one-feature
+  label: One feature gives two combinations
+  code: |
+    assert feature_sets(["x"]) == [[], ["x"]]
+- id: three-features
+  label: Three features give eight combinations
+  code: |
+    assert feature_sets(["a", "b", "c"]) == [
+        [], ["a"], ["b"], ["a", "b"],
+        ["c"], ["a", "c"], ["b", "c"], ["a", "b", "c"],
+    ]
+- id: count-and-distinctness
+  label: Exactly 2^n combinations, all different
+  hidden: true
+  code: |
+    features = ["f%d" % i for i in range(8)]
+    result = feature_sets(features)
+    assert len(result) == 256
+    assert len({tuple(combo) for combo in result}) == 256
+    assert [] in result
+    assert features in result
+- id: input-untouched
+  label: The feature list is not modified, and results are fresh lists
+  hidden: true
+  code: |
+    original = ["a", "b"]
+    result = feature_sets(original)
+    assert original == ["a", "b"], "the input must not be modified"
+    result[3].append("c")
+    assert feature_sets(["a", "b"]) == [[], ["a"], ["b"], ["a", "b"]]
+    assert feature_sets([1, 2]) == [[], [1], [2], [1, 2]]

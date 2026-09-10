@@ -1,0 +1,93 @@
+id: pb-fanout-downloads-by-language
+kind: sql
+title: The join that doubled Python
+difficulty: 4
+pattern: fan-out
+stage: s03-linear-structures
+topics: [joins, aggregation]
+datasetId: package-registry
+timeLimitMs: 15000
+prompt: |
+  Somebody wants downloads broken out by implementation language, and the
+  dashboard query they inherited joins `packages`, `package_maintainers` and
+  `downloads` together because that is what the other dashboard did.
+
+  It reports 376,480 Python downloads. The `downloads` table only contains
+  363,840 rows' worth of downloads in total, across every language.
+
+  Return one row per language:
+
+  - `language`
+  - `packages` — how many packages that language has
+  - `total_downloads` — the real total
+
+  Order does not matter. The four totals must add up to 363,840.
+hints:
+  - "Add `count(*)` to the broken query and group by package as well. Compare that number against the 10 rows per package that `downloads` actually holds."
+  - "`package_maintainers` is many-to-many. Joining it in multiplies every matching `downloads` row by the number of maintainers the package has — three maintainers, three copies of every day's count."
+  - "The fix here is not `DISTINCT` and not `SUM(DISTINCT ...)`; it is deleting a join that the question never needed. Nothing in the output depends on who maintains anything."
+solutionWalkthrough: |
+  ```sql
+  SELECT
+    p.language,
+    count(DISTINCT p.id) AS packages,
+    sum(d.count)         AS total_downloads
+  FROM packages p
+  JOIN downloads d ON d.package_id = p.id
+  GROUP BY p.language;
+  ```
+
+  js 35,740 · python 198,570 · rust 85,140 · sql 44,390. Sum: 363,840.
+
+  The broken version inflates Python to 376,480 and rust to 95,160, while js and
+  sql come out exactly right — every js and sql package happens to have a single
+  maintainer, so the fan-out factor is 1 and there is nothing to see. That is the
+  characteristic signature of this bug: it is not uniformly wrong, so a
+  spot-check on one row proves nothing.
+
+  The mechanism is grain. `downloads` is one row per package per day.
+  `package_maintainers` is one row per package per maintainer. Join them through
+  `packages` and you get one row per package × day × maintainer — a cross product
+  within each package, because the two right-hand tables have no shared key
+  beyond the package. `SUM` over that grain is a sum over duplicated facts.
+
+  Notice what `count(DISTINCT p.id)` does and does not save you from. It survives
+  the fan-out, because de-duplication is exactly what it does. `SUM` has no such
+  defence — `sum(DISTINCT d.count)` would be worse than useless, because two
+  packages that genuinely recorded the same count on different days would
+  collapse into one.
+
+  When you really do need facts from two independent child tables in one row,
+  aggregate each to the parent's grain first and join the aggregates. One row per
+  package on each side means nothing can multiply.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 4
+      message: Expected one row per language — js, python, rust and sql.
+    - type: predicate
+      sql: "SELECT sum(total_downloads) = 363840 AND sum(packages) = 20 FROM __learner"
+      message: >-
+        The totals must reconcile to the 363,840 downloads in the table and the
+        20 packages in the registry. A larger number means a join multiplied the
+        download rows.
+    - type: predicate
+      sql: "SELECT total_downloads = 198570 FROM __learner WHERE language = 'python'"
+      message: >-
+        Python's real total is 198,570. 376,480 is the fan-out through
+        `package_maintainers`.
+    - type: syntax
+      pattern: "package_maintainers"
+      negate: true
+      message: >-
+        Nothing in this result depends on who maintains a package, and joining
+        the link table multiplies every download row by the maintainer count.
+        Drop the table rather than de-duplicating after the fact.
+    - type: plan
+      notContains: ["CROSS_PRODUCT"]
+      message: >-
+        Join `downloads` to `packages` on `package_id` so the engine hashes the
+        keys instead of pairing every row with every row.

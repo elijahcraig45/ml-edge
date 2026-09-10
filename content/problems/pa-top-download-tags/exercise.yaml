@@ -1,0 +1,52 @@
+id: pa-top-download-tags
+kind: python
+title: The k most-used tags
+difficulty: 2
+pattern: hash-set-lookup
+stage: s01-ground-floor
+topics:
+  - hashing
+  - strings
+timeLimitMs: 10000
+prompt: |
+  `tags` is every tag applied across the registry, with repeats. Return the `k`
+  most frequently used tags, most frequent first. Break ties **alphabetically**.
+  If fewer than `k` distinct tags exist, return all of them; if `k` is zero or
+  negative, return an empty list.
+
+  ```
+  top_tags(["cli", "web", "cli", "db", "web", "cli"], 2)   # ["cli", "web"]
+  top_tags(["b", "a"], 1)                                  # ["a"]
+  ```
+
+  Count the tags yourself: `Counter` and `most_common` are rejected.
+hints:
+  - "Two separate steps, and mixing them is what makes this awkward. First turn the list into a count per tag; only then decide what order to report them in."
+  - "A dict from tag to count is one pass. Ranking the result is a sort over `counts.items()` with a key that encodes both rules at once."
+  - "`sorted(counts, key=lambda tag: (-counts[tag], tag))` sorts descending by count and ascending by name in a single pass, because negating the count reverses only that component. Then slice to `k`."
+solutionWalkthrough: |
+  ```python
+  def top_tags(tags, k):
+      if k <= 0:
+          return []
+      counts = {}
+      for tag in tags:
+          counts[tag] = counts.get(tag, 0) + 1
+      ranked = sorted(counts, key=lambda tag: (-counts[tag], tag))
+      return ranked[:k]
+  ```
+
+  The tie rule is the part people get wrong, because the two components sort in
+  opposite directions. `reverse=True` would flip the names too and put `web`
+  ahead of `cli` at equal counts. Negating the count and leaving the name alone
+  is the standard fix, and it works because tuples compare component by
+  component.
+
+  Cost is O(n) to count plus O(d log d) to sort, where `d` is the number of
+  distinct tags — usually far smaller than `n`, which is why counting first is
+  worth it rather than sorting the raw list. When `k` is tiny and `d` is huge, a
+  heap of size `k` brings the second term down to O(d log k); below a few
+  thousand distinct tags that is not worth the extra code.
+forbid:
+  - "Counter"
+  - "most_common"

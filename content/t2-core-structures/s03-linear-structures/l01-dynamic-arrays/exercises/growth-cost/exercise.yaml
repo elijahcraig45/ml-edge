@@ -1,0 +1,61 @@
+id: growth-cost
+kind: python
+title: Count what growing an array actually costs
+difficulty: 2
+pattern: amortized-analysis
+topics: [arrays, complexity]
+timeLimitMs: 10000
+prompt: |
+  A dynamic array starts with capacity 0. When it is full and another item
+  arrives it allocates a bigger block, copies every existing element across,
+  and continues. The new capacity is `capacity * factor` — except from 0,
+  where it goes to 1.
+
+  Return a tuple `(resizes, elements_copied)` for `n` appends.
+
+  ```
+  growth_cost(0)          # (0, 0)
+  growth_cost(1)          # (1, 0)   allocates a block, copies nothing into it
+  growth_cost(1000, 2)    # (11, 1023)
+  ```
+
+  `elements_copied` is the total number of elements moved across every resize
+  put together — not the number of resizes, and not `n`.
+hints:
+  - "Track two numbers as you go: how many slots you own (`capacity`) and how many are used (`size`). A resize happens exactly when they are equal and another item arrives."
+  - "At the moment of a resize, how many elements are already in the old block? That count is what gets copied — and it is `size`, not `capacity * factor`."
+  - "The first resize goes 0 → 1 and copies nothing, because there is nothing there yet. Every later one copies `size` elements and multiplies capacity by `factor`."
+solutionWalkthrough: |
+  ```python
+  def growth_cost(n, factor=2):
+      capacity = 0
+      size = 0
+      resizes = 0
+      copied = 0
+      for _ in range(n):
+          if size == capacity:
+              copied += size          # the old contents move first
+              capacity = 1 if capacity == 0 else capacity * factor
+              resizes += 1
+          size += 1
+      return (resizes, copied)
+  ```
+
+  Order matters on those two lines. Copy first, then grow — if you update
+  `capacity` before adding to `copied` you are counting slots you have not
+  filled yet, and the number comes out too large in a way that still looks
+  plausible.
+
+  Now look at what the numbers say. A thousand appends under doubling copy
+  1,023 elements *in total*. Not 1,000 per resize — 1,023 across all eleven of
+  them, because each resize copies only what fits in the block before it, and
+  those blocks are a geometric series that sums to less than the last one
+  twice over.
+
+  Quadrupling copies fewer elements still (341) and resizes half as often. So
+  why does CPython use roughly 1.125 rather than 4? Because the copies are not
+  the only cost: a bigger factor wastes more memory in the gap between `size`
+  and `capacity`, and that memory is not free either. The factor is a dial
+  between copy work and slack space, and every runtime picks a different spot
+  on it — Python about 1.125, Java's ArrayList 1.5, Go's slices 2 for small
+  slices and 1.25 for large ones.

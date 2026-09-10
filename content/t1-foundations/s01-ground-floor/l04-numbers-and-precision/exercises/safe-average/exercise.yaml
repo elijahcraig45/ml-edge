@@ -1,0 +1,44 @@
+id: safe-average
+kind: python
+title: Compare measurements without ==
+difficulty: 2
+pattern: float-comparison
+timeLimitMs: 10000
+prompt: |
+  Write `all_within(values, target, tolerance)` which returns `True` when every
+  value is within `tolerance` of `target`.
+
+  Use an **absolute** tolerance: a value counts when
+  `abs(value - target) <= tolerance`.
+
+  ```
+  all_within([0.1 + 0.2, 0.3], 0.3, 1e-9)   # True
+  all_within([0.3, 0.5], 0.3, 1e-9)         # False
+  all_within([], 0.3, 1e-9)                 # True  (nothing violates it)
+  ```
+
+  An empty list returns `True`. That is the conventional reading of "all" — there
+  is no value that breaks the rule.
+
+  Do not use `==` anywhere, and do not use `math.isclose` here: the point is to
+  write the comparison yourself so you know what the library is doing.
+hints:
+  - "`abs(value - target)` is the distance between two numbers, regardless of which is larger."
+  - "`all(...)` over a generator expression returns True for an empty sequence, which is exactly the behaviour the empty case wants."
+  - "Careful with the boundary: the spec says `<=`, so a value exactly `tolerance` away counts as within."
+solutionWalkthrough: |
+  ```python
+  def all_within(values, target, tolerance):
+      return all(abs(value - target) <= tolerance for value in values)
+  ```
+
+  Two details do real work here.
+
+  `abs(value - target)` makes the comparison symmetric — you do not care which
+  side of the target you are on, only how far. Writing `value - target <=
+  tolerance` would silently accept any value far *below* the target.
+
+  `all()` over an empty generator is `True`, so the empty case needs no special
+  handling. That is not an accident of the implementation: "every element
+  satisfies P" is vacuously true when there are no elements, and Python's `all`
+  encodes that directly.

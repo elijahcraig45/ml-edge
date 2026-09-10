@@ -1,0 +1,101 @@
+id: promotion-days-cte
+kind: sql
+title: A rolling 1-D DP as a recursive CTE
+difficulty: 4
+datasetId: package-registry
+pattern: recursive-cte
+topics: [dynamic-programming, sql]
+timeLimitMs: 25000
+prompt: |
+  Lesson 3 established that `f(i) = max(f(i-1), f(i-2) + a[i])` has no window
+  function. It does have a recursive CTE — the recursion walks the days one at a
+  time, carrying the DP's two running values as columns.
+
+  For every package, pick a set of days with **no two consecutive days** and
+  maximise the total downloads. Return `name` and `best_total`, sorted by
+  `best_total` descending then by `name`. Twenty rows, one per package.
+
+  All twenty packages advance in the same recursion; the package id is part of
+  the recursive relation, not a reason to run it twenty times.
+
+  The starter takes the obvious shortcut — the better of "every even-numbered
+  day" and "every odd-numbered day". Alternating is a legal choice of days, so
+  the shortcut is never too high, but it is too low for twelve of the twenty
+  packages. `chunker` gets 15,960 from it; the real answer is 16,280.
+hints:
+  - "Number the days per package first: `row_number() OVER (PARTITION BY package_id ORDER BY day)`. The recursion advances that index by one each round."
+  - "Carry two running values, exactly as the Python version does: `take` is the best total that uses day i, and `skip` is the best total that does not. Seed them at day 1 with (that day's count, 0)."
+  - "The step is `take_next = skip + count(i+1)` and `skip_next = greatest(take, skip)`. The answer for a package is `greatest(take, skip)` on its last day — and since that value never decreases as the recursion advances, `max(greatest(take, skip))` over all rows of that package gives the same number without hunting for the final row."
+solutionWalkthrough: |
+  ```sql
+  WITH RECURSIVE numbered AS (
+    SELECT package_id,
+           row_number() OVER (PARTITION BY package_id ORDER BY day) AS i,
+           count AS c
+    FROM downloads
+  ),
+  walk(package_id, i, take, skip) AS (
+    SELECT package_id, 1, c, 0 FROM numbered WHERE i = 1
+    UNION ALL
+    SELECT n.package_id, n.i, w.skip + n.c, greatest(w.take, w.skip)
+    FROM walk w
+    JOIN numbered n ON n.package_id = w.package_id AND n.i = w.i + 1
+  )
+  SELECT p.name, max(greatest(w.take, w.skip)) AS best_total
+  FROM walk w
+  JOIN packages p ON p.id = w.package_id
+  GROUP BY p.name
+  ORDER BY best_total DESC, p.name;
+  ```
+
+  The recursive relation is the DP's *loop variables*, promoted to columns.
+  `take` and `skip` are the two accumulators from the Python rolling version;
+  `i` is the loop counter; `package_id` is what turns one loop into twenty
+  independent loops running in lockstep. Each round of the fixpoint iteration is
+  one day advanced for every package at once, which is why this is twenty
+  dynamic programs in ten rounds rather than two hundred steps.
+
+  Two details worth stealing.
+
+  `greatest(w.take, w.skip)` appears twice for the same reason it appears twice
+  in the Python: it is the value of the DP after day `i`, and it is also the new
+  `skip` for day `i+1` — because "did not take day $i+1$" is exactly "did the
+  best you could through day $i$".
+
+  The final `max(...)` avoids having to find each package's last row. The running
+  best never decreases (skipping a day is always legal, so
+  $f(i+1) \ge f(i)$), so the maximum over all rows is the value at the last one.
+  That saves a window function or a second join, and it is only sound because of
+  a monotonicity property of the recurrence — worth stating out loud rather than
+  discovering by luck.
+
+  Compare this with the critical-path query. There, the recursion followed graph
+  edges and the number of rows grew with the number of paths. Here it advances a
+  counter, one row per package per day, so it materialises exactly 200 rows for
+  200 input rows. That is the well-behaved case: when the recursion is a
+  *stratified sweep* rather than a path enumeration, a recursive CTE really is a
+  bottom-up dynamic program, and it costs what the loop would.
+
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 20
+      message: One row per package, twenty in total.
+    - type: syntax
+      pattern: "with\\s+recursive"
+      message: >-
+        This recurrence combines its own previous outputs, so no window frame
+        computes it. Walk the days with WITH RECURSIVE.
+    - type: predicate
+      sql: "SELECT max(best_total) = 46200 AND min(best_total) = 3330 FROM __learner"
+      message: >-
+        arrowkit should top the list at 46,200 and treewalk should be last at
+        3,330. A treewalk of 3,250 means you took every other day instead of
+        solving the recurrence.
+    - type: predicate
+      sql: "SELECT count(*) = 1 FROM __learner WHERE name = 'chunker' AND best_total = 16280"
+      message: >-
+        chunker is one of the twelve packages where alternating days is not
+        optimal: the answer is 16,280, not 15,960.

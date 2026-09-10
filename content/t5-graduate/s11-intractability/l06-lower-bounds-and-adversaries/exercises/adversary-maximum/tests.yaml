@@ -1,0 +1,154 @@
+- id: worked-example
+  label: The pinned three-element example
+  code: |
+    adv = make_adversary(3)
+    assert adv.compare(0, 1) is True
+    assert adv.compare(2, 0) is True
+    assert adv.witness() == [2, 1, 3], adv.witness()
+    assert adv.comparisons == 2
+
+- id: forces-n-minus-one
+  label: Correct algorithms are forced to make n - 1 comparisons
+  code: |
+    def scan_max(adv, n):
+        best = 0
+        for i in range(1, n):
+            if adv.compare(i, best):
+                best = i
+        return best
+    def tournament_max(adv, n):
+        alive = list(range(n))
+        while len(alive) > 1:
+            nxt = []
+            for a in range(0, len(alive) - 1, 2):
+                i, j = alive[a], alive[a + 1]
+                nxt.append(i if adv.compare(i, j) else j)
+            if len(alive) % 2:
+                nxt.append(alive[-1])
+            alive = nxt
+        return alive[0]
+    for n in (2, 3, 5, 8, 13, 40):
+        for algo in (scan_max, tournament_max):
+            adv = make_adversary(n)
+            got = algo(adv, n)
+            w = adv.witness()
+            assert adv.comparisons >= n - 1, (n, algo.__name__, adv.comparisons)
+            assert w[got] == max(w), ("a correct algorithm was made wrong", n, algo.__name__)
+
+- id: answers-are-consistent
+  label: Every answer agrees with the witness
+  code: |
+    def scan_max(adv, n):
+        best = 0
+        for i in range(1, n):
+            if adv.compare(i, best):
+                best = i
+        return best
+    def zigzag(adv, n):
+        # compares in an awkward order, revisiting defeated elements
+        best = 0
+        for i in range(1, n):
+            adv.compare(best, i)
+            if adv.compare(i, best):
+                best = i
+        for i in range(n):
+            adv.compare(i, (i + 1) % n if (i + 1) % n != i else i)
+        return best
+    for n in (2, 4, 7, 12):
+        for algo in (scan_max, zigzag):
+            adv = make_adversary(n)
+            algo(adv, n)
+            w = adv.witness()
+            assert sorted(w) == list(range(1, n + 1)), ("not a permutation", n, w)
+            for i, j, answer in adv.log:
+                assert (w[i] > w[j]) == answer, ("inconsistent answer", n, i, j, answer, w)
+
+- id: lazy-algorithm-is-caught
+  label: An algorithm that skips the last element is made wrong
+  code: |
+    def lazy_max(adv, n):
+        best = 0
+        for i in range(1, n - 1):     # never looks at index n-1
+            if adv.compare(i, best):
+                best = i
+        return best
+    for n in (2, 3, 6, 11):
+        adv = make_adversary(n)
+        got = lazy_max(adv, n)
+        w = adv.witness()
+        assert adv.comparisons == max(0, n - 2), (n, adv.comparisons)
+        assert w[got] != max(w), ("the adversary let an incomplete algorithm win", n, got, w)
+
+- id: one-defeat-per-comparison
+  label: A comparison defeats at most one element
+  code: |
+    def scan_max(adv, n):
+        best = 0
+        for i in range(1, n):
+            if adv.compare(i, best):
+                best = i
+        return best
+    for n in (3, 9, 20):
+        adv = make_adversary(n)
+        scan_max(adv, n)
+        w = adv.witness()
+        # exactly one element survives undefeated, and it is the witness maximum
+        survivors = [i for i in range(n) if w[i] == max(w)]
+        assert len(survivors) == 1
+        assert adv.comparisons == n - 1
+
+- id: single-element
+  label: One element needs no comparisons
+  hidden: true
+  code: |
+    adv = make_adversary(1)
+    assert adv.witness() == [1]
+    assert adv.comparisons == 0
+
+- id: repeated-comparisons-are-stable
+  label: Asking the same question twice gives the same answer
+  hidden: true
+  code: |
+    adv = make_adversary(4)
+    first = adv.compare(0, 1)
+    for _ in range(5):
+        assert adv.compare(0, 1) is first
+    assert adv.compare(1, 0) is (not first)
+    w = adv.witness()
+    for i, j, answer in adv.log:
+        assert (w[i] > w[j]) == answer
+
+- id: defeated-pairs-use-defeat-order
+  label: Two defeated elements are ordered by when they lost
+  hidden: true
+  code: |
+    adv = make_adversary(4)
+    adv.compare(0, 1)     # 1 defeated first
+    adv.compare(2, 3)     # 3 defeated second
+    assert adv.compare(3, 1) is True      # 3 lost later, so 3 is larger
+    assert adv.compare(1, 3) is False
+    w = adv.witness()
+    assert w[1] == 1 and w[3] == 2, w
+
+- id: undefeated-beats-defeated
+  label: An element that has never lost outranks one that has
+  hidden: true
+  code: |
+    adv = make_adversary(5)
+    adv.compare(0, 1)
+    assert adv.compare(1, 4) is False
+    assert adv.compare(4, 1) is True
+    w = adv.witness()
+    assert w[4] > w[1]
+
+- id: only-one-survivor-can-be-max
+  label: Stopping early leaves several candidates and the largest index wins
+  hidden: true
+  code: |
+    adv = make_adversary(6)
+    adv.compare(0, 1)
+    adv.compare(2, 3)
+    w = adv.witness()
+    # defeated: 1 then 3 -> values 1 and 2. Undefeated 0,2,4,5 take 3..6 with the
+    # largest index on top.
+    assert w == [3, 1, 4, 2, 5, 6], w

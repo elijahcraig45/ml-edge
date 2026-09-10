@@ -1,0 +1,73 @@
+id: edit-distance
+kind: python
+title: Edit distance, all three moves
+difficulty: 3
+pattern: two-dimensional-dp
+topics: [dynamic-programming, strings]
+timeLimitMs: 15000
+prompt: |
+  Return the minimum number of single-character insertions, deletions and
+  substitutions that turn `a` into `b`. Each costs 1.
+
+  ```
+  edit_distance("kitten", "sitting")     # 3
+  edit_distance("graphwak", "graphwalk") # 1
+  edit_distance("abc", "axc")            # 1
+  edit_distance("", "abc")               # 3
+  ```
+
+  The starter is the version with **substitution left out** — it can only insert
+  and delete. That gives 2 for `("abc", "axc")` instead of 1, and 5 instead of 3
+  for `("kitten", "sitting")`. Adding the third move is a one-line change to the
+  recurrence, and finding which line is the exercise.
+
+  Write the DP yourself. `difflib` and third-party distance libraries are
+  rejected before your code runs.
+hints:
+  - "Name the state before touching the code: dp[i][j] is the cheapest way to turn the first i characters of a into the first j characters of b. Base cases follow immediately — dp[i][0] must be i, and dp[0][j] must be j."
+  - "When the characters differ there are three predecessors, not two: dp[i-1][j] is a deletion, dp[i][j-1] is an insertion, and dp[i-1][j-1] is a substitution. The starter is missing the third."
+  - "When the characters match, the cost is dp[i-1][j-1] with nothing added — matching is free. Do not add 1 there, and do not take a min over the other two: a free diagonal move can never be beaten."
+solutionWalkthrough: |
+  ```python
+  def edit_distance(a, b):
+      previous = list(range(len(b) + 1))
+      for i in range(1, len(a) + 1):
+          current = [i] + [0] * len(b)
+          for j in range(1, len(b) + 1):
+              if a[i - 1] == b[j - 1]:
+                  current[j] = previous[j - 1]
+              else:
+                  current[j] = 1 + min(previous[j], current[j - 1], previous[j - 1])
+          previous = current
+      return previous[len(b)]
+  ```
+
+  Two rows instead of a full grid, because every cell reads only the row above
+  and the cell to its left. `previous[j - 1]` is the diagonal, `previous[j]` is
+  directly above, `current[j - 1]` is directly left — all three are still
+  available in a two-row window, which is why this compression is safe here and
+  why Lesson 6 will point out what it costs you.
+
+  The match branch has no `1 +` and no `min`. That is not an optimisation, it is
+  the recurrence: if the characters agree, aligning them costs nothing, and no
+  route through an insertion or deletion can ever be cheaper than a free move.
+  Writing `min(previous[j - 1], 1 + previous[j], 1 + current[j - 1])` there gives
+  the same answer and tells a reader you were not sure.
+
+  Delete the `previous[j - 1]` term from the `min` and you get the starter: a
+  metric that pays 2 for every substitution, because it has to delete and then
+  insert. That is not a broken edit distance — it is the *indel* distance, and
+  it is exactly $|a| + |b| - 2\,\mathrm{lcs}(a, b)$. The two problems differ by
+  one term in one `min`, which is the point the lesson makes about weights.
+
+  For long inputs the cost is $\Theta(|a| \cdot |b|)$ time and $\Theta(|b|)$
+  space, and there is no known way to do substantially better in the general
+  case — under the strong exponential time hypothesis, a truly subquadratic
+  algorithm for edit distance would refute it. So when a spell-checker needs to
+  rank a typo against 300,000 dictionary words, it does not run this 300,000
+  times; it prunes with a cheap filter first, which is a Stage 9 conversation.
+forbid:
+  - "difflib"
+  - "SequenceMatcher"
+  - "Levenshtein"
+  - "editdistance"

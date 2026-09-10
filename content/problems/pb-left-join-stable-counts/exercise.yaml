@@ -1,0 +1,81 @@
+id: pb-left-join-stable-counts
+kind: sql
+title: Counting zero correctly
+difficulty: 2
+pattern: joins
+stage: s03-linear-structures
+topics: [left-join, aggregation]
+datasetId: package-registry
+timeLimitMs: 15000
+prompt: |
+  For every package in the registry, how many **stable** releases has it
+  published? A stable release is a `versions` row with `is_prerelease = false`.
+
+  Return `name` and `stable_versions`, one row per package — all 20 of them.
+  Five packages have only ever shipped prereleases and must appear with a zero.
+  Order does not matter.
+
+  Two independent ways to lose those five rows, and this exercise contains both:
+  putting the prerelease filter in `WHERE` instead of in `ON`, and counting with
+  `count(*)` instead of counting a column from the right-hand table.
+hints:
+  - "Start from `packages` and keep every row. Then ask what the filter and the aggregate each do to a package that matched nothing."
+  - "A LEFT JOIN that finds no match still emits one row, with every right-hand column set to NULL. `count(*)` counts that row and reports 1; the right answer is 0."
+  - "`count(v.id)` counts non-NULL values, so the invented all-NULL row contributes nothing. And move `NOT v.is_prerelease` into the `ON` clause, where it decides eligibility rather than survival."
+solutionWalkthrough: |
+  ```sql
+  SELECT p.name, count(v.id) AS stable_versions
+  FROM packages p
+  LEFT JOIN versions v
+         ON v.package_id = p.id
+        AND NOT v.is_prerelease
+  GROUP BY p.name;
+  ```
+
+  Twenty rows. `dagrun`, `hashring`, `joinplan`, `nullsafe` and `radixsort` come
+  back with 0 — they exist, they have releases, and none of those releases is
+  stable. That is a fact a release dashboard needs to show, and it is exactly the
+  fact both bugs erase.
+
+  The two failure modes are worth separating because they fail differently.
+  Moving the filter to `WHERE` deletes the five rows outright: the row survives
+  the join with NULL columns, then `NOT NULL` is UNKNOWN, then `WHERE` drops it.
+  You get 15 rows and a report that quietly under-counts your package list.
+  `count(*)` keeps all 20 rows but reports `1` for the five — which is worse,
+  because the row count looks right and the numbers are wrong.
+
+  The rule that covers both: in an outer join, `ON` decides what counts as a
+  match and `WHERE` decides what survives. Any predicate on the *optional* side
+  belongs in `ON`. And after any outer join, count a column, never `*`.
+
+  `count(*) FILTER (WHERE NOT v.is_prerelease)` over a plain LEFT JOIN is a third
+  correct spelling and is the one to reach for when you need several different
+  counts from the same join — one pass, several filters, instead of one join per
+  metric.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 20
+      message: >-
+        Expected all 20 packages. 15 rows means the prerelease filter ran in
+        `WHERE` and deleted the packages that have no stable release.
+    - type: syntax
+      pattern: "count\\s*\\(\\s*\\*\\s*\\)"
+      negate: true
+      message: >-
+        `count(*)` counts the placeholder row a LEFT JOIN invents for a package
+        with no match, so it reports 1 where the answer is 0. Count a column
+        from the right-hand table instead.
+    - type: predicate
+      sql: "SELECT count(*) = 5 FROM __learner WHERE stable_versions = 0"
+      message: >-
+        Exactly 5 packages have never shipped a stable release. If none of your
+        rows is zero, the aggregate is counting the join's placeholder row.
+    - type: plan
+      notContains: ["CROSS_PRODUCT"]
+      message: >-
+        The join needs `v.package_id = p.id` as an equality condition so the
+        engine can hash it, rather than pairing every package with every version.

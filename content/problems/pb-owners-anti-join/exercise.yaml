@@ -1,0 +1,83 @@
+id: pb-owners-anti-join
+kind: sql
+title: Maintainers who own nothing
+difficulty: 2
+pattern: joins
+stage: s03-linear-structures
+topics: [anti-join, not-exists]
+datasetId: package-registry
+timeLimitMs: 15000
+prompt: |
+  Every package has an owner. Not every maintainer is one.
+
+  Return the maintainers who hold **no** `owner` row in `package_maintainers` —
+  they contribute, but they own nothing. Two columns: `handle` and `joined_at`.
+  Order does not matter.
+
+  The trap is filtering instead of excluding. `WHERE pm.role <> 'owner'` finds
+  maintainers who have *a* contributor row, which is a different set: five of
+  those people also own something.
+hints:
+  - "Write down the two sets before you write SQL. \"Has a non-owner row\" and \"has no owner row\" are not complements of each other, because one person can have both kinds of row."
+  - "This is an anti-join: keep the left row only when the right side produced nothing. A `WHERE` on a joined column cannot express that, because the `WHERE` runs after the row has already been paired up."
+  - "`NOT EXISTS (SELECT 1 FROM package_maintainers pm WHERE pm.maintainer_id = m.id AND pm.role = 'owner')`, or the LEFT JOIN form where the ownership filter sits in the `ON` clause and the `WHERE` tests `pm.maintainer_id IS NULL`."
+solutionWalkthrough: |
+  ```sql
+  SELECT m.handle, m.joined_at
+  FROM maintainers m
+  WHERE NOT EXISTS (
+    SELECT 1 FROM package_maintainers pm
+    WHERE pm.maintainer_id = m.id
+      AND pm.role = 'owner'
+  );
+  ```
+
+  Two rows: `margaret` and `katherine`.
+
+  The LEFT JOIN spelling is equivalent and worth being able to read:
+
+  ```sql
+  SELECT m.handle, m.joined_at
+  FROM maintainers m
+  LEFT JOIN package_maintainers pm
+         ON pm.maintainer_id = m.id
+        AND pm.role = 'owner'
+  WHERE pm.maintainer_id IS NULL;
+  ```
+
+  Both compile to the same physical operator — a hash anti-join, which is a
+  hash table on the right side probed once per left row, keeping the misses.
+  That is the whole algorithm, and it is why an anti-join costs the same as a
+  semi-join rather than the same as a join plus a sort.
+
+  The placement of `AND pm.role = 'owner'` is the entire exercise. In the `ON`
+  clause it decides which rows are *eligible to match*, so a maintainer with only
+  contributor rows still finds nothing and survives the `IS NULL` test. Move it
+  into `WHERE` and it runs after matching, on a row where `pm.role` is already
+  NULL for the unmatched maintainers — which throws them away and leaves you
+  with an inner join wearing a LEFT JOIN's clothes.
+
+  Prefer `NOT EXISTS` when you can. The LEFT JOIN version has two places to get
+  wrong and no compiler check on either.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 2
+      message: >-
+        Expected 2 maintainers. Seven rows means you selected people who have a
+        contributor row rather than people who have no owner row.
+    - type: predicate
+      sql: "SELECT count(*) = 0 FROM __learner WHERE handle IN ('ada', 'grace', 'linus', 'donald', 'barbara')"
+      message: >-
+        Those five all own at least one package, even though they also appear as
+        contributors elsewhere. Having a contributor row is not the same as
+        owning nothing.
+    - type: plan
+      notContains: ["CROSS_PRODUCT"]
+      message: >-
+        Your query pairs every maintainer with every link row before filtering.
+        Put `maintainer_id` into the join condition so the engine can build a
+        hash table.

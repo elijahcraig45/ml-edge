@@ -1,0 +1,79 @@
+id: held-karp-tour
+kind: python
+title: Held-Karp — the cheapest tour of every mirror
+difficulty: 4
+pattern: bitmask-dp
+topics: [dynamic-programming, bitmask, graphs]
+timeLimitMs: 25000
+prompt: |
+  `dist[i][j]` is the latency from mirror site `i` to site `j`. Start at site 0,
+  visit every other site exactly once, return to 0, and minimise the total. The
+  matrix need not be symmetric.
+
+  ```
+  min_tour_cost([[0, 5, 40], [40, 0, 5], [5, 40, 0]])   # 15
+  min_tour_cost([[0, 3], [9, 0]])                       # 12
+  min_tour_cost([[0]])                                  # 0
+  ```
+
+  The starter is nearest-neighbour: from wherever you are, go to the closest
+  unvisited site. It is fast, it is plausible, and on the six-site instance in
+  the tests it returns 194 against an optimum of 156. Greedy has no exchange
+  argument here and Lesson 7 will explain what is missing; for now, replace it
+  with the dynamic program.
+
+  Use the state from the lesson: `g[mask][last]` is the cheapest route from site
+  0 that has visited exactly the sites in `mask` and is currently at `last`.
+  Inputs are small — up to about a dozen sites — so $\Theta(2^n n^2)$ is fine.
+hints:
+  - "A subset of n sites is an n-bit integer. `mask >> v & 1` tests membership, `mask | 1 << v` adds a site. The memo can be a list of lists indexed by [mask][last] rather than a dict."
+  - "Seed `g[1][0] = 0`: the set containing only site 0, currently at site 0. Every state you care about contains bit 0, so you can skip any mask without it."
+  - "Iterate masks in increasing numeric order. Adding a site only ever sets a bit, so `mask | 1 << nxt` is strictly greater than `mask` — increasing order is a valid topological order for free. Finish by closing the loop: the answer is min over v of g[full][v] + dist[v][0]."
+solutionWalkthrough: |
+  ```python
+  def min_tour_cost(dist):
+      n = len(dist)
+      if n <= 1:
+          return 0
+      INF = float("inf")
+      full = 1 << n
+      g = [[INF] * n for _ in range(full)]
+      g[1][0] = 0
+      for mask in range(full):
+          if not mask & 1:
+              continue
+          for last in range(n):
+              base = g[mask][last]
+              if base == INF:
+                  continue
+              for nxt in range(n):
+                  if mask >> nxt & 1:
+                      continue
+                  candidate = base + dist[last][nxt]
+                  if candidate < g[mask | 1 << nxt][nxt]:
+                      g[mask | 1 << nxt][nxt] = candidate
+      return min(g[full - 1][v] + dist[v][0] for v in range(1, n))
+  ```
+
+  Three things are worth naming.
+
+  **Why `last` is in the state at all.** The mask says which sites are done, but
+  the cost of the next hop depends on where you are standing. Two routes
+  covering the same set and ending at different sites are not interchangeable —
+  that is the sufficiency test from Lesson 2 failing on the mask alone.
+
+  **Why increasing numeric order works.** Every transition sets one more bit, so
+  the successor mask is strictly larger as an integer. Counting up therefore
+  visits every state after all of its dependencies, and you get a topological
+  order without computing one.
+
+  **This is pushing forward, not pulling back.** The recurrence in the lesson is
+  written as a `min` over predecessors; the code above reads a settled state and
+  relaxes its successors. Both fill the same table. Forward relaxation is easier
+  to write here because enumerating "sites not yet visited" is one bit test,
+  while enumerating predecessors means removing a bit and checking the result is
+  still legal.
+
+  Cost: $2^n \cdot n$ states, $n$ transitions each, so $\Theta(2^n n^2)$ time and
+  $\Theta(2^n n)$ space. Space is what stops you first — around 22 to 25 sites,
+  whatever your patience.

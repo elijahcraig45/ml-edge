@@ -1,0 +1,79 @@
+id: csr-from-edges
+kind: python
+title: Build CSR from an edge list
+difficulty: 3
+pattern: graph-representation
+topics: [graphs, arrays]
+timeLimitMs: 10000
+prompt: |
+  Convert an edge list into **compressed sparse row** form.
+
+  `build_csr(n, edges)` takes a node count and a list of `(u, v)` directed
+  edges, and returns `(indptr, indices)`:
+
+  - `indices` holds every out-neighbour of node 0, then every out-neighbour of
+    node 1, and so on, concatenated. Its length is `len(edges)`.
+  - `indptr` has length `n + 1`. Node `u` owns `indices[indptr[u]:indptr[u+1]]`.
+
+  Sort each node's run ascending, so the output is deterministic.
+
+  ```
+  build_csr(4, [(0, 1), (0, 2), (1, 2), (2, 3), (3, 0)])
+  # ([0, 2, 3, 4, 5], [1, 2, 2, 3, 0])
+  ```
+
+  Also finish `neighbours(indptr, indices, u)`, which must be a single slice —
+  no loop and no search. That is the whole point of the layout.
+
+  A repeated edge is not an error. CSR stores it twice, because a multigraph is
+  a real thing and the representation does not editorialise.
+hints:
+  - "You cannot write into `indices` until you know where each node's run starts, and you cannot know that until you have counted. So the first pass counts nothing but degrees."
+  - "`indptr` is the prefix sum of the degree array, with a leading zero: `indptr[u + 1] = indptr[u] + degree[u]`. That is why it has `n + 1` entries — the last one is the total edge count."
+  - "For the fill pass, copy `indptr[:n]` into a `cursor` array. Write each target at `cursor[u]`, then increment `cursor[u]`. When the pass ends, `cursor[u]` has walked to `indptr[u + 1]`."
+solutionWalkthrough: |
+  ```python
+  def build_csr(n, edges):
+      degree = [0] * n
+      for u, _ in edges:
+          degree[u] += 1
+
+      indptr = [0] * (n + 1)
+      for u in range(n):
+          indptr[u + 1] = indptr[u] + degree[u]
+
+      indices = [0] * len(edges)
+      cursor = indptr[:n]
+      for u, v in edges:
+          indices[cursor[u]] = v
+          cursor[u] += 1
+
+      for u in range(n):
+          indices[indptr[u]:indptr[u + 1]] = sorted(indices[indptr[u]:indptr[u + 1]])
+      return indptr, indices
+
+
+  def neighbours(indptr, indices, u):
+      return indices[indptr[u]:indptr[u + 1]]
+  ```
+
+  Count, prefix-sum, scatter. If that sequence feels familiar it is because it
+  *is* counting sort — CSR construction and a counting sort by source vertex are
+  the same three passes, and a graph library that says "sort the edges by source"
+  is describing this code.
+
+  The obvious alternative is to build a dict of lists and then flatten it. That
+  works and is one line shorter, but it allocates $V$ small lists you
+  immediately throw away, and on a graph with tens of millions of edges the
+  allocator becomes the bottleneck. The three-pass version touches exactly two
+  arrays of known size.
+
+  Where it stops winning: if edges keep arriving. Inserting one edge into node 0
+  shifts every later entry of `indices`. Systems that need both — a large graph
+  and a live edge stream — keep a CSR "base" plus a small mutable delta, and
+  periodically rebuild. That is the same log-structured trick a storage engine
+  uses, applied to a graph.
+
+  The `cursor = indptr[:n]` line is the one to remember. It is a copy, not an
+  alias; if you write `cursor = indptr` you destroy the boundaries you just
+  computed as you fill.

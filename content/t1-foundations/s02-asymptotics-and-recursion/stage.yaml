@@ -1,0 +1,32 @@
+id: s02-asymptotics-and-recursion
+tier: t1-foundations
+order: 2
+title: "Asymptotics and Recursion"
+status: published
+thesis: >-
+  Formalise the growth curves you measured in Stage 1, and make recursion a
+  contract rather than a leap of faith.
+summary: >-
+  Stage 1 had you double an input and watch a counter. This stage turns that
+  measurement into a claim you can defend: the quantifiers behind big-O, the
+  recursion tree behind a recurrence, the Master Theorem and the recurrences it
+  refuses to solve, and the accounting argument that makes appending to a list
+  cheap on average and expensive exactly once in a while. The SQL half is
+  EXPLAIN — a query plan is a recursion tree with a row estimate written on
+  every node, which is why it belongs here rather than in a late chapter on
+  tuning.
+outcomes:
+  - State the definitions of big-O, big-Omega and big-Theta with their quantifiers, and say which one a measurement actually supports.
+  - Use the limit test to place a function in a growth class, and name the case where the test does not apply.
+  - Write a recursive function by discharging three obligations — contract, base case, shrinking measure — instead of tracing it in your head.
+  - Read an EXPLAIN plan as a tree, compare its estimated cardinalities against the real row counts, and explain where the estimate came from.
+  - Solve a divide-and-conquer recurrence with a recursion tree, apply the Master Theorem, and recognise the recurrences it cannot touch.
+  - Prove an asymptotic bound by substitution and induction, including why a sloppy induction appears to prove a false bound.
+  - Explain why appending to a list is constant time amortized and linear time in the worst case, using both the aggregate and the accounting method.
+  - Turn an exponential recursion into a linear one with memoization, and state exactly what the extra space bought.
+lessons:
+  - l01-from-doubling-ratio-to-big-o
+  - l02-recursion-as-a-contract
+  - l03-solving-recurrences
+  - l04-amortized-cost
+  - l05-memoization

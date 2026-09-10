@@ -1,0 +1,73 @@
+id: top-three-downloads
+kind: sql
+title: Top-k, and the plan node that proves it
+difficulty: 3
+datasetId: package-registry
+pattern: heap
+topics: [heaps, query-plans]
+timeLimitMs: 15000
+prompt: |
+  Return the **three most downloaded packages** over the whole `downloads`
+  table, most downloaded first.
+
+  Two columns, named `name` and `downloads`, where `downloads` is the total
+  across every day.
+
+  The starter already returns the right three rows — it ranks every package with
+  a window function and keeps the first three. Your job is to write the version
+  that lets the engine use a heap instead.
+
+  This exercise is graded on its **execution plan** as well as its rows. The
+  plan must contain a `TOP_N` operator and must not contain an `ORDER_BY`
+  operator. `TOP_N` is DuckDB's bounded heap: it keeps three rows and streams
+  the table past them. `ORDER_BY` materialises and sorts every group first.
+hints:
+  - "Join downloads to packages, total the counts per package, and sort the totals descending."
+  - "The engine can only choose the bounded-heap plan if it can see how many rows you want. Say it in the query, not afterwards."
+  - "`ORDER BY <total> DESC LIMIT 3`. The window function in the starter hides the row count from the optimiser — it has to rank every group before the filter on the rank can run."
+solutionWalkthrough: |
+  ```sql
+  SELECT p.name AS name, sum(d.count) AS downloads
+  FROM downloads d
+  JOIN packages p ON p.id = d.package_id
+  GROUP BY p.name
+  ORDER BY downloads DESC
+  LIMIT 3;
+  ```
+
+  Both queries return `arrowkit`, `bitmask`, `chunker`. They do not cost the
+  same, and the plan says so out loud.
+
+  With `LIMIT 3` present, DuckDB plans a `TOP_N` node: a heap of three rows that
+  every group is compared against once. Memory is bounded by the limit, not by
+  the data. The `row_number()` version has to assign a rank to *every* group
+  before anything can be filtered, so it plans a `WINDOW` over a full
+  `ORDER_BY` — the whole result set materialised and sorted so that three rows
+  can survive.
+
+  On twenty packages the difference is invisible. The reason to care is that the
+  shape of the plan does not change when the table does: the `LIMIT` version is
+  still holding three rows when the input is a billion, and the window version
+  is still sorting all billion.
+
+  This is the same algorithm as the top-k exercise in Python, and the same trade:
+  a bounded heap answers "the best $k$" without ever producing a total order.
+  The window function is the right tool when you genuinely need the ranks —
+  `LIMIT` is the right tool when you only need the winners.
+
+grading:
+  # The order is the claim being made, so compare positionally.
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 3
+      message: Return exactly three rows — the three most downloaded packages.
+    - type: plan
+      contains: ["TOP_N"]
+      notContains: ["ORDER_BY"]
+      message: >-
+        The rows are right but the plan is not. DuckDB planned a full sort
+        (ORDER_BY) rather than a bounded heap (TOP_N), which means the engine
+        could not see how many rows you wanted. Push the row count into the
+        query with ORDER BY ... LIMIT 3 instead of ranking every group first.

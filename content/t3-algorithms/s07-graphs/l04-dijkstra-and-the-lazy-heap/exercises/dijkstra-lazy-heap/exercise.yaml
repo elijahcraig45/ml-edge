@@ -1,0 +1,107 @@
+id: dijkstra-lazy-heap
+kind: python
+title: Dijkstra with a lazy-deletion heap
+difficulty: 4
+pattern: dijkstra
+topics: [graphs, heaps, shortest-path]
+timeLimitMs: 25000
+prompt: |
+  `graph` maps each node to a list of `(neighbour, weight)` pairs, with every
+  weight non-negative. Return a dict mapping each node **reachable from
+  `source`** to its shortest total weight. Unreachable nodes are left out; a
+  `source` that is not in the graph gives `{}`.
+
+  ```
+  g = {"a": [("b", 10), ("c", 1)], "b": [("d", 1)], "c": [("b", 1)], "d": []}
+  dijkstra(g, "a")     # {"a": 0, "b": 2, "c": 1, "d": 3}
+  ```
+
+  **This one has a complexity budget.** The starter is already correct — it
+  finds the closest unfinished node by scanning every node, every round, which
+  is $O(V^2)$. The performance check runs an 8,000-node graph and will reject
+  it. Replace the scan with `heapq`.
+
+  Two things the tests will find:
+
+  - A node's distance can improve after it has been pushed. Freezing it at the
+    first route you find gives wrong numbers on the example above.
+  - `heapq` has no `decrease-key`. You will end up with more than one entry per
+    node in the heap, and you have to decide what to do when an obsolete one
+    comes out.
+hints:
+  - "The only thing the linear scan is buying you is `the unfinished node with the smallest distance`. That is exactly what a min-heap pops in logarithmic time."
+  - "When you find a better distance for `v`, you cannot reach into the heap and update the entry that is already there. Push `(new_distance, v)` as a second entry and leave the old one alone."
+  - "Now the heap can hand you `(10, 'b')` after `dist['b']` has already improved to 2. Compare the popped distance against `dist[u]`: if it is larger, this entry is superseded — `continue`. Do the check after the pop, never before the push."
+solutionWalkthrough: |
+  ```python
+  import heapq
+
+  def dijkstra(graph, source):
+      if source not in graph:
+          return {}
+      dist = {source: 0}
+      heap = [(0, source)]
+      while heap:
+          d, u = heapq.heappop(heap)
+          if d > dist[u]:
+              continue                       # superseded
+          for v, weight in graph[u]:
+              candidate = d + weight
+              if candidate < dist.get(v, float("inf")):
+                  dist[v] = candidate
+                  heapq.heappush(heap, (candidate, v))
+      return dist
+  ```
+
+  **`if d > dist[u]: continue` is the exercise.** The heap holds one entry per
+  successful relaxation, so a node that improves four times has four entries.
+  Three of them are obsolete by the time they surface. Expanding from an
+  obsolete distance cannot improve any neighbour — every offer would be
+  `d + weight`, and `dist[u] + weight` is already smaller — but it does destroy
+  the "each node expanded once" property that the $O(E \log V)$ bound depends
+  on. One comparison restores it.
+
+  This is called **lazy deletion**: instead of removing the stale entry when it
+  becomes stale, you leave it and recognise it on the way out. The alternative
+  is a real `decrease-key`, which needs a dict from node to heap position kept
+  in sync through every sift-up and sift-down. That is a genuine indexed heap,
+  it is about forty lines, and it buys you a heap of size $V$ instead of $E$.
+  Since $\log E \le 2\log V$, the asymptotic bound is identical — you would be
+  writing forty lines to change a constant factor.
+
+  **`dist` is also the visited set**, and it must be consulted on pop, not on
+  push. The version that keeps a `seen` set and marks nodes when pushing looks
+  like BFS and is wrong: on the example in the prompt it pushes `b` at 10 while
+  expanding `a`, marks it seen, and then refuses the two-cost route through `c`.
+  In an unweighted graph the first route found is optimal, so BFS gets away with
+  push-time marking. Weights remove that guarantee.
+
+  **Where this stops being the right tool.** Every weight must be non-negative —
+  the correctness argument needs a prefix of a shortest path to cost no more
+  than the whole path, and a negative edge breaks that. It also answers only
+  "cheapest", not "cheapest using at most $k$ edges"; that variant needs one
+  best distance per hop count, which is Bellman-Ford's shape, not Dijkstra's.
+
+# Enforces the O(E log V) claim. The scanning solution is correct, so nothing
+# but a budget rejects it.
+#
+# 8,000 nodes, degree 3 (a circulant graph, so it is strongly connected and
+# every node is genuinely reached).
+complexityBudget:
+  setup: |
+    n = 8000
+    data = {i: [] for i in range(n)}
+    for i in range(n):
+        for step, w in ((1, 3), (7, 11), (31, 29)):
+            data[i].append(((i + step) % n, w))
+  call: |
+    dijkstra(data, 0)
+  # Measured under CPython 3.13: heap version 3.3ms, linear scan 1237ms.
+  # 250ms is 75x above the heap version and 4.9x below the scan, so the gap
+  # holds even on a slow runner or under Pyodide.
+  maxMs: 250
+  message: >-
+    Correct, but it scans every node on every round to find the closest one,
+    which is O(V^2). Use `heapq`: push `(distance, node)` whenever a distance
+    improves, and skip an entry whose distance is already worse than the best
+    known when it pops.

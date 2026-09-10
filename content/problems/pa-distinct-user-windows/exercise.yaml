@@ -1,0 +1,59 @@
+id: pa-distinct-user-windows
+kind: python
+title: Windows with no repeat downloader
+difficulty: 3
+pattern: sliding-window
+stage: s04-sorting-and-windows
+topics:
+  - hashing
+  - arrays
+timeLimitMs: 15000
+prompt: |
+  `downloaders` is a download log: one account id per event, in order. Count how
+  many stretches of exactly `k` consecutive events involve `k` different
+  accounts — that is, no account appears twice inside the stretch.
+
+  ```
+  distinct_windows(["a", "b", "a", "c"], 2)   # 3   -> ab, ba, ac
+  distinct_windows(["a", "b", "a", "c"], 3)   # 1   -> only b,a,c
+  distinct_windows(["a", "a"], 2)             # 0
+  ```
+
+  Return `0` when `k` is zero, negative, or wider than the log.
+
+  Every event should be added to your bookkeeping once and removed once. Do not
+  rebuild a set for each window.
+hints:
+  - "Deciding whether a window has a repeat is a question about counts. If you already know the counts for one window, the next window changes exactly two of them."
+  - "Keep a dict from account id to how many times it appears in the current window, and slide it: increment the id entering, decrement the id leaving, and delete the key when its count hits zero."
+  - "Then the window is all-distinct exactly when `len(counts) == k`. Delete zero-count keys or that test silently stops working, because a stale key keeps inflating the length."
+solutionWalkthrough: |
+  ```python
+  def distinct_windows(downloaders, k):
+      if k <= 0 or k > len(downloaders):
+          return 0
+      counts = {}
+      for account in downloaders[:k]:
+          counts[account] = counts.get(account, 0) + 1
+      found = 1 if len(counts) == k else 0
+      for i in range(k, len(downloaders)):
+          entering = downloaders[i]
+          counts[entering] = counts.get(entering, 0) + 1
+          leaving = downloaders[i - k]
+          counts[leaving] -= 1
+          if counts[leaving] == 0:
+              del counts[leaving]
+          if len(counts) == k:
+              found += 1
+      return found
+  ```
+
+  The load-bearing line is `del counts[leaving]`. Leaving a zero behind is not a
+  correctness bug in the counts themselves — it is a bug in `len(counts)`, which
+  is the only thing being asked. Once you use the size of a dict as your answer,
+  every key in it has to mean something.
+
+  Building `set(downloaders[i:i+k])` per window is one line and gives the same
+  answer for `n * k` work. Sliding does two dict operations per event, so it is
+  O(n) with the window width falling out of the cost — the same trade as a
+  rolling sum, except the thing being rolled is a multiset instead of a number.

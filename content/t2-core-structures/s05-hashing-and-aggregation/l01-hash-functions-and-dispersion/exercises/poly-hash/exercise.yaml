@@ -1,0 +1,69 @@
+id: poly-hash
+kind: python
+title: A hash that can see position
+difficulty: 2
+pattern: hashing
+topics: [hashing, strings]
+timeLimitMs: 10000
+prompt: |
+  Implement the polynomial string hash, exactly as specified — the tests check
+  particular values, so the constants matter.
+
+  ```
+  h = 0
+  for each character ch in text:
+      h = (h * 131 + ord(ch))  mod  (2**61 - 1)
+  return h mod buckets
+  ```
+
+  ```
+  poly_hash("", 16)         # 0
+  poly_hash("a", 1000)      # 97
+  poly_hash("ab", 10**9)    # 12805   (97 * 131 + 98)
+  ```
+
+  The starter ships the additive hash — `sum(ord(ch) for ch in text)` — which
+  is what most people write first. It passes nothing, because it cannot tell
+  `"1.0.2"` from `"2.0.1"`, and one of the hidden tests is exactly that pair.
+
+  `2**61 - 1` is a Mersenne prime. Reducing modulo a prime is what stops the
+  accumulator growing without bound while keeping the multiply-and-add
+  structure intact.
+hints:
+  - "The additive version loses order because addition is commutative. What operation, applied to the accumulator before each character is added, makes the earlier characters count for more?"
+  - "Horner's rule: keep a running accumulator, multiply it by the base, then add the next character. One loop, one variable."
+  - "`h = (h * 131 + ord(ch)) % (2**61 - 1)` inside the loop, then `return h % buckets` once at the end. Reducing inside the loop and reducing at the end give the same answer; inside is what keeps the number small in a language without bignums."
+solutionWalkthrough: |
+  ```python
+  def poly_hash(text, buckets):
+      modulus = (1 << 61) - 1
+      h = 0
+      for ch in text:
+          h = (h * 131 + ord(ch)) % modulus
+      return h % buckets
+  ```
+
+  Unrolling the loop shows what the multiply buys. After three characters,
+
+  ```
+  h = c0 * 131**2 + c1 * 131 + c2
+  ```
+
+  Each character is weighted by a different power of the base, so moving a
+  character to a different position changes the result. That is the property the
+  additive hash lacks, and the reason `"1.0.2"` and `"2.0.1"` stop colliding.
+
+  Two choices worth defending. **131 is odd and coprime to the modulus**, which
+  matters — an even base would push a zero bit into the low end on every
+  iteration and the low bits are exactly what a power-of-two table indexes on.
+  **The modulus is prime**, so no key can be a multiple of a small factor shared
+  with the table size.
+
+  Where this stops winning: it is one multiply and one modulo per byte, which is
+  slower than the SIMD-friendly hashes real runtimes ship. Production string
+  hashes — SipHash, xxHash, wyhash — consume eight or sixteen bytes per round
+  and mix with shifts and multiplies rather than a modulo. The structure is the
+  same; the constants are tuned for the machine rather than for a proof.
+forbid:
+  - hashlib
+  - zlib

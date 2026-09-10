@@ -1,0 +1,55 @@
+- id: three-nodes
+  label: Reverses a three-release chain
+  code: |
+    def to_list(head):
+        out = []
+        while head is not None:
+            out.append(head.value)
+            head = head.next
+        return out
+    head = Node("3.0", Node("2.0", Node("1.0")))
+    assert to_list(reverse_chain(head)) == ["1.0", "2.0", "3.0"]
+- id: empty
+  label: An empty chain reverses to nothing
+  code: |
+    assert reverse_chain(None) is None
+- id: single
+  label: A one-node chain is its own reverse
+  code: |
+    only = Node("1.0")
+    result = reverse_chain(only)
+    assert result is only
+    assert result.next is None
+- id: nodes-are-reused
+  label: The original node objects are reused, not copied
+  code: |
+    first = Node(1)
+    second = Node(2, None)
+    first.next = second
+    result = reverse_chain(first)
+    assert result is second
+    assert result.next is first
+- id: tail-terminates
+  label: The old head becomes a tail that ends the chain
+  hidden: true
+  code: |
+    head = Node(1, Node(2, Node(3, Node(4))))
+    result = reverse_chain(head)
+    seen = 0
+    node = result
+    while node is not None and seen < 10:
+        seen += 1
+        node = node.next
+    assert seen == 4, "the reversed chain must terminate, not loop"
+- id: duplicate-values
+  label: Repeated values are kept in the right order
+  hidden: true
+  code: |
+    def to_list(head):
+        out = []
+        while head is not None:
+            out.append(head.value)
+            head = head.next
+        return out
+    head = Node(1, Node(1, Node(2, Node(1))))
+    assert to_list(reverse_chain(head)) == [1, 2, 1, 1]

@@ -1,0 +1,92 @@
+id: decorrelate-the-subquery
+kind: sql
+title: Remove the DELIM_JOIN
+difficulty: 4
+datasetId: package-registry
+topics: [optimizer, plans, subqueries]
+timeLimitMs: 15000
+prompt: |
+  The editor holds a correlated `EXISTS` subquery. DuckDB decorrelates it — it
+  does not run the subquery once per outer row — but the general decorrelation
+  algorithm leaves scaffolding behind, and the plan shows it as
+  `LEFT_DELIM_JOIN` and `DELIM_SCAN`.
+
+  Rewrite the query so it returns the same two rows with a plan that contains
+  **no `DELIM` operator of any kind**, and instead performs a `HASH_JOIN` with
+  `Join Type: SEMI`.
+
+  Return two columns named `name` and `language`, ordered by `name`, for every
+  package that has at least one release over 300 KB.
+
+  The correlation `v.package_id = p.id` is the thing to remove. State the same
+  requirement as a set membership rather than as a per-row condition and the
+  optimizer can express it as a semi-join directly.
+
+  A warning that is part of the exercise: this rewrite is safe here because
+  `versions.package_id` is never NULL. Read the walkthrough before you use it
+  anywhere else.
+hints:
+  - "\"There exists a version of this package with size > 300\" and \"this package's id is one of the ids of versions with size > 300\" are the same statement. Only one of them mentions the outer row."
+  - "Write the inner query so it stands alone — `SELECT package_id FROM versions WHERE size_kb > 300` — and relate it to the outer query with a set operator instead of a correlated predicate."
+  - "`WHERE p.id IN (SELECT v.package_id FROM versions v WHERE v.size_kb > 300)`. A semi-join is exactly what IN over a subquery compiles to when the optimizer can see it plainly."
+solutionWalkthrough: |
+  ```sql
+  SELECT p.name, p.language
+  FROM packages p
+  WHERE p.id IN (
+    SELECT v.package_id
+    FROM versions v
+    WHERE v.size_kb > 300
+  )
+  ORDER BY p.name;
+  ```
+
+  **What a DELIM_JOIN is.** Decorrelation in the general case works by
+  collecting the *distinct* values of the correlated columns, evaluating the
+  subquery once per distinct value, and joining the results back to the outer
+  rows. `DELIM` is short for duplicate elimination: the `DELIM_SCAN` reads that
+  distinct set and the `DELIM_JOIN` stitches the answer back on. The algorithm
+  works for any subquery, however tangled, which is why it is the fallback —
+  and why it costs more than a plan that never needed it.
+
+  Written as `IN`, the relationship is a semi-join on its face, so the
+  optimizer produces one: build a hash table on the qualifying `package_id`
+  values, probe it once per package, emit each package at most once. That is
+  the operator you implemented in lesson 2, with an early exit after the first
+  match.
+
+  **Where the rewrite is not safe.** `IN` inherits three-valued logic. If the
+  subquery column were nullable, `x IN (...)` and `EXISTS (...)` still agree for
+  the positive case, but their negations do not: a single NULL makes
+  `x NOT IN (...)` return `UNKNOWN` for every row, and the result collapses to
+  nothing. `NOT EXISTS` asks a two-valued question and cannot.
+
+  So the rule to carry away is asymmetric, and worth memorising in that shape:
+  rewriting `EXISTS` to `IN` is safe when you know the column is not nullable;
+  rewriting `NOT EXISTS` to `NOT IN` is never safe.
+
+  **And do not do this reflexively.** DuckDB's `DELIM_JOIN` on twenty rows costs
+  nothing. The rewrite is worth reaching for when a plan shows a delim join over
+  a large correlated set, or when the correlated subquery contains an aggregate
+  that would otherwise be recomputed per distinct outer value. Rewriting for a
+  prettier plan is not a reason.
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 2
+      message: >-
+        Expected 2 rows — chunker and indexer are the only packages with a
+        release over 300 KB.
+    - type: plan
+      notContains: [DELIM]
+      message: >-
+        The plan still contains a DELIM operator, so the subquery is still
+        correlated. Rewrite it so it does not mention the outer row.
+    - type: plan
+      contains: [HASH_JOIN, SEMI]
+      message: >-
+        The plan should contain a HASH_JOIN with Join Type SEMI — the operator
+        that answers "does a matching row exist" without duplicating the outer
+        row.

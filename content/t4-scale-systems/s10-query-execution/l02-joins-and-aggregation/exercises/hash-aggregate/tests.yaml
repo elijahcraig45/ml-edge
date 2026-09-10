@@ -1,0 +1,61 @@
+- id: basic
+  label: Groups, sums and counts
+  code: |
+    rows = [
+        {"language": "python", "size_kb": 190},
+        {"language": "rust",   "size_kb": 61},
+        {"language": "python", "size_kb": 402},
+    ]
+    assert list(aggregate(iter(rows), "language", "size_kb")) == [
+        {"language": "python", "total": 592, "count_all": 2, "count_value": 2},
+        {"language": "rust", "total": 61, "count_all": 1, "count_value": 1},
+    ]
+- id: empty
+  label: An empty input produces no groups
+  code: |
+    assert list(aggregate(iter([]), "language", "size_kb")) == []
+- id: skips-missing-values
+  label: A missing value is counted by count_all but not by sum or count_value
+  code: |
+    rows = [
+        {"language": "sql", "size_kb": 100},
+        {"language": "sql", "size_kb": None},
+    ]
+    out = list(aggregate(iter(rows), "language", "size_kb"))
+    assert out == [
+        {"language": "sql", "total": 100, "count_all": 2, "count_value": 1}
+    ], out
+- id: first-seen-order
+  label: Groups come out in first-seen order, not sorted order
+  code: |
+    rows = [{"g": "z", "v": 1}, {"g": "a", "v": 1}, {"g": "z", "v": 1}]
+    assert [r["g"] for r in aggregate(iter(rows), "g", "v")] == ["z", "a"]
+- id: all-missing-is-null
+  label: A group with no values at all sums to None, not zero
+  hidden: true
+  code: |
+    rows = [{"g": "x", "v": None}, {"g": "x", "v": None}]
+    out = list(aggregate(iter(rows), "g", "v"))
+    assert out == [{"g": "x", "total": None, "count_all": 2, "count_value": 0}], (
+        "SUM over no values is NULL, not 0 — otherwise 'nobody reported a size' "
+        "and 'the total size is zero' become the same number. Got %r" % out
+    )
+- id: zero-is-not-missing
+  label: A real zero is a value, and must not be treated as missing
+  hidden: true
+  code: |
+    rows = [{"g": "x", "v": 0}, {"g": "x", "v": None}]
+    out = list(aggregate(iter(rows), "g", "v"))
+    assert out == [{"g": "x", "total": 0, "count_all": 2, "count_value": 1}], out
+- id: single-pass
+  label: Consumes the child exactly once
+  hidden: true
+  code: |
+    passes = [0]
+    def source():
+        passes[0] += 1
+        for r in [{"g": "a", "v": 1}, {"g": "b", "v": 2}]:
+            yield r
+    out = list(aggregate(source(), "g", "v"))
+    assert len(out) == 2
+    assert passes[0] == 1, "the child was iterated %d times" % passes[0]

@@ -1,0 +1,90 @@
+- id: classic-sequence
+  label: A pinned sequence at two cache sizes
+  code: |
+    seq = [1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5]
+    assert lru_faults(3, seq) == 10, lru_faults(3, seq)
+    assert opt_faults(3, seq) == 7, opt_faults(3, seq)
+    assert lru_faults(4, seq) == 8, lru_faults(4, seq)
+    assert opt_faults(4, seq) == 6, opt_faults(4, seq)
+
+- id: hits-update-recency
+  label: A hit moves a page to most-recently-used
+  code: |
+    # 1,2,3 fill the cache; the hit on 1 saves it, so 4 evicts 2 and not 1.
+    seq = [1, 2, 3, 1, 4, 1]
+    assert lru_faults(3, seq) == 4, lru_faults(3, seq)
+
+- id: cyclic-worst-case
+  label: Cycling through k+1 pages makes LRU fault every time
+  code: |
+    seq = [i % 4 for i in range(24)]
+    assert lru_faults(3, seq) == 24
+    assert opt_faults(3, seq) == 10, opt_faults(3, seq)
+
+- id: opt-is-never-worse
+  label: The offline optimum never faults more than LRU
+  code: |
+    import random
+    random.seed(0)
+    for _ in range(150):
+        k = random.randint(1, 4)
+        reqs = [random.randint(0, k + 2) for _ in range(random.randint(0, 40))]
+        assert opt_faults(k, reqs) <= lru_faults(k, reqs), (k, reqs)
+
+- id: competitive-bound
+  label: LRU never exceeds k times OPT plus k
+  code: |
+    import random
+    random.seed(1)
+    CASES = [
+        (3, [1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5]),
+        (3, [i % 4 for i in range(24)]),
+        (2, [1, 2, 1, 2, 3, 1, 2, 3]),
+        (5, list(range(12)) * 2),
+    ]
+    for _ in range(150):
+        k = random.randint(1, 5)
+        CASES.append((k, [random.randint(0, k + 3) for _ in range(random.randint(0, 50))]))
+    for k, reqs in CASES:
+        lru = lru_faults(k, reqs)
+        opt = opt_faults(k, reqs)
+        assert lru <= k * opt + k, ("competitive bound broken", k, reqs, lru, opt)
+
+- id: belady-looks-forward
+  label: OPT evicts the page needed furthest ahead
+  hidden: true
+  code: |
+    # Cache holds 1,2,3. Request 4: page 1 is next used at index 6, page 2 at 4,
+    # page 3 never again — so OPT evicts 3, and the only later fault is on 3.
+    seq = [1, 2, 3, 4, 2, 4, 1, 3]
+    assert opt_faults(3, seq) == 5, opt_faults(3, seq)
+
+- id: fifo-is-not-lru
+  label: Evicting by insertion order gives different numbers
+  hidden: true
+  code: |
+    # FIFO faults 9 times here and LRU faults 10 — LRU is not always better,
+    # but it is not FIFO either.
+    seq = [1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5]
+    assert lru_faults(3, seq) != 9
+
+- id: degenerate-inputs
+  label: Zero capacity and empty sequences
+  hidden: true
+  code: |
+    assert lru_faults(0, [1, 2, 3]) == 3
+    assert opt_faults(0, [1, 2, 3]) == 3
+    assert lru_faults(3, []) == 0
+    assert opt_faults(3, []) == 0
+    assert lru_faults(5, [7, 7, 7, 7]) == 1
+    assert opt_faults(5, [7, 7, 7, 7]) == 1
+
+- id: cache-larger-than-the-workload
+  label: With capacity to spare, every distinct page faults exactly once
+  hidden: true
+  code: |
+    import random
+    random.seed(2)
+    reqs = [random.randint(0, 5) for _ in range(60)]
+    assert lru_faults(10, reqs) == len(set(reqs))
+    assert opt_faults(10, reqs) == len(set(reqs))

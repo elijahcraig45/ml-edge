@@ -1,0 +1,79 @@
+id: ring-buffer
+kind: python
+title: A ring buffer that can actually hold its capacity
+difficulty: 4
+pattern: circular-buffer
+topics: [queues, buffers]
+timeLimitMs: 15000
+forbid:
+  - "collections"
+  - "deque"
+  - ".pop(0)"
+  - "insert("
+prompt: |
+  Finish `RingBuffer`: a fixed-capacity FIFO queue backed by one preallocated
+  list, with O(1) push and O(1) pop and no reallocation, ever.
+
+  The contract:
+
+  - `RingBuffer(capacity)` — allocates `capacity` slots up front.
+  - `push(item)` — adds at the back. Raises `IndexError` if the buffer is full.
+  - `pop()` — removes and returns from the front. Raises `IndexError` if empty.
+  - `len(buf)` — how many items are live.
+  - `buf.capacity`, `buf.is_full()`, `buf.is_empty()`.
+
+  The starter tracks a head index and a tail index. That representation has a
+  hole in it: after `capacity` pushes the tail has wrapped all the way round to
+  the head, and after `capacity` pops it has too — so `head == tail` means both
+  "empty" and "full", and the code cannot tell which. The starter dodges it by
+  refusing to use the last slot, which is why a capacity of 3 only holds 2.
+
+  Fix that. `collections.deque` is forbidden, as is using a list as a queue
+  with `pop(0)` or `insert(0, x)` — building the thing is the exercise.
+hints:
+  - "Two indices give you `capacity` distinguishable states but there are `capacity + 1` possible occupancies: 0, 1, ..., capacity. The states do not fit, so no amount of arithmetic on head and tail alone will fix this."
+  - "Add a third piece of state. If you know the head and how many items are live, the tail is derivable: `(head + count) % capacity`."
+  - "With a count, `is_full` is `count == capacity`, `is_empty` is `count == 0`, and `len` is `count`. Every slot is usable and the ambiguity is gone."
+solutionWalkthrough: |
+  ```python
+  def push(self, item):
+      if self.is_full():
+          raise IndexError("buffer is full")
+      tail = (self._head + self._count) % len(self._slots)
+      self._slots[tail] = item
+      self._count += 1
+
+  def pop(self):
+      if self._count == 0:
+          raise IndexError("buffer is empty")
+      item = self._slots[self._head]
+      self._slots[self._head] = None
+      self._head = (self._head + 1) % len(self._slots)
+      self._count -= 1
+      return item
+  ```
+
+  The fix is not cleverer modular arithmetic — it is admitting the
+  representation was too small. A buffer of capacity `c` has `c + 1` possible
+  occupancies (0 through c), and a pair of indices into `c` slots can encode at
+  most `c` distinct differences. One state has nowhere to go. You resolve that
+  by adding a bit of information, and there are exactly three ways to do it:
+
+  1. **Keep a count.** What this solution does. One extra field, no wasted slot,
+     and `len()` becomes free.
+  2. **Sacrifice a slot.** What the starter does — declare the buffer full one
+     early so `head == tail` can only mean empty. Costs a slot, saves a field,
+     and is what most C implementations pick because the count would need
+     atomic updates in a concurrent producer/consumer setting.
+  3. **Let the indices grow without bound** and take the modulus only when
+     indexing. Then `tail - head` is the length directly. Elegant, and it
+     depends on the integers never overflowing — free in Python, a real design
+     question in C.
+
+  Being able to name all three, and say why a lock-free single-producer queue
+  picks the second, is what this exercise is worth in an interview.
+
+  `self._slots[self._head] = None` in `pop` is not required for correctness.
+  It is there so the buffer stops holding a reference to an item it has already
+  handed back; without it a capacity-1024 buffer keeps up to 1024 dead objects
+  alive indefinitely. This is a real and frequently reported leak.

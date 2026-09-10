@@ -1,0 +1,77 @@
+id: pb-license-coverage-by-language
+kind: sql
+title: License coverage, per language
+difficulty: 2
+pattern: null-semantics
+stage: s01-ground-floor
+topics: [aggregation, data-quality]
+datasetId: package-registry
+timeLimitMs: 15000
+prompt: |
+  Before anyone builds a license dashboard, measure how much of the `license`
+  column actually exists — broken down by implementation language.
+
+  One row per language, five columns:
+
+  - `language`
+  - `packages` — every package written in that language
+  - `with_license` — how many of them declared one
+  - `missing_license` — how many did not
+  - `distinct_licenses` — how many different licenses that language uses
+
+  Order does not matter, and there is no `WHERE` clause: filtering out the rows
+  with missing licenses would delete the very thing you are measuring.
+hints:
+  - "Every column except `language` is a variation on `count`. The difference between two of those variations is the whole answer."
+  - "`count(*)` counts rows. `count(license)` counts non-NULL values of that column. They are different questions, and their difference is the missing-data count."
+  - "`count(DISTINCT license)` skips NULLs *and* duplicates, so a language whose only license is undeclared reports zero distinct licenses rather than one."
+solutionWalkthrough: |
+  ```sql
+  SELECT
+    language,
+    count(*)                  AS packages,
+    count(license)            AS with_license,
+    count(*) - count(license) AS missing_license,
+    count(DISTINCT license)   AS distinct_licenses
+  FROM packages
+  GROUP BY language;
+  ```
+
+  Python is the interesting row: 8 packages, 6 licensed, 2 missing, 3 distinct
+  licenses. JavaScript is fully covered. Four packages across the whole registry
+  have no license, and every one of them would have vanished under a
+  `WHERE license IS NOT NULL`.
+
+  The trade-off worth naming: you could have written each column as
+  `count(*) FILTER (WHERE license IS NULL)` and friends, which is more explicit
+  and reads better when the conditions get complicated. Here, subtraction is
+  shorter and it makes the *relationship* between the columns visible — the
+  reader can see at a glance that `with_license + missing_license = packages`,
+  which is a property a pile of independent FILTER clauses does not advertise.
+
+  Where subtraction stops winning: the moment the two counts are not over the
+  same row set. `count(*) - count(license)` is only the missing count because
+  both aggregates see identical rows. Add a filter to one and the identity
+  breaks silently.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 4
+      message: >-
+        Expected 4 rows, one per language (js, python, rust, sql). Fewer means a
+        filter removed a language entirely.
+    - type: syntax
+      pattern: "\\bwhere\\b"
+      negate: true
+      message: >-
+        No WHERE clause. You are characterising every package, including the ones
+        whose license is missing — those rows are the measurement.
+    - type: predicate
+      sql: "SELECT sum(missing_license) = 4 AND sum(packages) = 20 FROM __learner"
+      message: >-
+        The columns should account for all 20 packages, 4 of which have no
+        license. If `missing_license` sums to 0 you counted rows where you meant
+        to count values.

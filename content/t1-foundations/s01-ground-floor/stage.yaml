@@ -1,0 +1,28 @@
+id: s01-ground-floor
+tier: t1-foundations
+order: 1
+title: "Ground Floor: Representation and Cost"
+status: published
+thesis: >-
+  Before any data structure, you need to be able to say what a computation
+  costs and what a table actually is.
+summary: >-
+  Six lessons with no prerequisites. You will write and run Python, measure how
+  a program's work grows instead of guessing, learn why 0.1 + 0.2 is not 0.3,
+  and meet the relational model — including the NULL rules that quietly produce
+  more wrong analytics than any other single cause. Nothing here is notation
+  for its own sake: every idea is one you will use in every later stage.
+outcomes:
+  - Write a Python function, read a traceback, and fix the error it points at.
+  - Predict which of two programs does more work as the input grows, and back the claim with a measurement.
+  - Choose between a list, a dict, and a set based on what the code actually does with them.
+  - Explain why floating-point equality is unreliable, and compare floats correctly.
+  - Read and write SELECT / WHERE / ORDER BY / LIMIT against a real schema.
+  - Predict what NULL does to comparisons, aggregates, and NOT IN — before you run the query.
+lessons:
+  - l01-values-and-names
+  - l02-collections-and-their-costs
+  - l03-counting-operations
+  - l04-numbers-and-precision
+  - l05-relations-and-select
+  - l06-null-and-three-valued-logic

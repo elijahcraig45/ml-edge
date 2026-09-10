@@ -1,0 +1,34 @@
+id: s10-query-execution
+tier: t4-scale-systems
+order: 10
+title: "Query Execution: The Textbook Someone Shipped"
+status: published
+thesis: >-
+  A database is a data-structures textbook someone shipped. Every chapter you
+  have read is inside it, running under load, with a cost model attached — and
+  the query plan is the table of contents.
+summary: >-
+  You will build a working query engine in Python — iterators, hash joins,
+  aggregation, vectorized batches, and a rule-based optimizer — and then open
+  DuckDB and find the same operators with the same names in its plans. The
+  second half is about reading those plans: where cardinality estimates come
+  from, why one bad estimate low in a join tree becomes a catastrophic one at
+  the top, and which rewrites change the plan rather than the prose. The stage
+  ends on the semantic layer, where the question stops being "does this query
+  run" and becomes "how do I prove this query is right".
+outcomes:
+  - Implement the Volcano iterator model — scan, filter, project, limit — as composable Python generators, and explain why `__next__` is `getNext`.
+  - Build a hash join and a hash aggregate, and measure a hash join beating a nested-loop join on the same data.
+  - Explain what vectorized execution buys, count the interpreter dispatches it removes, and say what it costs in complexity.
+  - Apply predicate pushdown, projection pushdown and cardinality-driven join reordering to an operator tree, and measure the win.
+  - Read a DuckDB EXPLAIN and EXPLAIN ANALYZE plan, compare estimated to actual rows, and locate the estimate that went wrong.
+  - Explain how a cardinality error compounds multiplicatively up a join tree, and why that makes the deepest estimate the most dangerous one.
+  - Recognise the optimisation fences — materialized CTEs, correlated subqueries — and rewrite around them on purpose rather than by superstition.
+  - Write tests that prove generated SQL computes the right number, not merely that it executes.
+lessons:
+  - l01-volcano-iterator-model
+  - l02-joins-and-aggregation
+  - l03-vectorized-execution
+  - l04-rule-based-optimizer
+  - l05-reading-real-plans
+  - l06-the-semantic-layer

@@ -1,0 +1,97 @@
+id: pb-rollup-language-license
+kind: sql
+title: Two kinds of NULL in one ROLLUP
+difficulty: 4
+pattern: aggregation
+stage: s03-linear-structures
+topics: [rollup, grouping]
+datasetId: package-registry
+timeLimitMs: 15000
+prompt: |
+  Build a license breakdown with per-language subtotals and a grand total, using
+  `GROUP BY ROLLUP (language, license)`.
+
+  Three columns, 18 rows:
+
+  - `language` — the language, or `(all languages)` on the grand-total row
+  - `license` — the SPDX id; `(undeclared)` where the package declared none;
+    `(all licenses)` on a subtotal row
+  - `packages` — the count
+
+  No cell in your output may be NULL. Order does not matter.
+
+  Here is the whole difficulty. ROLLUP marks a subtotal row by putting NULL in
+  the column it rolled up. Four packages already have a NULL license because they
+  never declared one. `coalesce(license, '(undeclared)')` cannot tell those two
+  NULLs apart, and will label the `python` subtotal row as undeclared.
+hints:
+  - "Run the plain ROLLUP with no labelling and sort by language. Python produces two rows with a NULL license — one holding 2 and one holding 8. Work out which is which before you try to name them."
+  - "`coalesce` sees a value. You need to ask a question about the *grouping* instead: was this column rolled up, or is it a real NULL from the data?"
+  - "`GROUPING(license)` returns 1 when ROLLUP collapsed that column for this row and 0 when it did not. Test it first in your CASE, and only fall through to `license IS NULL` afterwards."
+solutionWalkthrough: |
+  ```sql
+  SELECT
+    CASE WHEN GROUPING(language) = 1 THEN '(all languages)'
+         ELSE language END AS language,
+    CASE WHEN GROUPING(license) = 1 THEN '(all licenses)'
+         WHEN license IS NULL       THEN '(undeclared)'
+         ELSE license END           AS license,
+    count(*)                        AS packages
+  FROM packages
+  GROUP BY ROLLUP (language, license);
+  ```
+
+  Eighteen rows: twelve real (language, license) combinations, four per-language
+  subtotals, one grand total, plus the undeclared buckets. `python` /
+  `(undeclared)` holds 2; `python` / `(all licenses)` holds 8.
+
+  `GROUPING(col)` is the only thing in SQL that can distinguish "this column was
+  aggregated away" from "this column's value is missing". Both print as NULL and
+  both compare as NULL, so no amount of `coalesce`, `IS NULL` or `IFNULL` can
+  separate them — the information is not in the value, it is in which grouping
+  set produced the row. That is why the function exists, and it is the reason
+  ROLLUP over a nullable column is a genuine trap rather than a stylistic
+  quibble.
+
+  The order of the branches matters too. Test `GROUPING` first. A row can be both
+  a subtotal *and* over a NULL-licensed group — the `python` subtotal is
+  aggregating rows that include the two undeclared ones — and the subtotal label
+  is the one that describes the row.
+
+  The alternative is to avoid the collision entirely: `coalesce` the license into
+  `'(undeclared)'` in a subquery, *then* roll up the already-clean column. That
+  works, and it is the right call when the report will be maintained by people
+  who will not remember what `GROUPING` does. It costs an extra scan-and-project
+  and it moves the fix away from the place the ambiguity is created, which is
+  where a reviewer will look for it.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 18
+      message: >-
+        Expected 18 rows: 13 language/license combinations, 4 language subtotals,
+        and 1 grand total. 12 rows means the ROLLUP is missing.
+    - type: syntax
+      pattern: "\\brollup\\b|\\bgrouping\\s+sets\\b"
+      negate: false
+      message: >-
+        This report needs subtotal rows, which means `ROLLUP` (or the equivalent
+        `GROUPING SETS`), not a plain `GROUP BY`.
+    - type: predicate
+      sql: "SELECT count(*) = 0 FROM __learner WHERE language IS NULL OR license IS NULL"
+      message: >-
+        Every cell has to carry a printable label. A NULL left in the output is a
+        subtotal marker that was never named.
+    - type: predicate
+      sql: "SELECT count(*) = 1 AND max(packages) = 20 FROM __learner WHERE language = '(all languages)'"
+      message: >-
+        There should be exactly one grand-total row, counting all 20 packages.
+    - type: predicate
+      sql: "SELECT (SELECT packages FROM __learner WHERE language = 'python' AND license = '(undeclared)') = 2 AND (SELECT packages FROM __learner WHERE language = 'python' AND license = '(all licenses)') = 8"
+      message: >-
+        Python has 2 undeclared packages and 8 in total. If both of those rows
+        carry the same label, `coalesce` collapsed the ROLLUP marker into the
+        data's own NULL.

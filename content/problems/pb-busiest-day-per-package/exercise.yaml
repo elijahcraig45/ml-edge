@@ -1,0 +1,98 @@
+id: pb-busiest-day-per-package
+kind: sql
+title: The day each package peaked
+difficulty: 3
+pattern: window-functions
+stage: s04-sorting-and-windows
+topics: [row-number, top-n-per-group]
+datasetId: package-registry
+timeLimitMs: 20000
+prompt: |
+  For every package, find the single day on which it recorded its highest
+  download count.
+
+  Four columns: `package_id`, `name`, `day`, `count`. Twenty rows, one per
+  package. Order does not matter.
+
+  The query everyone writes first is `SELECT package_id, max(day), max(count)
+  FROM downloads GROUP BY package_id`. It returns twenty rows and every one of
+  them is a lie: `max(day)` and `max(count)` are computed independently, so the
+  day you get back is 2024-03-10 for every package regardless of what happened
+  on it.
+hints:
+  - "You are not asking for the maximum of a column. You are asking for the *row* that holds it — and an aggregate throws away everything except the value it returns."
+  - "Rank the rows inside each package by count, descending, then keep the rank-1 row. A window function ranks without collapsing, which is exactly what a GROUP BY cannot do."
+  - "`row_number() OVER (PARTITION BY package_id ORDER BY count DESC)` in a subquery or CTE, then filter it to 1 in the outer query. Window functions cannot appear in `WHERE`, because `WHERE` runs before they are computed."
+solutionWalkthrough: |
+  ```sql
+  WITH ranked AS (
+    SELECT
+      d.package_id,
+      p.name,
+      d.day,
+      d.count,
+      row_number() OVER (PARTITION BY d.package_id ORDER BY d.count DESC) AS rn
+    FROM downloads d
+    JOIN packages p ON p.id = d.package_id
+  )
+  SELECT package_id, name, day, count
+  FROM ranked
+  WHERE rn = 1;
+  ```
+
+  `arrowkit` peaked on 2024-03-08 at 9,400. `chunker` peaked on the first day.
+  The peaks are scattered across the window, which is precisely the information
+  the independent-`max` query erases.
+
+  The distinction worth internalising: `max(count)` returns a *value*;
+  `row_number() ... = 1` returns a *row*. Every "which record had the highest X"
+  question is the second kind, and reaching for `GROUP BY` on those is one of the
+  most common ways to ship a wrong dashboard, because the output has the right
+  shape and plausible numbers.
+
+  The classical pre-window alternative is a self-join against a grouped subquery:
+  group to get `(package_id, max(count))`, then join back to `downloads` on both
+  columns. It works, it is portable to engines with no window support, and it has
+  two problems. It reads the table twice. And it silently returns *two* rows for
+  a package that hit its peak twice — where `row_number()` picks exactly one, and
+  `rank()` would give you both on purpose. Choosing between `row_number` and
+  `rank` is choosing what happens on a tie, and it should be a decision, not an
+  accident.
+
+  Here every package's ten counts are distinct, so the two behave identically.
+  That is a property of this dataset, not of the query.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 20
+      message: >-
+        Expected exactly one row per package. More than 20 means the rank filter
+        is missing or is letting ties through; fewer means a global filter picked
+        one winner overall.
+    - type: syntax
+      pattern: "\\bover\\s*\\("
+      negate: false
+      message: >-
+        Use a window function. The point of this problem is picking a row rather
+        than an aggregate value.
+    - type: predicate
+      sql: "SELECT count(*) = 0 FROM __learner l WHERE NOT EXISTS (SELECT 1 FROM downloads d WHERE d.package_id = l.package_id AND d.day = l.day AND d.count = l.count)"
+      message: >-
+        One of your (package, day, count) triples is not a real row in
+        `downloads`. That is the signature of taking `max(day)` and `max(count)`
+        independently.
+    - type: predicate
+      sql: "SELECT count(DISTINCT day) > 1 FROM __learner"
+      message: >-
+        Every package peaking on the same day means the day column came from
+        `max(day)` rather than from the peak row.
+    - type: plan
+      contains: ["WINDOW"]
+      notContains: ["CROSS_PRODUCT"]
+      message: >-
+        The plan should contain a WINDOW operator and no cross product. A
+        self-join back onto `downloads` will not satisfy this — solve it with a
+        ranking window instead.

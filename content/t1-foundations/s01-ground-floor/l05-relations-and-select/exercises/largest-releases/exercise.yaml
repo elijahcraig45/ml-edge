@@ -1,0 +1,45 @@
+id: largest-releases
+kind: sql
+title: Releases over 200 kilobytes
+difficulty: 2
+datasetId: package-registry
+timeLimitMs: 15000
+prompt: |
+  From `versions`, return every release larger than 200 KB that is **not** a
+  prerelease.
+
+  Return three columns named `version`, `size_kb` and `published_at`, sorted by
+  `size_kb` from largest to smallest.
+
+  There is no LIMIT on this one — return all matching rows.
+hints:
+  - "Two conditions have to hold at once. Combine them with AND."
+  - "`is_prerelease` is already a BOOLEAN, so you can write `is_prerelease = false` or the more idiomatic `NOT is_prerelease`."
+  - "\"Larger than 200\" is strict: `size_kb > 200`, not `>=`."
+solutionWalkthrough: |
+  ```sql
+  SELECT version, size_kb, published_at
+  FROM versions
+  WHERE size_kb > 200
+    AND NOT is_prerelease
+  ORDER BY size_kb DESC;
+  ```
+
+  Two things worth noticing.
+
+  `NOT is_prerelease` reads better than `is_prerelease = false` and means the
+  same thing here — but only because this column is never NULL. Once a boolean
+  column is nullable, the two stop being equivalent, and that is exactly what
+  the next lesson is about.
+
+  The strictness of `>` versus `>=` is the kind of detail that separates a
+  correct report from a plausible one. 200 is not "over 200". When a spec says
+  "over", it means strict, and when it is ambiguous you ask.
+
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: syntax
+      pattern: "\\bwhere\\b"
+      message: This one needs a WHERE clause — you are filtering, not just sorting.

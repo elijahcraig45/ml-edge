@@ -1,0 +1,79 @@
+id: hash-join
+kind: python
+title: Replace the nested loop with a hash table
+difficulty: 3
+pattern: hash-join
+topics: [joins, hashing, query-execution]
+timeLimitMs: 25000
+prompt: |
+  Rewrite `hash_join` so it does not compare every pair.
+
+  `hash_join(left, right, left_key, right_key)` yields one merged row
+  `{**left_row, **right_row}` for every pair where
+  `left_row[left_key] == right_row[right_key]`.
+
+  ```
+  P = [{"id": 1, "name": "arrowkit"}, {"id": 2, "name": "bitmask"}]
+  V = [{"package_id": 2, "version": "1.0.0"}, {"package_id": 9, "version": "0.1"}]
+  list(hash_join(P, V, "id", "package_id"))
+  # [{"id": 2, "name": "bitmask", "package_id": 2, "version": "1.0.0"}]
+  ```
+
+  Two properties are graded beyond correctness.
+
+  **Output order.** Stream the right side and probe with it: rows come out in
+  right-side order, and where one right row matches several left rows, in
+  left-side order within that group. That is what the build/probe split gives
+  you for free, and it is what the tests expect.
+
+  **Cost.** There is a performance check on two 5,000-row inputs. The starter
+  returns the right answer and will not pass it.
+hints:
+  - "Of the 25,000,000 comparisons the starter makes on the performance input, 5,000 can succeed. Which structure turns 'find the rows with this key' from a scan into a lookup?"
+  - "Read the left side once into a dict from key to a *list* of rows — a list, because keys repeat. Then stream the right side and look each key up."
+  - "`buckets.setdefault(row[left_key], []).append(row)` builds it. `buckets.get(row[right_key], ())` probes it, and the empty-tuple default keeps the no-match case from needing an `if`."
+solutionWalkthrough: |
+  ```python
+  def hash_join(left, right, left_key, right_key):
+      buckets = {}
+      for row in left:
+          buckets.setdefault(row[left_key], []).append(row)
+      for row in right:
+          for match in buckets.get(row[right_key], ()):
+              yield {**match, **row}
+  ```
+
+  The whole idea is in the first loop. The nested-loop version asks "does this
+  pair match?" 25 million times; the hash version asks "which left rows have
+  this key?" 5,000 times, and a dictionary answers that in one step.
+
+  **The value has to be a list.** A join key is not a primary key in general —
+  three versions can share a `package_id`, three packages can share a name. Map
+  a key to a single row and you silently drop matches, which is the most common
+  bug in a hand-written join and the one that makes the result look plausible.
+
+  **The build side is materialised, and that is the trade.** The nested-loop
+  version needs the left side in memory too, but a real engine's nested loop can
+  rescan the inner side from disk and hold nothing. Hash join buys $O(1)$ probes
+  by promising the entire build side fits in RAM. When it does not, a real
+  engine partitions both sides by a hash of the key and joins the partitions
+  pairwise — the same algorithm applied recursively, at the cost of writing both
+  inputs out once.
+
+  Two consequences follow, and both are the reason plans look the way they do:
+  the optimizer builds on the side it estimates to be smaller, and a join is
+  the operator that cares most about that estimate being right.
+complexityBudget:
+  setup: |
+    data_left = [{"id": i, "name": "pkg-%d" % i} for i in range(5000)]
+    data_right = [{"package_id": i % 5000, "version": "1.0.%d" % i} for i in range(5000)]
+  call: |
+    list(hash_join(data_left, data_right, "id", "package_id"))
+  # Measured on CPython 3.13: hash join 1.6 ms, nested loop 498 ms.
+  # 80 ms is 50x above the hash version and 6x below the nested loop, so the
+  # gap survives both a slow runner and Pyodide's interpreter overhead.
+  maxMs: 80
+  message: >-
+    Correct, but it compared every left row against every right row — 25 million
+    comparisons for 5,000 output rows. Build a dict from the left side first,
+    then probe it once per right row.

@@ -1,0 +1,32 @@
+- id: worked-example
+  label: The lesson's sample gives 4
+  code: |
+    assert longest_increasing([3, 10, 2, 1, 20, 4, 6, 21, 5]) == 4
+- id: strictness
+  label: Equal values cannot both be used
+  code: |
+    assert longest_increasing([2, 2, 3, 3, 4]) == 3
+    assert longest_increasing([2, 2, 2]) == 1
+- id: degenerate
+  label: Empty, single and decreasing inputs
+  code: |
+    assert longest_increasing([]) == 0
+    assert longest_increasing([7]) == 1
+    assert longest_increasing([5, 4, 3]) == 1
+- id: already-sorted
+  label: An increasing input is entirely one subsequence
+  code: |
+    assert longest_increasing([1, 2, 3, 4, 5]) == 5
+- id: classic
+  label: A case where the greedy longest prefix is not the answer
+  hidden: true
+  code: |
+    assert longest_increasing([10, 9, 2, 5, 3, 7, 101, 18]) == 4
+- id: no-mutation
+  label: The input list is left alone
+  hidden: true
+  code: |
+    counts = [812, 892, 972, 1052, 692, 772, 852, 932, 1012, 1092]
+    original = list(counts)
+    assert longest_increasing(counts) == 6
+    assert counts == original

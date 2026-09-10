@@ -1,0 +1,113 @@
+id: lru-competitive
+kind: python
+title: LRU against a clairvoyant optimum
+difficulty: 4
+pattern: online
+topics: [online, caching, competitive]
+timeLimitMs: 20000
+prompt: |
+  **`lru_faults(k, requests)`** counts page faults for a cache of capacity `k`
+  under least-recently-used eviction. A *hit* still counts as a use and moves
+  the page to most-recently-used.
+
+  **`opt_faults(k, requests)`** counts faults for Belady's optimal offline
+  policy: on a fault with a full cache, evict the page whose **next** request is
+  furthest in the future, treating "never requested again" as infinitely far.
+
+  With `k = 0` nothing can be cached, so every request faults. An empty request
+  list has no faults.
+
+  ```
+  lru_faults(3, [1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5])   # 10
+  opt_faults(3, [1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5])   #  7
+  ```
+
+  The tests check the competitive bound directly:
+
+  $$\mathrm{LRU}(\sigma) \le k \cdot \mathrm{OPT}(\sigma) + k$$
+
+  over a corpus of sequences, and they include the adversarial one — cycling
+  through $k+1$ pages, where LRU faults on every single request. That sequence
+  is not a curiosity; it is a sequential scan slightly larger than the buffer
+  pool, and it is why real database engines special-case scans.
+
+  Belady's rule has ties when several cached pages are never requested again.
+  Any of them may be evicted — the *number* of faults is the same either way,
+  which is what the tests assert.
+hints:
+  - "For LRU a plain list ordered least-recently-used first is enough at these sizes: on a hit, remove and re-append; on a fault with a full cache, pop index 0."
+  - "For OPT, at request index i the distance to a page's next use is the smallest j > i with requests[j] == page. `requests.index(page, i + 1)` gives it, and a ValueError means never — treat that as infinity."
+  - "Belady evicts the page with the LARGEST next-use index. A page never used again has next-use infinity and should be evicted first."
+solutionWalkthrough: |
+  ```python
+  def lru_faults(k, requests):
+      if k <= 0:
+          return len(requests)
+      cache = []          # least recently used first
+      faults = 0
+      for page in requests:
+          if page in cache:
+              cache.remove(page)
+              cache.append(page)
+          else:
+              faults += 1
+              if len(cache) == k:
+                  cache.pop(0)
+              cache.append(page)
+      return faults
+
+  def opt_faults(k, requests):
+      if k <= 0:
+          return len(requests)
+      cache = set()
+      faults = 0
+      for i, page in enumerate(requests):
+          if page in cache:
+              continue
+          faults += 1
+          if len(cache) == k:
+              victim, farthest = None, -1
+              for p in cache:
+                  try:
+                      nxt = requests.index(p, i + 1)
+                  except ValueError:
+                      nxt = float("inf")
+                  if nxt > farthest:
+                      victim, farthest = p, nxt
+              cache.discard(victim)
+          cache.add(page)
+      return faults
+  ```
+
+  **Why LRU updates on a hit and FIFO does not.** That single line is the whole
+  difference between the two policies, and it is worth being able to point at.
+  FIFO evicts by insertion order and is also $k$-competitive, but it suffers
+  Belady's anomaly — adding cache capacity can *increase* its fault count. LRU
+  cannot: it is a *stack* algorithm, meaning its cache at size $k$ is always a
+  subset of its cache at size $k+1$. On the pinned sequence above, FIFO faults 9
+  times at $k = 3$ (beating LRU's 10) and 10 times at $k = 4$ — more capacity,
+  more faults. That is the anomaly, and it is the reason a hidden test pins LRU
+  away from FIFO's answer rather than merely checking the bound.
+
+  **Why OPT is offline and not cheating.** It is not a policy anyone could
+  implement; it is the benchmark the competitive ratio is measured against. The
+  reason it is the right benchmark is Belady's theorem: evicting the furthest
+  future use is provably optimal, so there is no better offline number to
+  compare with. Without that theorem, "$k$-competitive" would be a ratio to an
+  unknown quantity.
+
+  **What the bound is really claiming.** $k$ looks terrible — with a 4,000-page
+  buffer pool that would be a factor of 4,000. It is a worst case over
+  *adversarial* sequences and real traces are nothing like adversarial. The
+  useful content of the theorem is the *shape* of the bad case, and the fact that
+  no deterministic policy avoids it: an adversary who knows your policy requests
+  exactly what you just evicted. Randomised MARKER gets to $2H_k \approx 2\ln k$,
+  which for 4,000 pages is about 17 instead of 4,000 — an enormous difference,
+  bought with coins the adversary cannot see.
+
+  **The cost of this implementation.** `requests.index` inside the eviction loop
+  makes `opt_faults` $O(n^2 k)$. Precomputing, for every position, the next
+  occurrence of that page gets it to $O(nk)$, and a heap keyed by next-use gets
+  it to $O(n \log k)$. At the sizes here it does not matter; on a real trace of
+  a hundred million requests it is the difference between an afternoon and a
+  second.

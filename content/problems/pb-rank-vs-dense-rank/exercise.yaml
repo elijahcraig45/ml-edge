@@ -1,0 +1,91 @@
+id: pb-rank-vs-dense-rank
+kind: sql
+title: Three ranking functions, three different answers
+difficulty: 3
+pattern: window-functions
+stage: s04-sorting-and-windows
+topics: [rank, ties]
+datasetId: package-registry
+timeLimitMs: 15000
+prompt: |
+  Rank the packages by how many maintainers they have, busiest first, and show
+  what the two standard ranking functions do with the ties.
+
+  Four columns, one row per package:
+
+  - `name`
+  - `maintainers`
+  - `rank_pos` — `rank()` over the same ordering
+  - `dense_pos` — `dense_rank()` over the same ordering
+
+  Twenty rows. Order does not matter.
+
+  The counts are 3, 2, 2, 2, 2, and then fifteen packages on 1. `rank_pos`
+  therefore runs 1, 2, 2, 2, 2, 6 — it skips 3, 4 and 5. `dense_pos` runs
+  1, 2, 3 with no gaps. `row_number()` would give you 1 through 20 and is wrong
+  for both columns, because it invents an order among rows that are tied.
+hints:
+  - "Both columns use the same `OVER (ORDER BY ...)`. Only the function name changes."
+  - "`rank()` answers \"how many rows are strictly ahead of me, plus one\", so tied rows share a position and the next position jumps. `dense_rank()` answers \"how many distinct values are ahead of me, plus one\", so it never leaves a gap."
+  - "You are ranking an aggregate. A window function is evaluated after `GROUP BY`, so `rank() OVER (ORDER BY count(*) DESC)` is legal in the SELECT list of a grouped query."
+solutionWalkthrough: |
+  ```sql
+  SELECT
+    p.name,
+    count(*)                                AS maintainers,
+    rank()       OVER (ORDER BY count(*) DESC) AS rank_pos,
+    dense_rank() OVER (ORDER BY count(*) DESC) AS dense_pos
+  FROM packages p
+  JOIN package_maintainers pm ON pm.package_id = p.id
+  GROUP BY p.name;
+  ```
+
+  `chunker` 3 → 1, 1. The four packages on 2 → 2, 2. The fifteen on 1 → 6, 3.
+
+  The window runs *after* the grouping, which is why `count(*)` can appear inside
+  `ORDER BY` in the `OVER` clause without a subquery. The pipeline is FROM →
+  WHERE → GROUP BY → HAVING → window functions → SELECT → ORDER BY, and knowing
+  where windows sit in it answers most "why can't I use this here" questions:
+  you cannot filter on a window in `WHERE` (too early), you can in `QUALIFY`
+  (late enough).
+
+  Choosing between the three is a question about what the number will be used
+  for. `rank()` preserves the count of rows ahead of you, so position 6 tells a
+  reader that five packages beat this one — useful for leaderboards and
+  percentiles. `dense_rank()` preserves the count of distinct *levels*, so it
+  answers "how many tiers down am I" — useful when you want the top three
+  distinct scores and do not care how many packages share them. `row_number()`
+  guarantees uniqueness and nothing else; use it when you need exactly one row
+  per group and you have said, explicitly, how ties break.
+
+  The failure mode to watch for: `row_number()` over a non-deterministic ordering
+  produces a stable-looking result that changes between runs, between engines,
+  and after an unrelated index change. If ties are possible and the choice
+  matters, put a tiebreaker in the `ORDER BY`.
+
+grading:
+  compare: multiset
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 20
+      message: Expected one row per package. Every package has at least one maintainer.
+    - type: syntax
+      pattern: "dense_rank\\s*\\("
+      negate: false
+      message: The `dense_pos` column has to come from `dense_rank()`.
+    - type: predicate
+      sql: "SELECT max(rank_pos) = 6 AND max(dense_pos) = 3 FROM __learner"
+      message: >-
+        `rank()` should top out at 6 (it skips 3, 4 and 5 after the four-way tie)
+        and `dense_rank()` at 3. Both reaching 20 means you used `row_number()`.
+    - type: predicate
+      sql: "SELECT count(*) = 4 FROM __learner WHERE rank_pos = 2 AND maintainers = 2"
+      message: >-
+        Four packages have exactly two maintainers and must share rank 2.
+    - type: predicate
+      sql: "SELECT count(*) = 15 FROM __learner WHERE dense_pos = 3 AND rank_pos = 6"
+      message: >-
+        The fifteen single-maintainer packages sit at dense rank 3 and rank 6 —
+        the gap is the four tied packages that `rank()` counts and `dense_rank()`
+        does not.

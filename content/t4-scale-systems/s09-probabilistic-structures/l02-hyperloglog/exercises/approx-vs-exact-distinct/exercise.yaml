@@ -1,0 +1,77 @@
+id: approx-vs-exact-distinct
+kind: sql
+title: Measure the sketch against the truth
+difficulty: 3
+datasetId: package-registry
+pattern: cardinality-estimation
+topics: [hyperloglog, aggregation]
+timeLimitMs: 15000
+prompt: |
+  Put the estimate next to the exact answer and look at the gap.
+
+  For each package `language`, return four columns:
+
+  - `language`
+  - `exact_distinct` — distinct values of `downloads.count`, computed exactly
+  - `approx_distinct` — the same thing via `approx_count_distinct`, which is a
+    HyperLogLog
+  - `abs_error` — the absolute difference between them
+
+  Sorted by `language`. Four rows out.
+
+  `count` is both a column name and a function, so write it as `d."count"`.
+
+  The errors you get back are small but not zero, and they do not shrink just
+  because a group is small. That is the contract: the sketch never looked at the
+  values, so it cannot be exactly right except by luck.
+hints:
+  - "You already have the exact count. `approx_count_distinct` takes the same argument and slots into the same SELECT list."
+  - "`abs(x - y)` gives the unsigned gap. You can repeat both aggregate expressions inside it — DuckDB computes each aggregate once per group regardless."
+  - "The join is only there to get `language`; the aggregation is over `d.\"count\"` grouped by `p.language`."
+solutionWalkthrough: |
+  ```sql
+  SELECT
+    p.language,
+    count(DISTINCT d."count")                                         AS exact_distinct,
+    approx_count_distinct(d."count")                                  AS approx_distinct,
+    abs(approx_count_distinct(d."count") - count(DISTINCT d."count")) AS abs_error
+  FROM downloads d
+  JOIN packages p ON p.id = d.package_id
+  GROUP BY p.language
+  ORDER BY p.language;
+  ```
+
+  Look at what came back. `python` has 80 distinct download counts and the
+  sketch says 86; `sql` has 40 and the sketch says 39. Errors of 1 to 6 on
+  groups of 30 to 80 — the largest being 7.5%.
+
+  On 200 rows this is a strictly worse deal than the exact answer, and you
+  should say so out loud. `count(DISTINCT ...)` here costs a hash table with at
+  most 80 entries. The sketch costs a fixed-size register array whatever
+  happens, so at this scale you paid the same memory and got a worse answer.
+
+  The trade flips when the distinct count is large enough that holding it is the
+  problem: a billion distinct user ids is roughly 8 GB of hash table per group,
+  and the sketch is 12 KB per group whether the answer is a thousand or a
+  billion. The lesson is not "approximate is better" — it is that exactness has
+  a price that scales with the answer, and approximation has a price that does
+  not.
+
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: syntax
+      pattern: "approx_count_distinct"
+      message: >-
+        This exercise is about the sketch. Use approx_count_distinct for the
+        approx_distinct column rather than deriving it another way.
+    - type: rowcount
+      equals: 4
+      message: One row per language, and there are four languages in the registry.
+    - type: predicate
+      sql: "SELECT bool_and(abs_error < 20) AND max(abs_error) > 0 FROM __learner"
+      message: >-
+        Every group's error should be a small non-negative number, and at least
+        one group must be wrong — if abs_error is 0 everywhere you have compared
+        the exact answer to itself.

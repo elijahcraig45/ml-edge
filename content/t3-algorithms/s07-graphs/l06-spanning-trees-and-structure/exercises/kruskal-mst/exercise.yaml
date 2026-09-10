@@ -1,0 +1,102 @@
+id: kruskal-mst
+kind: python
+title: Kruskal, with the union-find written out
+difficulty: 4
+pattern: union-find
+topics: [graphs, union-find, greedy]
+timeLimitMs: 15000
+prompt: |
+  `nodes` is a list of node names. `edges` is a list of `(weight, u, v)`
+  triples, undirected. Return the **total weight of a minimum spanning tree**,
+  or `None` if the graph is not connected and no spanning tree exists.
+
+  ```
+  mst_weight(["a", "b", "c"], [(100, "a", "b"), (1, "a", "c"), (2, "c", "b")])
+  # 3
+  ```
+
+  Kruskal's rule is one line: consider the edges cheapest first, and keep an
+  edge only if its endpoints are not already connected. The work is in that
+  second clause, and you have to build the structure that answers it —
+  `DisjointSet.find` and `DisjointSet.union` are stubbed out for you to write.
+
+  - `find(x)` returns the representative of `x`'s group.
+  - `union(a, b)` merges two groups and returns `True`, or returns `False` if
+    they were already the same group.
+
+  A graph with one node and no edges has an MST of weight 0. Self-loops and
+  duplicate edges may appear in the input.
+hints:
+  - "Start `find` as a loop that follows `parent[x]` until it reaches an element that is its own parent. That is enough to make everything correct. The rest is about making it fast."
+  - "Now make it fast, twice. In `union`, hang the smaller group under the larger root — track sizes to know which. In `find`, after locating the root, walk the path a second time and point every node you passed directly at the root."
+  - "Write `find` with two `while` loops, not recursion. The hidden 3,000-node test builds a long chain and then forces a lookup from the far end of it; a recursive `find` raises RecursionError before path compression has had a chance to flatten anything."
+solutionWalkthrough: |
+  ```python
+  class DisjointSet:
+      def __init__(self, items):
+          self.parent = {x: x for x in items}
+          self.size = {x: 1 for x in items}
+
+      def find(self, x):
+          root = x
+          while self.parent[root] != root:
+              root = self.parent[root]
+          while self.parent[x] != root:            # path compression
+              self.parent[x], x = root, self.parent[x]
+          return root
+
+      def union(self, a, b):
+          ra, rb = self.find(a), self.find(b)
+          if ra == rb:
+              return False
+          if self.size[ra] < self.size[rb]:        # union by size
+              ra, rb = rb, ra
+          self.parent[rb] = ra
+          self.size[ra] += self.size[rb]
+          return True
+
+
+  def mst_weight(nodes, edges):
+      if not nodes:
+          return 0
+      ds = DisjointSet(nodes)
+      total = kept = 0
+      for weight, u, v in sorted(edges):
+          if ds.union(u, v):
+              total += weight
+              kept += 1
+              if kept == len(nodes) - 1:
+                  break
+      return total if kept == len(nodes) - 1 else None
+  ```
+
+  **The whole data structure is one dict.** `parent[x]` is x's parent and a root
+  is its own parent. There are no nodes, no objects, no pointers — a group is
+  just "everything that walks up to the same root", and merging two groups is
+  one assignment.
+
+  **`self.parent[x], x = root, self.parent[x]` is the compression pass**, and the
+  simultaneous assignment matters: the right-hand side is evaluated first, so `x`
+  advances to its *old* parent after the write. Written as two statements in the
+  wrong order it points every node at itself and silently destroys the structure.
+
+  **Why both optimisations.** Union by size alone bounds depth at $O(\log n)$,
+  because a node only gets deeper when its tree is absorbed into one at least as
+  large, doubling the size it belongs to. Path compression alone is also
+  $O(\log n)$ amortised. Together they are $O(\alpha(n))$ amortised, where
+  $\alpha$ is the inverse Ackermann function — below 5 for any input that will
+  ever exist. Tarjan proved this bound is optimal for any pointer-based
+  structure, so this is not "good enough", it is the end of the road.
+
+  **`if kept == len(nodes) - 1: break`** is worth having even though the loop
+  would finish anyway: a spanning tree on $V$ nodes has exactly $V - 1$ edges, so
+  once you have that many there is nothing left to decide. The same count is the
+  disconnection test at the end — fewer than $V-1$ accepted edges means the
+  cheapest-first sweep ran out of edges with at least two components still apart.
+
+  **Where Prim wins instead.** Kruskal sorts, so it is $O(E \log E)$ and it needs
+  every edge up front. Prim grows one tree from a heap of crossing edges and
+  never needs the full edge list sorted — better when the graph is dense, or when
+  edges arrive from an adjacency structure you already have. Both are the same
+  greedy rule — take the lightest edge crossing from the part you have built to
+  the part you have not — applied in a different order; neither is more correct.

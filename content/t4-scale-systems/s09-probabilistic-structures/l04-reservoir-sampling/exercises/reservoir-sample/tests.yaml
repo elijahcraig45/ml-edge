@@ -1,0 +1,72 @@
+- id: returns-k-items
+  label: Returns exactly k items from a longer stream
+  code: |
+    import random
+    random.seed(1)
+    out = reservoir_sample(range(1000), 7)
+    assert len(out) == 7, f"expected 7 items, got {len(out)}"
+    assert all(0 <= x < 1000 for x in out), "sample contains something not in the stream"
+- id: short-stream
+  label: A stream shorter than k returns everything it had
+  code: |
+    assert sorted(reservoir_sample([4, 1, 9], 10)) == [1, 4, 9]
+- id: degenerate-inputs
+  label: Empty stream and k = 0
+  code: |
+    assert reservoir_sample([], 5) == []
+    assert reservoir_sample(range(100), 0) == []
+- id: uniform-over-many-trials
+  label: Every item is selected about k/n of the time
+  code: |
+    # The statistical test. With a fixed seed this is reproducible: run it twice
+    # and you get the same numbers. "Keep the first k" gives items 0,1,2 a rate
+    # of 1.0 and everything else 0.0, which fails on the very first item.
+    import random
+    random.seed(12345)
+    trials, n, k = 6000, 10, 3
+    counts = [0] * n
+    for _ in range(trials):
+        for item in reservoir_sample(range(n), k):
+            counts[item] += 1
+    for item, c in enumerate(counts):
+        rate = c / trials
+        assert abs(rate - k / n) < 0.03, (
+            f"item {item} was selected {rate:.4f} of the time, expected {k / n}"
+        )
+- id: single-pass-over-an-iterator
+  label: Consumes a one-pass iterator
+  hidden: true
+  code: |
+    # A generator has no length and cannot be rewound. Anything that materialises
+    # the stream first is solving a different problem.
+    import random
+    random.seed(3)
+    out = reservoir_sample(iter(x * 2 for x in range(50_000)), 5)
+    assert len(out) == 5
+    assert all(x % 2 == 0 and 0 <= x < 100_000 for x in out), out
+- id: no-duplicated-slots
+  label: The sample holds k distinct stream positions
+  hidden: true
+  code: |
+    # Overwriting slot j must replace, not append, and the same item must never
+    # be written into two slots.
+    import random
+    random.seed(11)
+    for _ in range(200):
+        out = reservoir_sample(range(200), 6)
+        assert len(out) == 6, f"wrong size: {out}"
+        assert len(set(out)) == 6, f"an item appears twice: {out}"
+- id: later-items-can-win
+  label: An item from the far end of the stream can be selected
+  hidden: true
+  code: |
+    # Catches "keep the first k" even without the statistical test: over 300
+    # trials on a 1000-item stream, at least one sample must contain something
+    # from the last decile.
+    import random
+    random.seed(5)
+    seen_late = any(
+        any(x >= 900 for x in reservoir_sample(range(1000), 4))
+        for _ in range(300)
+    )
+    assert seen_late, "no item from the last 10% of the stream was ever selected"

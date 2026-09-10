@@ -1,0 +1,82 @@
+id: knapsack-items
+kind: python
+title: Which items, not how much
+difficulty: 4
+pattern: path-reconstruction
+topics: [dynamic-programming, knapsack, reconstruction]
+timeLimitMs: 20000
+prompt: |
+  Same 0/1 knapsack as Lesson 4 — `items` is a list of `(size_kb, value)` pairs
+  and each may be used at most once — but now return **which items** were
+  chosen, as a sorted list of their indices.
+
+  ```
+  chosen_items([(1, 1), (3, 4), (4, 5), (5, 7)], 7)   # [1, 2]
+  chosen_items([(5, 9)], 3)                           # []
+  chosen_items([], 700)                               # []
+  ```
+
+  Optimal subsets are not always unique, so the tie-break is specified. Build the
+  full table `dp[i][c]` — the best value using the first `i` items within
+  capacity `c` — then walk backwards from `dp[n][capacity]`:
+
+  > item `i-1` was taken **exactly when** `dp[i][c] != dp[i-1][c]`; if it was,
+  > subtract its size from `c` before moving on.
+
+  In other words, when taking and skipping are worth the same, skip. On
+  `[(2, 5), (2, 5)]` with capacity 2 that gives `[0]`, not `[1]`.
+
+  The starter is the classic greedy: sort by value per kilobyte and take what
+  fits. On the seven registry packages it returns `[0, 2, 4, 5, 6]` worth
+  134,950 against an optimum of 153,160. Greedy by density is provably optimal
+  when you can take *fractions* of an item, and this is exactly the constraint
+  that breaks the proof — Lesson 7 says why.
+hints:
+  - "The value alone comes from a rolling array. The chosen set does not: you need dp[i][c] and dp[i-1][c] side by side, which means keeping every row."
+  - "Fill dp as an (n+1) x (capacity+1) table where dp[i][c] = max(dp[i-1][c], value + dp[i-1][c - size]) when the item fits, and dp[i-1][c] otherwise."
+  - "Then walk i from n down to 1 with c starting at capacity. If dp[i][c] == dp[i-1][c] the item was not needed, so leave c alone. Otherwise record index i-1 and reduce c by that item's size. Sort the indices before returning."
+solutionWalkthrough: |
+  ```python
+  def chosen_items(items, capacity):
+      n = len(items)
+      dp = [[0] * (capacity + 1) for _ in range(n + 1)]
+      for i in range(1, n + 1):
+          weight, value = items[i - 1]
+          for c in range(capacity + 1):
+              dp[i][c] = dp[i - 1][c]
+              if weight <= c and dp[i - 1][c - weight] + value > dp[i][c]:
+                  dp[i][c] = dp[i - 1][c - weight] + value
+
+      picked, c = [], capacity
+      for i in range(n, 0, -1):
+          if dp[i][c] != dp[i - 1][c]:
+              picked.append(i - 1)
+              c -= items[i - 1][0]
+      return sorted(picked)
+  ```
+
+  `dp[i][c] != dp[i - 1][c]` is the whole reconstruction, and it reads as a
+  sentence: *the answer got better when this item became available, so this item
+  is in it.* Because `dp[i][c]` is never smaller than `dp[i-1][c]`, the
+  inequality is the same as `>` — but writing `!=` states the intent, which is
+  "did this row change anything", not "is this row bigger".
+
+  Note where the tie-break lives. When taking and skipping are worth the same,
+  `dp[i][c] == dp[i-1][c]` and the item is skipped. That is why `[(2, 5), (2, 5)]`
+  at capacity 2 returns `[0]`: the walk goes from the last item downwards, finds
+  no improvement at index 1, then finds one at index 0. Reverse the walk and you
+  would get `[1]`, equally optimal and not what was asked for.
+
+  The cost of reconstruction here is memory, not time. The fill was already
+  $\Theta(nC)$ time; keeping every row makes it $\Theta(nC)$ space instead of
+  $\Theta(C)$, and the backwards walk adds only $\Theta(n)$ steps. If $nC$ will
+  not fit, the standard escape is to store one bit per cell instead of a full
+  value — "did taking this item help here?" — which is the parent-pointer form
+  and cuts the memory by the width of an integer without changing the algorithm.
+
+  The starter is worth understanding rather than deleting. Sorting by value per
+  kilobyte *is* optimal for the fractional knapsack, where you may take a
+  fraction of an item: the exchange argument works because any spare capacity can
+  always be filled with a slice of the next-densest item. Forbid fractions and
+  the exchange has nothing to swap in, the proof collapses, and greedy leaves
+  18,210 downloads on the table.

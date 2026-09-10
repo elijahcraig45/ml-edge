@@ -1,0 +1,63 @@
+id: preorder-without-recursion
+kind: python
+title: Walk a plan tree that is too deep to recurse into
+difficulty: 3
+pattern: explicit-stack
+topics: [recursion]
+timeLimitMs: 15000
+prompt: |
+  Same node shape as the previous exercise: `{"op": ..., "rows": ..., "children": [...]}`.
+
+  Write `preorder_ops(root)` returning a list of every `op` name in the tree, in
+  **pre-order**: the node itself first, then each of its children's subtrees, left
+  to right.
+
+  ```
+  preorder_ops({"op": "A", "rows": 0, "children": [
+      {"op": "B", "rows": 0, "children": [{"op": "C", "rows": 0, "children": []}]},
+      {"op": "D", "rows": 0, "children": []},
+  ]})
+  # ["A", "B", "C", "D"]
+  ```
+
+  The obvious recursive version is four lines and it is not the answer here. One
+  of the hidden tests hands you a chain of 20,000 nodes — a shape a plan will
+  never have but a parsed document, a filesystem, or a linked structure will —
+  and the recursive version raises `RecursionError` long before it finishes.
+
+  Keep the pending work somewhere you control instead of on Python's call stack.
+hints:
+  - "The interpreter's stack is holding one thing for you: the nodes you have not visited yet. Nothing stops you from holding that list yourself."
+  - "Use a list as a stack. Pop a node, record its `op`, then push its children so they come out next. The result must not depend on how deep the tree is."
+  - "A stack reverses whatever you push. Pushing children in order makes the last child pop first, which produces right-to-left output — push them reversed, or extend with `reversed(node['children'])`."
+solutionWalkthrough: |
+  ```python
+  def preorder_ops(root):
+      out = []
+      stack = [root]
+      while stack:
+          node = stack.pop()
+          out.append(node["op"])
+          stack.extend(reversed(node["children"]))
+      return out
+  ```
+
+  You did not remove the stack. You moved it from the interpreter, where it is
+  capped at about a thousand frames and cannot be inspected, into a Python list
+  that grows until memory runs out and that you can print. That is the entire
+  transformation, and it is available for *any* recursion — the frames were
+  always a data structure.
+
+  `reversed` is the detail that makes the output right. A stack is
+  last-in-first-out, so pushing `[B, D]` pops `D` first and you would emit the
+  children right to left. Reversing the push order restores left to right. If you
+  needed breadth-first instead, you would change the list to a
+  `collections.deque` and `popleft` — the traversal order is a property of the
+  container, not of the code around it.
+
+  What this costs: time is still $\Theta(N)$, one pop per node. Space is
+  $\Theta(\text{width} \times \text{depth})$ in the worst case rather than
+  $\Theta(\text{depth})$ frames, so on a very wide tree the explicit version can
+  hold more than the recursion would. You are trading a hard, low ceiling for a
+  soft, high one — usually the right trade, and worth saying out loud rather than
+  pretending the iterative version is free.

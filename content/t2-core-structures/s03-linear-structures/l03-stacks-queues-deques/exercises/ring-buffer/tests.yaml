@@ -1,0 +1,86 @@
+- id: fifo
+  label: Items come out in the order they went in
+  code: |
+    buf = RingBuffer(4)
+    for item in ["a", "b", "c"]:
+        buf.push(item)
+    assert [buf.pop(), buf.pop(), buf.pop()] == ["a", "b", "c"]
+- id: uses-every-slot
+  label: A capacity of 3 holds three items
+  code: |
+    buf = RingBuffer(3)
+    buf.push(1)
+    buf.push(2)
+    buf.push(3)
+    assert len(buf) == 3
+    assert buf.is_full()
+- id: push-when-full
+  label: Pushing into a full buffer raises IndexError
+  code: |
+    buf = RingBuffer(2)
+    buf.push(1)
+    buf.push(2)
+    try:
+        buf.push(3)
+    except IndexError:
+        pass
+    else:
+        raise AssertionError("push into a full buffer must raise IndexError")
+- id: pop-when-empty
+  label: Popping an empty buffer raises IndexError
+  code: |
+    buf = RingBuffer(2)
+    try:
+        buf.pop()
+    except IndexError:
+        pass
+    else:
+        raise AssertionError("pop from an empty buffer must raise IndexError")
+- id: wraps
+  label: Indices wrap around the end of the block
+  code: |
+    buf = RingBuffer(3)
+    for item in ["a", "b", "c"]:
+        buf.push(item)
+    assert buf.pop() == "a"
+    assert buf.pop() == "b"
+    buf.push("d")
+    buf.push("e")
+    assert [buf.pop(), buf.pop(), buf.pop()] == ["c", "d", "e"]
+- id: full-and-empty-differ
+  label: Full and empty are told apart, not confused
+  hidden: true
+  code: |
+    # This is the off-by-one. With only a head and a tail index, head == tail
+    # has to mean both "empty" and "full", so implementations either lose a
+    # slot or report the wrong state here.
+    buf = RingBuffer(4)
+    for i in range(4):
+        buf.push(i)
+    assert buf.is_full() is True
+    assert buf.is_empty() is False
+    assert len(buf) == 4
+    for _ in range(4):
+        buf.pop()
+    assert buf.is_empty() is True
+    assert buf.is_full() is False
+    assert len(buf) == 0
+- id: long-interleaving
+  label: Ten thousand interleaved pushes and pops stay in FIFO order
+  hidden: true
+  code: |
+    import random
+    buf = RingBuffer(4)
+    reference = []
+    cursor = 0
+    rng = random.Random(1)
+    for i in range(10000):
+        if rng.random() < 0.5 and len(buf) < buf.capacity:
+            buf.push(i)
+            reference.append(i)
+        elif cursor < len(reference):
+            expected = reference[cursor]
+            cursor += 1
+            got = buf.pop()
+            assert got == expected, "expected %r, got %r" % (expected, got)
+    assert len(buf) == len(reference) - cursor

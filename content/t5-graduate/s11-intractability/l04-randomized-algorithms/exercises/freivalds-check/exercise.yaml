@@ -1,0 +1,101 @@
+id: freivalds-check
+kind: python
+title: "Freivalds: verifying a matrix product without computing it"
+difficulty: 4
+pattern: randomized
+topics: [randomized, monte-carlo, linear-algebra]
+timeLimitMs: 25000
+prompt: |
+  **`freivalds(A, B, C, trials)`** returns `False` when it can prove
+  $C \ne AB$, and `True` otherwise. `A`, `B`, `C` are $n \times n$ matrices as
+  lists of lists.
+
+  Each trial: draw a random vector $x \in \{0,1\}^n$ and compare $A(Bx)$ with
+  $Cx$. If they differ, return `False` immediately — you have a proof. If all
+  `trials` trials agree, return `True`.
+
+  The order of operations is the point. $A(Bx)$ is two matrix-**vector**
+  products, $O(n^2)$. $(AB)x$ computes the full product first and costs
+  $O(n^3)$, which defeats the exercise — and the complexity budget rejects it.
+
+  `trials = 0` means no evidence was gathered, so return `True`.
+
+  ```
+  A = [[1, 2], [3, 4]]; B = [[5, 6], [7, 8]]
+  freivalds(A, B, [[19, 22], [43, 50]], 10)   # True  (that is A @ B)
+  freivalds(A, B, [[19, 27], [43, 45]], 20)   # False
+  ```
+
+  The starter uses the all-ones vector — deterministic, $O(n^2)$, and wrong. A
+  hidden test supplies a `C` whose error cancels along each row, which the
+  all-ones vector cannot detect and a random vector catches almost every time.
+  That test is the entire argument for randomising.
+
+  Use `random.randint(0, 1)` for the coordinates; the tests seed the generator.
+hints:
+  - "Write the matrix-vector product once as a helper and call it three times: Bx, then A(Bx), then Cx. Never build A @ B."
+  - "Return False the moment a trial disagrees. The error is one-sided — a disagreement is a proof, so there is nothing to gain by continuing."
+  - "Draw a fresh vector inside the loop. Drawing one vector before the loop and reusing it makes every trial identical, which caps the error probability at 1/2 no matter how many trials you run."
+complexityBudget:
+  setup: |
+    import random
+    random.seed(5)
+    n = 120
+    A = [[random.randint(-5, 5) for _ in range(n)] for _ in range(n)]
+    B = [[random.randint(-5, 5) for _ in range(n)] for _ in range(n)]
+    C = [[sum(A[i][k] * B[k][j] for k in range(n)) for j in range(n)] for i in range(n)]
+    data = (A, B, C)
+  call: freivalds(data[0], data[1], data[2], 6)
+  maxOps: 900000
+  message: >-
+    Too much work for a 120 x 120 verification. Six trials of two matrix-vector
+    products costs about 276,000 line events, roughly three times under the
+    budget. Computing A @ B costs 120^3 multiplications — over three million —
+    which is what this budget exists to reject.
+solutionWalkthrough: |
+  ```python
+  import random
+
+  def _matvec(M, x):
+      return [sum(row[j] * x[j] for j in range(len(x))) for row in M]
+
+  def freivalds(A, B, C, trials):
+      n = len(A)
+      for _ in range(trials):
+          x = [random.randint(0, 1) for _ in range(n)]
+          if _matvec(A, _matvec(B, x)) != _matvec(C, x):
+              return False
+      return True
+  ```
+
+  **Why the associativity matters more than anything else here.** $A(Bx)$ and
+  $(AB)x$ are mathematically identical and computationally are not: two
+  matrix-vector products at $O(n^2)$ against a matrix-matrix product at
+  $O(n^3)$. Every fast verifier in this family — and the whole area of
+  probabilistically checkable proofs it belongs to — is built on finding an
+  association order that avoids materialising the big object.
+
+  **Why the error is one-sided, and what it buys.** `False` is returned only
+  with a witness $x$ in hand, so it is never wrong. `True` can be wrong, with
+  probability at most $1/2$ per trial. Independent trials multiply, so $t$ trials
+  leave error at most $2^{-t}$: twenty trials is under one in a million, still
+  $O(n^2)$.
+
+  **Why the fixed vector fails.** With $x = \mathbf{1}$ the test compares row
+  sums. Any wrong $C$ whose error matrix has zero row sums passes — and the
+  hidden test constructs one by adding 5 to an entry and subtracting 5 from
+  another in the same row. Every deterministic choice of vector has such a
+  family of wrong matrices; randomising means no single wrong matrix survives
+  more than half the time.
+
+  **Where this actually ships.** Verified outsourced computation — you ran the
+  multiply on a machine you do not trust and want to check the result more
+  cheaply than redoing it. The same shape appears in polynomial identity
+  testing (Schwartz-Zippel), in Merkle-proof verification, and in the
+  probabilistic checks a distributed shuffle uses to detect a corrupted
+  partition.
+
+  **The one caveat with floats.** Over the reals the argument is unchanged, but
+  floating-point rounding makes exact equality the wrong comparison, and a
+  tolerance reintroduces a way for a small error to hide. Freivalds is clean
+  over integers or over a finite field, and needs care over floats.

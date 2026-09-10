@@ -1,0 +1,95 @@
+id: min-heap
+kind: python
+title: A min-heap on a flat list
+difficulty: 3
+pattern: heap
+topics: [heaps, arrays]
+timeLimitMs: 15000
+prompt: |
+  Implement a binary min-heap over an ordinary Python list. No `heapq` — that
+  is the thing you are building.
+
+  - `heap_push(heap, value)` — append, then sift up. Returns nothing; the list
+    is modified in place.
+  - `heap_pop(heap)` — remove and return the smallest value, keeping the heap
+    valid. Assume the heap is not empty.
+  - `heapify(values)` — return a **new** list holding the same values arranged
+    as a valid heap, built bottom-up. Do not sort.
+
+  ```
+  h = []
+  for v in [5, 3, 8, 1]:
+      heap_push(h, v)
+  heap_pop(h)          # 1
+  heapify([9, 4, 7, 1])[0]   # 1
+  ```
+
+  A hidden test checks the heap property index by index, so a list that happens
+  to produce the right pops but violates parent $\le$ child somewhere will fail.
+hints:
+  - "Sift up from index i: the parent is at (i - 1) // 2. Swap while the child is smaller, and stop the moment it is not — the rest of the path is already correct."
+  - "For pop, the hole is at the root but the array can only shrink at the end. Move the last element into the root, shrink the list, then sift that element down."
+  - "Sift down must compare against the SMALLER of the two children. Swapping with the larger one leaves a value sitting above a smaller sibling. And heapify only needs to start at index len // 2 - 1: everything after that is a leaf."
+solutionWalkthrough: |
+  ```python
+  def _sift_up(heap, i):
+      while i > 0:
+          parent = (i - 1) // 2
+          if heap[i] < heap[parent]:
+              heap[i], heap[parent] = heap[parent], heap[i]
+              i = parent
+          else:
+              return
+
+  def _sift_down(heap, i):
+      n = len(heap)
+      while True:
+          left, right, smallest = 2 * i + 1, 2 * i + 2, i
+          if left < n and heap[left] < heap[smallest]:
+              smallest = left
+          if right < n and heap[right] < heap[smallest]:
+              smallest = right
+          if smallest == i:
+              return
+          heap[i], heap[smallest] = heap[smallest], heap[i]
+          i = smallest
+
+  def heap_push(heap, value):
+      heap.append(value)
+      _sift_up(heap, len(heap) - 1)
+
+  def heap_pop(heap):
+      last = heap.pop()
+      if not heap:
+          return last
+      top, heap[0] = heap[0], last
+      _sift_down(heap, 0)
+      return top
+
+  def heapify(values):
+      heap = list(values)
+      for i in range(len(heap) // 2 - 1, -1, -1):
+          _sift_down(heap, i)
+      return heap
+  ```
+
+  `heap_pop` shrinks the list *before* deciding anything. Popping the last
+  element first makes the one-element case fall out for free — there is nothing
+  left to sift — and it means `heap[0] = last` is writing into a slot that is
+  still in range. Reaching for `heap[0], heap[-1] = heap[-1], heap[0]` followed
+  by `heap.pop()` also works, but it does one more write.
+
+  `heapify` starts at `len // 2 - 1` because every index from `len // 2`
+  onward is a leaf: its first child index `2i + 1` is already past the end.
+  Those are exactly the $n/2$ nodes the $O(n)$ bound leans on, and skipping them
+  is not an optimisation — sifting down a leaf is a no-op.
+
+  Building with a loop of `heap_push` instead is also correct and is
+  $\Theta(n\log n)$ on adversarial input, because an element entering at the
+  bottom can climb the entire height. The bottom-up direction cannot: a node's
+  travel is bounded by its height above the leaves, and almost every node has
+  almost none.
+forbid:
+  - heapq
+  - sorted(
+  - .sort(

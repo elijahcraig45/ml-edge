@@ -1,0 +1,58 @@
+id: pa-longest-unique-run
+kind: python
+title: Longest streak without a repeat
+difficulty: 3
+pattern: sliding-window
+stage: s04-sorting-and-windows
+topics:
+  - hashing
+  - arrays
+timeLimitMs: 15000
+prompt: |
+  Given an event log, return the length of the longest contiguous stretch in
+  which no value appears twice.
+
+  ```
+  longest_unique_run(["a", "b", "c", "a", "b", "d"])   # 4   -> c, a, b, d
+  longest_unique_run(["x", "x", "x"])                  # 1
+  longest_unique_run([])                               # 0
+  ```
+
+  Unlike a fixed window, the width here is what you are solving for: the window
+  grows while it stays legal and shrinks when it does not. Each element should
+  enter the window once and leave at most once.
+hints:
+  - "You cannot know how wide the answer is in advance, so let the right edge advance one element at a time and decide what the left edge must do in response."
+  - "Store the most recent index at which you saw each value. When the incoming value was last seen at or after the current left edge, the window is illegal until the left edge passes that position."
+  - "`left = max(left, last_seen[value] + 1)`. The `max` is what stops a stale sighting from outside the current window dragging the left edge backwards. Update `last_seen[value] = i` after moving, and track `best = max(best, i - left + 1)`."
+solutionWalkthrough: |
+  ```python
+  def longest_unique_run(events):
+      last_seen = {}
+      left = 0
+      best = 0
+      for i, value in enumerate(events):
+          previous = last_seen.get(value)
+          if previous is not None and previous >= left:
+              left = previous + 1
+          last_seen[value] = i
+          if i - left + 1 > best:
+              best = i - left + 1
+      return best
+  ```
+
+  Two windows are in play and only one of them is real. `last_seen` remembers
+  every value ever seen, including values that have already fallen out the left
+  side; the `previous >= left` guard is what keeps those ghosts from moving the
+  left edge. Drop the guard and `["a", "b", "a"]` still works, but
+  `["a", "b", "a", "c"]`-style inputs where the left edge has already passed the
+  old sighting will report a window that is shorter than the real one.
+
+  The left edge never moves backwards, so across the whole run it advances at
+  most n times — that is why this is O(n) despite containing what looks like a
+  nested loop's worth of shrinking. The memory cost is one dict entry per
+  *distinct* value, which is the price of not rescanning.
+
+  The alternative — a set you empty and refill whenever a duplicate appears —
+  is easier to reason about and degrades to O(n²) on input like
+  `"aabaabaab..."`, where the rebuild happens on almost every element.

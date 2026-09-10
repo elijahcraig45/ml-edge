@@ -1,0 +1,68 @@
+id: knapsack-shortlist
+kind: python
+title: Which packages fit in the edge cache
+difficulty: 3
+pattern: knapsack
+topics: [dynamic-programming, knapsack]
+timeLimitMs: 20000
+prompt: |
+  You have a fixed amount of edge-cache space, in kilobytes. Each package has a
+  size and a value (its downloads over the window). A package is either cached
+  or it is not — you cannot cache it twice, and you cannot cache half of it.
+
+  Write `best_cache_value(items, capacity)` where `items` is a list of
+  `(size_kb, value)` pairs. Return the largest total value that fits.
+
+  ```
+  best_cache_value([(3, 10)], 9)                      # 10  — one copy, not three
+  best_cache_value([(1, 1), (3, 4), (4, 5), (5, 7)], 7)  # 9
+  best_cache_value([], 700)                           # 0
+  best_cache_value([(5, 9)], 3)                       # 0
+  ```
+
+  Two items with identical `(size, value)` are two separate items and may both
+  be cached.
+
+  The starter compresses the table to one array and walks the capacity
+  **upwards**. It is a correct implementation — of the unbounded knapsack, where
+  each item may be taken any number of times. On `[(3, 10)]` with capacity 9 it
+  returns 30. Fix the direction, and be able to say why the fix works.
+hints:
+  - "Run the starter on `[(3, 10)]` with capacity 9. It caches the same package three times. Where in the loop did it learn that was allowed?"
+  - "The single array holds two rows of the 2-D table at once: cells already updated on this pass hold the current item's row, cells not yet reached still hold the previous item's row. The 0/1 recurrence needs to read the previous item's row."
+  - "Iterate the capacity from `capacity` down to `weight`. Then `best[c - weight]` is at a lower index, has not been touched on this pass, and still holds the value from before this item existed."
+solutionWalkthrough: |
+  ```python
+  def best_cache_value(items, capacity):
+      best = [0] * (capacity + 1)
+      for weight, value in items:
+          for c in range(capacity, weight - 1, -1):
+              if best[c - weight] + value > best[c]:
+                  best[c] = best[c - weight] + value
+      return best[capacity]
+  ```
+
+  One character of difference from the starter, and it is the whole problem.
+
+  The 2-D recurrence is
+  $K(i, c) = \max\big(K(i-1, c),\, v_i + K(i-1, c - w_i)\big)$. Both terms read
+  row $i-1$, which is what forbids reusing item $i$. Compressed into one array,
+  "row $i-1$" means "cells this pass has not written yet", and going downwards is
+  what guarantees `best[c - weight]` is one of them.
+
+  Go upwards and `best[c - weight]` was already written on this pass, so it means
+  $K(i, c - w_i)$ — a state where item $i$ may already have been taken. The
+  recurrence you have implemented is
+  $U(c) = \max\big(U(c),\, v_i + U(c - w_i)\big)$, which is the unbounded
+  knapsack. That is a real and useful algorithm; it is not this question.
+
+  Cost is $\Theta(nC)$ time and $\Theta(C)$ space. Note what $C$ is doing in
+  there: the running time depends on the *magnitude* of the capacity, not on how
+  many bits it takes to write it down. That is why knapsack is called
+  pseudo-polynomial and why it is not a counterexample to the problem being
+  NP-hard — double the capacity and the table doubles, but the input grew by one
+  bit.
+
+  What this version cannot tell you is *which* packages it chose. The array that
+  would have carried that information was overwritten seven times. Lesson 6 is
+  about getting it back.

@@ -1,0 +1,24 @@
+# `gcloud run deploy --source .` uploads the build context to Cloud Build and
+# reads THIS file, not .dockerignore. Without it, ~950MB of source media and
+# reference PDFs are uploaded on every deploy.
+
+.git
+.gitignore
+node_modules
+.next
+
+# Source media and reference material. Large, and none of it is served.
+docs
+notebooks
+
+# Test output and tooling.
+tests
+test-results
+playwright-report
+playwright.config.ts
+vitest.config.mts
+*.png
+
+# Local env
+.env.local
+.env.development

@@ -1,0 +1,98 @@
+- id: accepts-the-truth
+  label: The true product is always accepted
+  code: |
+    import random
+    random.seed(0)
+    A = [[1, 2], [3, 4]]
+    B = [[5, 6], [7, 8]]
+    C = [[19, 22], [43, 50]]
+    for _ in range(20):
+        assert freivalds(A, B, C, 10) is True
+
+- id: rejects-a-wrong-entry
+  label: A single wrong entry is caught
+  code: |
+    import random
+    random.seed(0)
+    A = [[1, 2], [3, 4]]
+    B = [[5, 6], [7, 8]]
+    wrong = [[20, 22], [43, 50]]
+    for _ in range(20):
+        assert freivalds(A, B, wrong, 25) is False
+
+- id: random-matrices
+  label: Correct products accepted and perturbed ones rejected, across sizes
+  code: |
+    import random
+    random.seed(0)
+    def matmul(A, B):
+        n = len(A)
+        return [[sum(A[i][k] * B[k][j] for k in range(n)) for j in range(n)]
+                for i in range(n)]
+    for _ in range(20):
+        n = random.randint(1, 5)
+        A = [[random.randint(-4, 4) for _ in range(n)] for _ in range(n)]
+        B = [[random.randint(-4, 4) for _ in range(n)] for _ in range(n)]
+        C = matmul(A, B)
+        assert freivalds(A, B, C, 8) is True, "rejected a correct product"
+        i, j = random.randrange(n), random.randrange(n)
+        D = [row[:] for row in C]
+        D[i][j] += random.choice([-3, -1, 1, 3])
+        assert freivalds(A, B, D, 30) is False, "missed a perturbed product"
+
+- id: no-trials
+  label: Zero trials gathers no evidence and returns True
+  code: |
+    A = [[1, 2], [3, 4]]
+    B = [[5, 6], [7, 8]]
+    assert freivalds(A, B, [[0, 0], [0, 0]], 0) is True
+
+- id: cancelling-error
+  label: An error that cancels along each row still gets caught
+  hidden: true
+  code: |
+    import random
+    random.seed(0)
+    A = [[1, 2], [3, 4]]
+    B = [[5, 6], [7, 8]]
+    # The true product is [[19, 22], [43, 50]]. Move 5 within row 0 and 7 within
+    # row 1: every row sum is unchanged, so the all-ones vector sees nothing.
+    sneaky = [[24, 17], [50, 43]]
+    caught = sum(1 for _ in range(30) if freivalds(A, B, sneaky, 20) is False)
+    assert caught == 30, ("a fixed vector cannot see this error; a random one can", caught)
+
+- id: one-by-one
+  label: A 1x1 matrix works
+  hidden: true
+  code: |
+    import random
+    random.seed(0)
+    assert freivalds([[3]], [[4]], [[12]], 10) is True
+    assert freivalds([[3]], [[4]], [[13]], 30) is False
+
+- id: fresh-vector-each-trial
+  label: Trials must be independent, not one vector reused
+  hidden: true
+  code: |
+    import random
+    # Two different errors, each invisible to a different half of the vectors.
+    # Reusing one vector across trials caps detection at a single coin flip;
+    # thirty independent runs of twenty trials must catch every one.
+    A = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+    B = [[2, 1, 0], [0, 2, 1], [1, 0, 2]]
+    true_product = [row[:] for row in B]
+    wrong = [row[:] for row in true_product]
+    wrong[0][0] += 6
+    wrong[0][1] -= 6
+    random.seed(0)
+    assert all(freivalds(A, B, wrong, 20) is False for _ in range(30))
+
+- id: zero-matrices
+  label: All-zero matrices agree, and a single nonzero entry does not
+  hidden: true
+  code: |
+    import random
+    random.seed(0)
+    Z = [[0, 0], [0, 0]]
+    assert freivalds(Z, Z, Z, 10) is True
+    assert freivalds(Z, Z, [[0, 0], [0, 1]], 30) is False

@@ -1,0 +1,32 @@
+- id: two-pieces
+  label: Counts two disconnected pieces
+  code: |
+    g = {1: [2], 2: [1], 3: [4], 4: [3]}
+    assert count_components(g) == 2
+- id: one-piece
+  label: A connected graph has one component
+  code: |
+    g = {1: [2, 3], 2: [1], 3: [1, 4], 4: [3]}
+    assert count_components(g) == 1
+- id: isolated
+  label: Every isolated node is its own component
+  code: |
+    g = {1: [], 2: [], 3: []}
+    assert count_components(g) == 3
+- id: empty-graph
+  label: An empty graph has zero components
+  hidden: true
+  code: |
+    assert count_components({}) == 0
+- id: cycle
+  label: A cycle is one component, and does not hang
+  hidden: true
+  code: |
+    g = {1: [2], 2: [3], 3: [1]}
+    assert count_components(g) == 1
+- id: self-loop
+  label: A self-loop does not create a second component
+  hidden: true
+  code: |
+    g = {1: [1, 2], 2: [1]}
+    assert count_components(g) == 1

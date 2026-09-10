@@ -1,0 +1,45 @@
+- id: basic
+  label: Reverses a four-element chain
+  code: |
+    assert walk(reverse(build([1, 2, 3, 4]))) == [4, 3, 2, 1]
+- id: empty
+  label: An empty chain reverses to an empty chain
+  code: |
+    assert reverse(build([])) is None
+- id: single
+  label: A one-element chain is its own reverse
+  code: |
+    assert walk(reverse(build([7]))) == [7]
+- id: two
+  label: Two elements swap
+  code: |
+    assert walk(reverse(build(["a", "b"]))) == ["b", "a"]
+- id: tail-terminates
+  label: The old head becomes the tail and points at nothing
+  hidden: true
+  code: |
+    # Forgetting to set the original head's `next` to None leaves a cycle, and
+    # walk() would loop forever. This checks the chain actually terminates.
+    head = build([1, 2, 3])
+    old_head = head
+    reverse(head)
+    assert old_head.next is None, "the original head must end up pointing at None"
+- id: same-nodes
+  label: Reuses the original nodes rather than rebuilding the chain
+  hidden: true
+  code: |
+    # Collect values into a list and build a fresh chain and you get the right
+    # answer with n new allocations. In place means the same objects, rewired.
+    head = build([1, 2, 3, 4, 5])
+    before = set()
+    node = head
+    while node is not None:
+        before.add(id(node))
+        node = node.next
+    new_head = reverse(head)
+    after = set()
+    node = new_head
+    while node is not None:
+        after.add(id(node))
+        node = node.next
+    assert after == before, "reverse must rewire the existing nodes, not allocate new ones"

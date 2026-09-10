@@ -1,0 +1,67 @@
+- id: inorder-sorted
+  label: Inserting in any order leaves the inorder walk sorted
+  code: |
+    tree = None
+    for value in [50, 30, 70, 20, 40, 60, 80]:
+        tree = bst_insert(tree, value)
+
+    def walk(n):
+        return [] if n is None else walk(n[1]) + [n[0]] + walk(n[2])
+
+    assert walk(tree) == [20, 30, 40, 50, 60, 70, 80]
+    assert tree[0] == 50
+- id: contains
+  label: Membership is right for present and absent values
+  code: |
+    tree = None
+    for value in [50, 30, 70]:
+        tree = bst_insert(tree, value)
+    assert bst_contains(tree, 30) is True
+    assert bst_contains(tree, 70) is True
+    assert bst_contains(tree, 31) is False
+    assert bst_contains(None, 1) is False
+- id: height
+  label: Height counts nodes, not edges
+  code: |
+    assert bst_height(None) == 0
+    assert bst_height((1, None, None)) == 1
+    tree = None
+    for value in [50, 30, 70]:
+        tree = bst_insert(tree, value)
+    assert bst_height(tree) == 2
+- id: duplicates
+  label: A repeated value does not grow the tree
+  code: |
+    tree = None
+    for value in [5, 3, 5, 3, 5]:
+        tree = bst_insert(tree, value)
+
+    def size(n):
+        return 0 if n is None else 1 + size(n[1]) + size(n[2])
+
+    assert size(tree) == 2
+- id: persistent
+  label: Inserting does not disturb the tree you passed in
+  hidden: true
+  code: |
+    original = None
+    for value in [50, 30, 70]:
+        original = bst_insert(original, value)
+    grown = bst_insert(original, 40)
+
+    def size(n):
+        return 0 if n is None else 1 + size(n[1]) + size(n[2])
+
+    assert size(original) == 3, "the original tree was mutated"
+    assert size(grown) == 4
+- id: deep-chain
+  label: Searching a 4,000-node chain descends without overflowing
+  hidden: true
+  code: |
+    # Built directly rather than through bst_insert, so this test is about
+    # searching a degenerate tree rather than about building one.
+    tree = None
+    for value in range(4000, 0, -1):
+        tree = (value, None, tree)         # a pure right chain, 1 at the root
+    assert bst_contains(tree, 4000) is True
+    assert bst_contains(tree, 4001) is False

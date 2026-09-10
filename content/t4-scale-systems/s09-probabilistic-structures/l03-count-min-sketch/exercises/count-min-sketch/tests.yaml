@@ -1,0 +1,73 @@
+- id: exact-when-sparse
+  label: With plenty of room and few keys, the estimates are exact
+  code: |
+    cms = CountMinSketch(4096, 4)
+    for i in range(1, 21):
+        cms.add(f"pkg-{i}", 9000 // i)
+    for i in range(1, 21):
+        assert cms.estimate(f"pkg-{i}") == 9000 // i, f"pkg-{i} was wrong in an uncrowded table"
+- id: weighted-add
+  label: add() accepts a weight and accumulates
+  code: |
+    cms = CountMinSketch(2048, 3)
+    cms.add("arrowkit", 5)
+    cms.add("arrowkit", 7)
+    cms.add("arrowkit")
+    assert cms.estimate("arrowkit") == 13
+- id: empty-sketch
+  label: An untouched sketch estimates zero
+  code: |
+    cms = CountMinSketch(256, 3)
+    assert cms.estimate("arrowkit") == 0
+- id: never-under-counts
+  label: In a crowded table, no estimate is below the truth
+  code: |
+    truth = {f"key-{i}": 1 + (i % 7) for i in range(3000)}
+    truth["hot"] = 50_000
+    cms = CountMinSketch(64, 3)          # far too small on purpose
+    for key, n in truth.items():
+        cms.add(key, n)
+    for key, n in truth.items():
+        assert cms.estimate(key) >= n, f"{key}: estimated {cms.estimate(key)} < true {n}"
+- id: over-counting-is-real
+  label: A crowded table does over-count
+  hidden: true
+  code: |
+    # The mirror of the test above, and the reason a real dict cannot pass both:
+    # an exact counter would report zero error everywhere.
+    truth = {f"key-{i}": 1 + (i % 7) for i in range(3000)}
+    cms = CountMinSketch(64, 3)
+    for key, n in truth.items():
+        cms.add(key, n)
+    over = [cms.estimate(k) - truth[k] for k in truth]
+    assert max(over) > 0, "no key over-counted in a 64-column table — check that all d rows are updated"
+    assert cms.estimate("never-added") > 0, "an unseen key should pick up collision mass here"
+- id: epsilon-bound-holds
+  label: The over-count stays inside epsilon * N
+  hidden: true
+  code: |
+    # w = ceil(e/eps) with eps = 0.002, d = ceil(ln(1/0.01)) = 5.
+    # The guarantee: estimate - true <= eps * (total stream mass), per key.
+    import math
+    truth = {f"pkg-{i}": 9000 // i for i in range(1, 21)}
+    truth.update({f"tail-{i}": 1 + (i % 7) for i in range(3000)})
+    total = sum(truth.values())
+    eps = 0.002
+    cms = CountMinSketch(math.ceil(math.e / eps), 5)
+    for key, n in truth.items():
+        cms.add(key, n)
+    worst = max(cms.estimate(k) - truth[k] for k in truth)
+    assert worst <= eps * total, f"worst over-count {worst} exceeded the bound {eps * total:.0f}"
+- id: heavy-hitter-survives
+  label: The heaviest key is still the heaviest by estimate
+  hidden: true
+  code: |
+    # One-sided error means a genuine heavy hitter can never be filtered out.
+    truth = {f"key-{i}": 1 + (i % 7) for i in range(3000)}
+    truth["hot-1"] = 50_000
+    truth["hot-2"] = 20_000
+    cms = CountMinSketch(64, 3)
+    for key, n in truth.items():
+        cms.add(key, n)
+    ranked = sorted(truth, key=lambda k: -cms.estimate(k))
+    assert ranked[0] == "hot-1", f"top key by estimate was {ranked[0]}"

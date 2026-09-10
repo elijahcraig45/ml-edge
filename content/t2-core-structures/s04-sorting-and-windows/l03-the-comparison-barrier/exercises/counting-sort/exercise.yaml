@@ -1,0 +1,82 @@
+id: counting-sort
+kind: python
+title: Counting sort, without a single comparison
+difficulty: 3
+pattern: non-comparison-sort
+topics: [sorting, prefix-sums, stability]
+timeLimitMs: 10000
+forbid:
+  - "sorted("
+  - ".sort("
+  - "heapq"
+prompt: |
+  Implement `counting_sort(pairs, k)`.
+
+  `pairs` is a list of `(key, name)` tuples where every `key` is an integer with
+  `0 <= key < k`. Return a **new** list holding the same pairs ordered by `key`.
+
+  ```
+  counting_sort([(3, "chunker"), (1, "bitmask"), (1, "arrowkit"), (0, "memoize")], 4)
+  # [(0, 'memoize'), (1, 'bitmask'), (1, 'arrowkit'), (3, 'chunker')]
+  ```
+
+  Two requirements that are the whole exercise:
+
+  - **No comparisons between elements.** No `sorted`, no `.sort`, and no
+    `if a < b` between two pairs. Use the key as an index.
+  - **Stable.** Pairs with the same key must come out in the order they went in.
+    Note `bitmask` before `arrowkit` above — they share key `1`, and `bitmask`
+    was first in the input.
+
+  Cost should be $\Theta(n + k)$: a pass to count, a pass over the $k$ buckets,
+  a pass to place.
+hints:
+  - "Start by asking a smaller question: how many pairs have each key? That is one pass and an array of length k."
+  - "Turn the counts into *positions*. If keys 0 and 1 occur 2 and 3 times, then bucket 0 starts at index 0, bucket 1 starts at 2, bucket 2 starts at 5. That running total is a prefix sum over the counts array."
+  - "Allocate the output up front with `[None] * len(pairs)`. Then walk the input left to right, write each pair at `starts[key]`, and increment `starts[key]`. Walking left to right is what makes it stable."
+solutionWalkthrough: |
+  ```python
+  def counting_sort(pairs, k):
+      counts = [0] * k
+      for key, _ in pairs:
+          counts[key] += 1
+
+      starts = [0] * k
+      total = 0
+      for key in range(k):
+          starts[key] = total
+          total += counts[key]
+
+      out = [None] * len(pairs)
+      for pair in pairs:
+          out[starts[pair[0]]] = pair
+          starts[pair[0]] += 1
+      return out
+  ```
+
+  Three passes, none of which compares two elements. The key *is* the address.
+
+  **The prefix sum is the interesting line.** `starts` is the running total of
+  `counts`, and it converts "how many of each" into "where does each bucket
+  begin". You will meet this transformation twice more in this stage: as the
+  precomputation behind O(1) range sums in lesson 5, and as
+  `SUM(...) OVER (ORDER BY ...)` in lesson 6. It is the same operation each
+  time.
+
+  **Stability comes from the direction of the final loop.** Reading the input
+  left to right and post-incrementing `starts[key]` gives earlier elements
+  earlier slots within their bucket. Reading right to left with `starts`
+  holding *end* offsets is equally valid as a sort and reverses ties — which is
+  exactly the bug that breaks radix sort.
+
+  The obvious alternative is a list of buckets: `buckets[key].append(pair)`, then
+  concatenate. It is stable and it is easier to write. It also allocates $k$
+  lists and does $n$ appends with amortised resizing, where the prefix-sum
+  version allocates two flat arrays and writes each slot exactly once. For a
+  routine that exists because it is linear with a small constant, the constant
+  is the point.
+
+  And the standing warning: this is $\Theta(n + k)$, not $\Theta(n)$. It is the
+  right tool when $k$ is comparable to $n$ — HTTP status codes, days of the
+  month, a category column — and a catastrophe when $k$ is the range of a 64-bit
+  integer.

@@ -1,0 +1,68 @@
+id: busy-maintainers
+kind: sql
+title: Filter on an aggregate, not on a row
+difficulty: 2
+datasetId: package-registry
+pattern: group-by
+topics: [aggregation, having]
+timeLimitMs: 15000
+prompt: |
+  Return every maintainer attached to **three or more** packages, as `handle`
+  and `package_count`, ordered by `package_count` descending and then by
+  `handle`.
+
+  The starter groups correctly and returns all ten maintainers. Adding
+  `WHERE count(*) >= 3` will not fix it — try it and read the error. `WHERE`
+  runs before rows are grouped, so at the time it is evaluated there is no
+  group and therefore no count.
+hints:
+  - "Two filters exist in SQL and they run at different times. One narrows the rows going into the grouping; the other narrows the groups coming out."
+  - "`HAVING` is the filter that runs after `GROUP BY`, so it is allowed to talk about aggregates."
+  - "`HAVING count(*) >= 3`. It goes after the GROUP BY and before the ORDER BY. Some engines also accept the alias, but `count(*)` is portable."
+solutionWalkthrough: |
+  ```sql
+  SELECT m.handle, count(*) AS package_count
+  FROM maintainers m
+  JOIN package_maintainers pm ON pm.maintainer_id = m.id
+  GROUP BY m.handle
+  HAVING count(*) >= 3
+  ORDER BY package_count DESC, m.handle;
+  ```
+
+  Five rows: linus with 5, grace with 4, and alan, barbara and donald with 3
+  each.
+
+  `WHERE` and `HAVING` are not two ways to say the same thing. The engine's
+  order is `FROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY → LIMIT`, and
+  each filter can only mention what exists by the time it runs. `WHERE` sees
+  individual rows and no groups; `HAVING` sees groups and their aggregates.
+
+  That ordering also explains why `ORDER BY package_count` is legal while
+  `WHERE package_count >= 3` is not: `ORDER BY` runs after `SELECT`, so the
+  alias exists by then.
+
+  **When you have a choice, prefer `WHERE`.** `WHERE p.language = 'python'`
+  before the grouping discards rows the engine then never has to group.
+  Expressing the same restriction in `HAVING` groups everything first and
+  throws groups away afterwards. Same answer, more work — and on a large table,
+  much more work.
+
+  The three-way tie at 3 is why `ORDER BY package_count DESC, m.handle` needs
+  its second key. Order by the count alone and the three tied rows can come
+  back in any order, which makes the result unstable between runs for no reason
+  the reader can see.
+
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 5
+      message: >-
+        Expected 5 rows. Ten maintainers exist; five of them are attached to
+        fewer than three packages and should be filtered out after grouping.
+    - type: syntax
+      pattern: "\\bhaving\\b"
+      message: >-
+        This needs HAVING. The condition is about a group's aggregate, and WHERE
+        is evaluated before any group exists.

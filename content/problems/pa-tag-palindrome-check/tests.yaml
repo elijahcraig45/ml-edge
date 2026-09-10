@@ -1,0 +1,29 @@
+- id: hyphenated
+  label: Ignores punctuation and case
+  code: |
+    assert is_tag_palindrome("Repo-Per") is True
+- id: digits
+  label: Digits count as characters
+  code: |
+    assert is_tag_palindrome("v2.0.2v") is True
+- id: not-a-palindrome
+  label: Rejects a slug that does not mirror
+  code: |
+    assert is_tag_palindrome("build-tools") is False
+- id: empty
+  label: The empty slug is a palindrome
+  code: |
+    assert is_tag_palindrome("") is True
+- id: one-sided-punctuation
+  label: Punctuation on only one side does not shift the comparison
+  hidden: true
+  code: |
+    assert is_tag_palindrome("--a") is True
+    assert is_tag_palindrome("a...b") is False
+    assert is_tag_palindrome(".,-") is True
+- id: single-character
+  label: A one-character slug is a palindrome
+  hidden: true
+  code: |
+    assert is_tag_palindrome("q") is True
+    assert is_tag_palindrome("Aa") is True

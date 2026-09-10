@@ -1,0 +1,95 @@
+id: running-median
+kind: python
+title: Running median with two heaps
+difficulty: 4
+pattern: two-heaps
+topics: [heaps, streaming]
+timeLimitMs: 20000
+prompt: |
+  Return the median of every prefix of a stream.
+
+  `running_median(values)` returns a list of floats the same length as
+  `values`, where entry $i$ is the median of `values[:i+1]`.
+
+  ```
+  running_median([5, 15, 1, 3])   # [5.0, 10.0, 5.0, 4.0]
+  running_median([])              # []
+  ```
+
+  With an even number of elements the median is the average of the two middle
+  values, so the result is always a float.
+
+  `heapq` is allowed here — you built the machinery in the previous exercise;
+  this one is about the *pattern*.
+
+  **This exercise has a complexity budget.** Re-sorting the prefix on every
+  element gives the right answer and costs $O(n^2 \log n)$; the budget runs
+  your code over a 6,000-element stream and rejects it.
+hints:
+  - "Keep the numbers split into a lower half and an upper half. If you could see the largest of the lower half and the smallest of the upper half instantly, the median would be free."
+  - "`heapq` is a min-heap only. To get the largest of the lower half, push negated values and negate again when you read them back."
+  - "After each insert, rebalance so the two halves differ in size by at most one. Then: if the lower half is bigger, its root is the median; otherwise average the two roots."
+solutionWalkthrough: |
+  ```python
+  import heapq
+
+  def running_median(values):
+      low, high, out = [], [], []      # low is a max-heap, stored negated
+      for value in values:
+          if low and value <= -low[0]:
+              heapq.heappush(low, -value)
+          else:
+              heapq.heappush(high, value)
+
+          if len(low) > len(high) + 1:
+              heapq.heappush(high, -heapq.heappop(low))
+          elif len(high) > len(low):
+              heapq.heappush(low, -heapq.heappop(high))
+
+          if len(low) > len(high):
+              out.append(float(-low[0]))
+          else:
+              out.append((-low[0] + high[0]) / 2)
+      return out
+  ```
+
+  The invariant is doing all the work, so state it before you write anything:
+  *every value in `low` is $\le$ every value in `high`, and
+  `len(low) - len(high)` is 0 or 1.* Under that invariant the median is always
+  one or two array lookups, never a search.
+
+  Two details are easy to get wrong. The rebalance has to run *after* the
+  insert and before the read, because a single push can put the halves two
+  apart. And the negation trick has to be undone every time you look at
+  `low[0]` — a sign error here produces plausible numbers on symmetric data and
+  wrong ones on skewed data, which is the worst kind of bug to find later.
+
+  Cost is $O(\log n)$ per element and $O(n)$ total memory. Sorting each prefix
+  is $O(n^2 \log n)$; keeping one sorted list and inserting by
+  `bisect.insort` is $O(n^2)$, better but still quadratic because the insert
+  shifts elements. Two heaps is the only version that stays close to linear,
+  and it does it by never producing an order it was not asked for.
+
+  The same shape handles a *sliding-window* median, with one extra problem: you
+  must also remove the element leaving the window, and a heap cannot delete an
+  arbitrary element. The standard fix is lazy deletion — mark it and discard it
+  when it surfaces at a root.
+
+# Enforces the stated complexity claim: the sorted-prefix version is correct,
+# so only a budget can reject it.
+#
+# Wall-clock rather than line events, because `sorted` does its work inside
+# CPython's C sort and emits no Python line events at all.
+complexityBudget:
+  setup: |
+    stream = [(i * 2654435761) % 100003 for i in range(6000)]
+  call: |
+    running_median(stream)
+  # Measured on CPython 3: two heaps ~1.8ms, sorted-prefix ~530ms. 100ms sits
+  # 55x above one and 5x below the other, so it still separates them on a slow
+  # runner or under Pyodide.
+  maxMs: 100
+  message: >-
+    Correct, but quadratic: this sorted the whole prefix once per element. Keep
+    the two halves of the stream in two heaps instead, so each new value costs
+    a push and a rebalance rather than a full sort.

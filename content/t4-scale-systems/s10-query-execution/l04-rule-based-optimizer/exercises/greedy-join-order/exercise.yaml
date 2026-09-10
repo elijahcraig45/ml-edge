@@ -1,0 +1,94 @@
+id: greedy-join-order
+kind: python
+title: Order a four-way join by estimated cardinality
+difficulty: 4
+pattern: greedy
+topics: [optimizer, joins, estimation]
+timeLimitMs: 10000
+prompt: |
+  Implement the greedy join-ordering heuristic that engines fall back on when
+  the exact search is too expensive.
+
+  You are given estimated row counts and join selectivities:
+
+  ```python
+  relations = {"packages": 20000, "versions": 260000, "maintainers": 10000}
+  edges = {frozenset({"packages", "versions"}): 1 / 20000,
+           frozenset({"packages", "maintainers"}): 1 / 20000}
+  ```
+
+  Joining a running intermediate result of $r$ rows to a relation of $n$ rows
+  produces an estimated $r \times n \times s$ rows, where $s$ is the product of
+  the selectivities of every edge between the new relation and the ones already
+  joined. A pair with no edge has $s = 1$ — a cross product.
+
+  `greedy_order(relations, edges)` returns the relation names as a left-deep
+  join order, chosen by these rules, in this order:
+
+  1. Start with the relation having the **smallest row count**.
+  2. At each step, consider only relations that share an edge with something
+     already chosen. Pick the one whose join produces the **smallest estimated
+     result**, and set the running estimate to that result.
+  3. If no remaining relation shares an edge with the chosen set, fall back to
+     the one with the **smallest row count** — accepting a cross product.
+  4. Break every tie by name, alphabetically ascending.
+
+  `estimate_size` is provided; use it rather than rewriting the arithmetic.
+
+  ```
+  greedy_order({"a": 100, "b": 10, "c": 5},
+               {frozenset({"a", "b"}): 0.1, frozenset({"b", "c"}): 0.1})
+  # ['c', 'b', 'a']
+  ```
+hints:
+  - "Track two things as you go: the list of relations already chosen, and the running estimated row count of the intermediate result. Everything else is recomputed each step."
+  - "The candidate set is `[n for n in remaining if any(frozenset({n, j}) in edges for j in order)]`. When it is empty, fall back to the whole remaining set."
+  - "`min(pool, key=lambda n: (estimate_size(running, relations[n], n, order, edges), n))` does both the choice and the alphabetical tie-break in one expression, because tuples compare left to right."
+solutionWalkthrough: |
+  ```python
+  def greedy_order(relations, edges):
+      remaining = dict(relations)
+      first = min(remaining, key=lambda n: (remaining[n], n))
+      order = [first]
+      running = remaining.pop(first)
+
+      while remaining:
+          connected = [n for n in remaining
+                       if any(frozenset({n, j}) in edges for j in order)]
+          if connected:
+              pool = connected
+              key = lambda n: (estimate_size(running, remaining[n], n, order, edges), n)
+          else:
+              pool = list(remaining)
+              key = lambda n: (remaining[n], n)
+          best = min(pool, key=key)
+          running = estimate_size(running, remaining[best], best, order, edges)
+          order.append(best)
+          remaining.pop(best)
+      return order
+  ```
+
+  **Why "smallest result", not "smallest table".** The quantity that matters is
+  the size of the intermediate relation, and a small table joined on a
+  low-selectivity edge can produce more rows than a large one joined on a
+  selective key. Greedy on table size is the mistake this heuristic exists to
+  avoid.
+
+  **Why the connectivity check comes first.** Without it, greedy will
+  occasionally pick an unconnected relation because its row count looked
+  attractive, and pay a cross product. Preferring a connected relation even
+  when its estimate is worse is almost always right, and every real optimizer
+  does it: PostgreSQL will not consider a cross product at all unless no
+  connected join remains.
+
+  **What greedy gives up.** On the four-table example in the lesson it happens
+  to match the exact optimum. It has no guarantee — greedy commits to a first
+  join it can never revisit, and a plan whose best order requires an expensive
+  first join to enable a very cheap second one is exactly what it cannot find.
+  That is why engines run the exact dynamic program while the relation count is
+  small and only fall back to something like this above a threshold.
+
+  Note also what is *not* modelled here: physical properties. A slightly larger
+  intermediate that arrives already sorted on the next join key can beat a
+  smaller one that does not, which is why real cost models carry sort order
+  alongside cardinality.

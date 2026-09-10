@@ -1,0 +1,71 @@
+id: plan-tree-cost
+kind: python
+title: Summarise a query plan by recursing over it
+difficulty: 2
+pattern: tree-recursion
+topics: [recursion]
+timeLimitMs: 10000
+prompt: |
+  An `EXPLAIN` plan arrives as nested dictionaries. Every node has three keys:
+
+  ```python
+  {"op": "HASH_JOIN", "rows": 6, "children": [ ...more nodes... ]}
+  ```
+
+  `children` is always a list, empty for a leaf scan.
+
+  Write `plan_summary(node)` returning the tuple `(depth, total_rows)`:
+
+  - `depth` — the number of operators on the longest path from this node down to
+    a leaf. A leaf on its own has depth 1.
+  - `total_rows` — the sum of `rows` over every node in the subtree, including
+    this one.
+
+  ```
+  plan_summary({"op": "SEQ_SCAN", "rows": 5, "children": []})
+  # (1, 5)
+  ```
+
+  Before you write anything, state the three obligations out loud. The contract
+  is "for **any** node, return the depth and total of the subtree rooted there" —
+  note that it says any node, not the root. That is what lets you use the answer
+  from a child.
+hints:
+  - "Your contract has to cover a child as well as the root, because that is the value you are about to trust. Write it for an arbitrary node and the recursive call becomes obvious."
+  - "Depth combines with `max` across the children; total combines with `+`. A leaf has no children, so both loops run zero times and you return `(1, node['rows'])` without a special case."
+  - "Careful with depth: it is the maximum over *all* children, not the depth of the first one. Start a running maximum at 0 and add 1 to it when you return."
+solutionWalkthrough: |
+  ```python
+  def plan_summary(node):
+      depth = 0
+      total = node["rows"]
+      for child in node["children"]:
+          child_depth, child_total = plan_summary(child)
+          depth = max(depth, child_depth)
+          total += child_total
+      return depth + 1, total
+  ```
+
+  Three things are worth naming.
+
+  **There is no base-case branch and the function still terminates.** A leaf has
+  an empty `children` list, so the loop body never runs and the function returns
+  `(0 + 1, node["rows"])`. Writing an explicit `if not node["children"]` guard
+  would be correct and would duplicate the same expression. The base case is
+  real; it is just not spelled with an `if`.
+
+  **The measure is the number of nodes in the subtree.** Each recursive call gets
+  a strictly smaller subtree, so the recursion cannot run forever on a tree. On a
+  *graph* with a cycle it would, which is why the same code needs a `visited` set
+  the moment the structure stops being a tree.
+
+  **The two accumulators combine differently and that is the interesting part.**
+  `total` is a sum, so it commutes and you can add children in any order.
+  `depth` is a maximum, so it also commutes — but taking the first child's depth
+  instead of the maximum is the bug that survives every test built from a
+  balanced tree. Lopsided trees are the ones that catch it.
+
+  Cost: every node is visited once, so $\Theta(N)$ time in the number of nodes.
+  Stack depth is $\Theta(\text{depth})$, which for a plan is small — but the same
+  code on a 100,000-node linked structure would not survive, which is the next
+  exercise.

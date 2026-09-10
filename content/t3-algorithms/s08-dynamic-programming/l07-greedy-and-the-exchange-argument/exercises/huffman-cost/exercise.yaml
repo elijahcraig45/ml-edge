@@ -1,0 +1,82 @@
+id: huffman-cost
+kind: python
+title: Huffman, and why the order of merges matters
+difficulty: 3
+pattern: exchange-argument
+topics: [greedy, coding, heaps]
+timeLimitMs: 15000
+prompt: |
+  Given a list of symbol frequencies, return the total encoded length of an
+  optimal binary prefix code — that is, $\sum_s f_s \cdot \mathrm{depth}(s)$
+  minimised over all prefix codes.
+
+  Equivalently, and more usefully for implementation: repeatedly combine two
+  frequencies into their sum, paying the sum each time, until one value remains.
+  Return the total paid.
+
+  ```
+  huffman_cost([5, 9, 12, 13, 16, 45])   # 224
+  huffman_cost([1, 1])                   # 2
+  huffman_cost([7])                      # 0
+  huffman_cost([])                       # 0
+  ```
+
+  Fewer than two symbols need no bits at all under this definition, so the cost
+  is 0.
+
+  The starter combines the first two remaining values on each step, in input
+  order. It gets 234 on the first example against an optimal 224, and it is
+  order-dependent: shuffle the input and the answer changes, which no cost
+  function of a set of frequencies is allowed to do.
+
+  Note what is *not* asked for: the tree, or the individual code lengths. Optimal
+  trees are not unique and neither are the depths when frequencies tie — but the
+  total is the same for every optimal tree, which is why it is the thing worth
+  testing.
+hints:
+  - "Which two values should be combined first? The answer is a statement about which symbols should end up deepest in the tree, and it is the opposite of what the starter does."
+  - "Always combine the two smallest remaining values. That needs a structure that returns the minimum and accepts an insertion cheaply — `heapq` gives you both in O(log n)."
+  - "`heapq.heapify(list(frequencies))`, then loop while more than one value remains: pop twice, add the sum to the running total, and push the sum back. Copy the input rather than heapifying the caller's list in place."
+solutionWalkthrough: |
+  ```python
+  import heapq
+
+  def huffman_cost(frequencies):
+      if len(frequencies) < 2:
+          return 0
+      heap = list(frequencies)
+      heapq.heapify(heap)
+      total = 0
+      while len(heap) > 1:
+          a = heapq.heappop(heap)
+          b = heapq.heappop(heap)
+          total += a + b
+          heapq.heappush(heap, a + b)
+      return total
+  ```
+
+  $\Theta(n \log n)$: one heapify plus $n-1$ merges, each two pops and a push.
+  `list(frequencies)` matters — `heapify` reorders in place, and a function that
+  silently rearranges its caller's data is a bug waiting for someone else to
+  find.
+
+  **Why the sum of merges is the encoded length.** Every merge creates an
+  internal node, and every symbol underneath it gains one level of depth. So a
+  symbol's frequency is paid once for each merge it participates in, which is
+  exactly its depth. Summing the merges and summing $f_s \cdot \mathrm{depth}(s)$
+  count the same thing in two orders.
+
+  **Why merging the two smallest is safe.** Because there is an optimal tree in
+  which they are siblings at maximum depth. The exchange argument: take any
+  optimal tree, find two sibling leaves at maximum depth, and swap the two
+  rarest symbols into those positions. The cost change is
+  $(f_a - f_x)(d(a) - d(x))$, and both factors are non-negative — $x$ is rarest,
+  $a$ is deepest — so the swap never increases the cost. That is the greedy-choice
+  property; the lesson's proof track pairs it with the substructure lemma that
+  lets the induction run.
+
+  **What the starter gets wrong.** Merging in input order is a valid way to build
+  *a* prefix code, so the answer is never too small — it is not minimal, and
+  it depends on how the caller happened to order the list. That is the tell for a
+  greedy rule with no exchange argument behind it: the answer moves when the
+  input is permuted, even though the question does not.

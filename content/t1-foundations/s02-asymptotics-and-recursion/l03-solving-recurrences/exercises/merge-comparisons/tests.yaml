@@ -1,0 +1,44 @@
+- id: pair
+  label: Two elements cost one comparison
+  code: |
+    assert merge_sort_count([2, 1]) == ([1, 2], 1)
+- id: four-sorted
+  label: Four sorted elements cost four comparisons
+  code: |
+    assert merge_sort_count([1, 2, 3, 4]) == ([1, 2, 3, 4], 4), merge_sort_count([1, 2, 3, 4])
+- id: eight-mixed
+  label: Eight mixed elements, with duplicates
+  code: |
+    got = merge_sort_count([3, 1, 4, 1, 5, 9, 2, 6])
+    assert got == ([1, 1, 2, 3, 4, 5, 6, 9], 15), got
+- id: trivial
+  label: Empty and single-element lists cost nothing
+  code: |
+    assert merge_sort_count([]) == ([], 0)
+    assert merge_sort_count([5]) == ([5], 0)
+- id: closed-form
+  label: 1024 sorted items cost exactly n*log2(n)/2 comparisons
+  code: |
+    got = merge_sort_count(list(range(1024)))
+    assert got[1] == 5120, got[1]
+    assert got[0] == list(range(1024))
+- id: odd-length
+  label: An odd length splits correctly
+  hidden: true
+  code: |
+    assert merge_sort_count([3, 1, 2]) == ([1, 2, 3], 3), merge_sort_count([3, 1, 2])
+- id: no-mutation
+  label: The caller's list is not modified
+  hidden: true
+  code: |
+    original = [5, 3, 8, 1]
+    merge_sort_count(original)
+    assert original == [5, 3, 8, 1], original
+- id: worst-case-bound
+  label: Comparisons stay within the n*log2(n) - n + 1 worst case
+  hidden: true
+  code: |
+    data = [(i * 37) % 512 for i in range(512)]
+    result, count = merge_sort_count(data)
+    assert result == sorted(data)
+    assert 512 * 4 <= count <= 512 * 9 - 512 + 1, count

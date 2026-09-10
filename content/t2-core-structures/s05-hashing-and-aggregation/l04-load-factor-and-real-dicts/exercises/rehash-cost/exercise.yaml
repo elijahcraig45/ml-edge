@@ -1,0 +1,77 @@
+id: rehash-cost
+kind: python
+title: Count what growing costs
+difficulty: 2
+pattern: amortized-analysis
+topics: [hashing, complexity]
+timeLimitMs: 15000
+prompt: |
+  Simulate the growth of a hash table and report what it cost.
+
+  `rehash_cost(n, capacity=8, growth=2)` inserts `n` distinct keys one at a
+  time and returns a tuple `(final_capacity, total_entries_copied)`.
+
+  The rule, exactly:
+
+  - Before each insert, if placing the key would take the table past two-thirds
+    full — that is, if `(live + 1) * 3 > capacity * 2` — the table is rehashed.
+  - A rehash multiplies the capacity by `growth` (truncated to an integer with
+    `int()`), repeating until the new capacity has room, and **copies every
+    live entry** into the new table.
+  - Then the key is inserted.
+
+  ```
+  rehash_cost(5)     # (8, 0)     nothing has filled up yet
+  rehash_cost(6)     # (16, 5)    the sixth insert rehashes and moves five
+  ```
+
+  You are counting *entries moved*, not rehashes. That number divided by `n` is
+  the amortized copy cost per insertion, and running the function with different
+  growth factors is the point of the exercise: it is the theory from this lesson
+  turned into an experiment you can run.
+hints:
+  - "Track two numbers as you go: how many entries are currently live, and how many entries have been copied in total so far."
+  - "The check happens *before* the insert, so at the moment of a rehash the number of entries to copy is the number already live — not `n`, and not the new count."
+  - "`int(capacity * growth)` with a fractional growth factor can leave the table still too small in principle, so multiply in a `while` loop until `(live + 1) * 3 <= capacity * 2` holds."
+solutionWalkthrough: |
+  ```python
+  def rehash_cost(n, capacity=8, growth=2):
+      live = 0
+      copied = 0
+      for _ in range(n):
+          if (live + 1) * 3 > capacity * 2:
+              while (live + 1) * 3 > capacity * 2:
+                  capacity = int(capacity * growth)
+              copied += live
+          live += 1
+      return capacity, copied
+  ```
+
+  Now use it. `rehash_cost(1000)` returns `(2048, 1356)`: a thousand insertions
+  moved 1,356 entries, so each key was copied 1.36 times on average across the
+  entire history of the table. The individual resizes copied 5, 10, 21, 42, 85,
+  170, 341 and 682 entries — and the last one alone accounts for half the total.
+  That is the geometric series doing its work: every resize before the final one
+  is, together, cheaper than the final one.
+
+  The comparison is where the lesson lives:
+
+  | growth | final capacity | entries copied | copies per key |
+  | --- | --- | --- | --- |
+  | 1.5 | 1531 | 2031 | 2.03 |
+  | 2 | 2048 | 1356 | 1.36 |
+  | 3 | 1944 | 645 | 0.65 |
+  | 4 | 2048 | 452 | 0.45 |
+
+  Each row sits under the bound $\frac{g}{g-1}$ from the lesson, and the
+  memory cost runs the other way: growing by 4 wastes up to three quarters of
+  the array right after a resize. The reason production code clusters around
+  1.5 and 2 rather than 4 is not the copying — it is that the freed block from
+  the previous allocation can be reused by a growth factor below the golden
+  ratio, and cannot be by a larger one.
+
+  The row worth remembering is not in the table. `rehash_cost(1000, 2048, 2)`
+  returns `(2048, 0)`. If you know how many entries you are about to insert,
+  saying so — `dict.fromkeys(...)`, a pre-sized map, `reserve()` — removes every
+  copy and every latency spike. Amortized $O(1)$ is what you settle for when
+  you do not know the size in advance.

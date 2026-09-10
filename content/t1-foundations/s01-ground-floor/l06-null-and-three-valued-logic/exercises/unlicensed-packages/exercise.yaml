@@ -1,0 +1,51 @@
+id: unlicensed-packages
+kind: sql
+title: Every package that is not MIT-licensed
+difficulty: 2
+datasetId: package-registry
+timeLimitMs: 15000
+prompt: |
+  Return every package that is **not** MIT-licensed — including packages that
+  never declared a license at all.
+
+  Return two columns named `name` and `license`, sorted by `name`.
+
+  The naive filter `WHERE license <> 'MIT'` silently drops the undeclared ones,
+  because the comparison is UNKNOWN rather than TRUE for those rows. Your query
+  must include them.
+hints:
+  - "Run `SELECT count(*) FROM packages WHERE license <> 'MIT'` and compare it to the total. The gap is the rows you are losing."
+  - "A row with a NULL license is not known to be MIT, so it belongs in the result. You need a second condition to let those rows through."
+  - "`WHERE license <> 'MIT' OR license IS NULL`. There is no way around naming the NULL case explicitly — that is the lesson."
+solutionWalkthrough: |
+  ```sql
+  SELECT name, license
+  FROM packages
+  WHERE license <> 'MIT' OR license IS NULL
+  ORDER BY name;
+  ```
+
+  The `OR license IS NULL` is not defensive padding — without it the query
+  answers a different question: "packages *known* not to be MIT", which is a
+  strictly smaller set.
+
+  Some engines let you write `WHERE license IS DISTINCT FROM 'MIT'`, which is
+  the NULL-safe inequality and expresses the intent in one operator. DuckDB
+  supports it, and it is worth knowing, but the explicit `OR ... IS NULL` form
+  is portable and — more usefully — it makes the NULL case visible to whoever
+  reads the query next.
+
+  The habit to take away: every time you filter on a nullable column with `<>`
+  or `NOT`, stop and decide what should happen to the unknown rows. Then write
+  that decision down in the query.
+
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 11
+      message: >-
+        Expected 11 rows: 20 packages, minus the 9 that are MIT-licensed. If you
+        got 7, the four packages with a NULL license were dropped by the
+        comparison — which is exactly the bug this exercise is about.

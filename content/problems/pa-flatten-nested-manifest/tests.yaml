@@ -1,0 +1,36 @@
+- id: basic
+  label: Flattens a mixed manifest
+  code: |
+    assert flatten_manifest(["a", ["b", ["c", "d"]], "e"]) == ["a", "b", "c", "d", "e"]
+- id: empty
+  label: An empty manifest flattens to nothing
+  code: |
+    assert flatten_manifest([]) == []
+- id: only-empty-groups
+  label: Groups containing nothing contribute nothing
+  code: |
+    assert flatten_manifest([[], [[]]]) == []
+- id: already-flat
+  label: A flat manifest comes back unchanged
+  code: |
+    assert flatten_manifest(["a", "b"]) == ["a", "b"]
+- id: strings-are-not-groups
+  label: A string is a name, not a group of characters
+  hidden: true
+  code: |
+    assert flatten_manifest(["ab", ["cd"]]) == ["ab", "cd"]
+    assert flatten_manifest([1, [2, None], [[3]]]) == [1, 2, None, 3]
+- id: input-untouched
+  label: The manifest itself is not modified
+  hidden: true
+  code: |
+    original = ["a", ["b", ["c"]]]
+    result = flatten_manifest(original)
+    assert result == ["a", "b", "c"]
+    assert original == ["a", ["b", ["c"]]], "the input must not be modified"
+    assert result is not original
+    deep = ["x"]
+    for _ in range(50):
+        deep = [deep, "y"]
+    assert flatten_manifest(deep)[0] == "x"
+    assert len(flatten_manifest(deep)) == 51

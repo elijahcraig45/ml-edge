@@ -1,0 +1,52 @@
+- id: store-and-fetch
+  label: Stores a value and returns it
+  code: |
+    m = ChainedMap(buckets=8)
+    m.put("arrowkit", 190)
+    m.put("bitmask", 61)
+    assert m.get("arrowkit") == 190
+    assert m.get("bitmask") == 61
+    assert len(m) == 2
+- id: missing-key
+  label: A missing key returns the default
+  code: |
+    m = ChainedMap(buckets=8)
+    m.put("arrowkit", 190)
+    assert m.get("nothing") is None
+    assert m.get("nothing", 0) == 0
+- id: overwrite
+  label: Re-putting a key replaces the value without growing the map
+  code: |
+    m = ChainedMap(buckets=8)
+    m.put("arrowkit", 190)
+    m.put("arrowkit", 200)
+    assert m.get("arrowkit") == 200
+    assert len(m) == 1
+- id: collisions
+  label: Keys that share a slot are all retrievable
+  code: |
+    m = ChainedMap(buckets=1)          # everything collides
+    for i, name in enumerate(["a", "b", "c", "d"]):
+        m.put(name, i)
+    assert len(m) == 4
+    assert [m.get(n) for n in "abcd"] == [0, 1, 2, 3]
+- id: none-is-a-value
+  label: A stored None is not the same as a missing key
+  hidden: true
+  code: |
+    m = ChainedMap(buckets=4)
+    m.put("dagrun", None)
+    assert m.get("dagrun", "MISSING") is None
+    assert m.get("absent", "MISSING") == "MISSING"
+- id: equality-not-identity
+  label: Equal keys are the same key even when they are different objects
+  hidden: true
+  code: |
+    m = ChainedMap(buckets=4)
+    m.put((1, 2), "arrowkit")
+    assert m.get((1, 2)) == "arrowkit"     # a freshly built, equal tuple
+    # 1 and 5 collide in a 4-slot table but are different keys.
+    m.put(1, "one")
+    m.put(5, "five")
+    assert m.get(1) == "one" and m.get(5) == "five"
+    assert len(m) == 3

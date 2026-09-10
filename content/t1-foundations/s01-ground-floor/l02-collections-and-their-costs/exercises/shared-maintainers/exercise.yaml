@@ -1,0 +1,68 @@
+id: shared-maintainers
+kind: python
+title: Find shared maintainers without the quadratic loop
+difficulty: 2
+pattern: hash-set-lookup
+timeLimitMs: 25000
+prompt: |
+  Two packages each have a list of maintainer handles. Return the handles that
+  maintain **both**, in the order they appear in `handles_a`.
+
+  ```
+  shared_maintainers(["ada", "grace", "linus"], ["linus", "ada"])
+  # ["ada", "linus"]
+  ```
+
+  Duplicates in `handles_a` should appear only once in the result.
+
+  **This one has a complexity budget.** The hidden performance check runs your
+  function against two 20,000-name lists. A solution that searches `handles_b`
+  once per name in `handles_a` will exceed the budget and fail, even though it
+  returns the right answer.
+hints:
+  - "Scanning `handles_b` for every name in `handles_a` gives the right answer but does len(a) × len(b) work. What could you build once, before the loop, that makes each check instant?"
+  - "`set(handles_b)` costs one pass and then answers every membership question without scanning."
+  - "You also need to suppress duplicates from `handles_a`. Keep a second set of what you have already emitted — do not use `if name not in result` on a list, because that reintroduces the scan you just removed."
+solutionWalkthrough: |
+  Two sets, one pass:
+
+  ```python
+  def shared_maintainers(handles_a, handles_b):
+      in_b = set(handles_b)
+      emitted = set()
+      result = []
+      for handle in handles_a:
+          if handle in in_b and handle not in emitted:
+              result.append(handle)
+              emitted.add(handle)
+      return result
+  ```
+
+  The detail that catches people is `emitted`. Writing `if handle not in result`
+  looks tidier and is a list scan — it quietly restores the quadratic behaviour
+  you removed one line earlier. Keeping a set alongside the list is the standard
+  shape for "preserve order, but only the first occurrence."
+
+  Total work is now proportional to `len(a) + len(b)` rather than their product.
+
+# Enforces the stated complexity claim. A quadratic solution returns the right
+# answer, so only a budget can reject it.
+#
+# Measured in wall-clock, not line events: `handle in handles_b` loops inside
+# CPython's C implementation of list.__contains__, which emits no Python line
+# events at all — an operation counter is blind to exactly the cost this
+# exercise is about.
+complexityBudget:
+  setup: |
+    data_a = ["pkg-%d" % i for i in range(20000)]
+    data_b = ["pkg-%d" % i for i in range(10000, 30000)]
+  call: |
+    shared_maintainers(data_a, data_b)
+  # Measured: the set-based solution takes ~2ms here, the nested scan ~1200ms.
+  # 400ms sits two orders of magnitude above one and three times below the
+  # other, so it separates them even on a slow runner or under Pyodide.
+  maxMs: 400
+  message: >-
+    Correct, but too slow: this searched handles_b once per name in handles_a,
+    so the work grows with the product of the two list lengths. Build a set from
+    handles_b before the loop so each check is instant.

@@ -1,0 +1,77 @@
+id: heavy-hitters
+kind: sql
+title: The exact heavy hitters
+difficulty: 3
+datasetId: package-registry
+pattern: frequency-sketch
+topics: [heavy-hitters, aggregation]
+timeLimitMs: 15000
+prompt: |
+  A **$\varphi$-heavy hitter** is a key whose count exceeds $\varphi N$, where
+  $N$ is the total. Compute them exactly, so you know what a sketch would be
+  approximating.
+
+  With $\varphi = 0.05$, return the packages whose total downloads are **more
+  than 5%** of all downloads in the table. Three columns:
+
+  - `name`
+  - `total_downloads` — the package's summed `downloads.count`
+  - `share_pct` — its percentage of the grand total, rounded to 2 decimal places
+
+  Sorted by `total_downloads`, largest first.
+
+  Write `d."count"` — `count` is a column here and also a function name.
+
+  The distribution is Zipf-skewed on purpose, so the answer is short. That
+  shortness is the reason heavy-hitter algorithms exist: a structure that
+  tracks $1/\varphi$ candidates is enough, whatever the number of keys.
+hints:
+  - "You need the grand total twice — once to filter and once to compute the share. A scalar subquery `(SELECT sum(\"count\") FROM downloads)` can appear in both places."
+  - "Filtering on an aggregate is `HAVING`, not `WHERE`. `WHERE` runs before the grouping and cannot see `sum(...)`."
+  - "`round(100.0 * sum(d.\"count\") / total, 2)` for the share. Multiply by 100.0 rather than 100 so the division is not truncated."
+solutionWalkthrough: |
+  ```sql
+  SELECT
+    p.name,
+    sum(d."count") AS total_downloads,
+    round(100.0 * sum(d."count") / (SELECT sum("count") FROM downloads), 2) AS share_pct
+  FROM downloads d
+  JOIN packages p ON p.id = d.package_id
+  GROUP BY p.name
+  HAVING sum(d."count") > 0.05 * (SELECT sum("count") FROM downloads)
+  ORDER BY total_downloads DESC;
+  ```
+
+  Five packages clear 5%, and `arrowkit` alone takes 25.29% of 363,840
+  downloads. Everything from rank six down is under 5% and falls off a cliff
+  from there — the registry's download counts are `9000 / package_id` plus
+  noise, which is a Zipf distribution by construction and by accident the same
+  shape as almost every real popularity distribution.
+
+  What this query costs is the point of comparison. `GROUP BY` builds a hash
+  table with one entry per distinct package, and `HAVING` cannot run until the
+  last row has been read — so memory is O(distinct keys) and the answer arrives
+  only at the end. That is fine for twenty packages and impossible for a
+  billion URLs.
+
+  Count-Min replaces the hash table with a fixed-size array and answers
+  continuously. What you give up is exactness at the threshold: a key just under
+  $\varphi N$ can be reported as just over, because the sketch over-counts. What
+  you never give up is the other direction — a genuine heavy hitter cannot be
+  estimated *below* its true count, so it cannot be missed.
+
+grading:
+  compare: ordered
+  columnMatch: byName
+  require:
+    - type: rowcount
+      equals: 5
+      message: >-
+        Expected 5 packages above the 5% threshold. If you got 20, the HAVING
+        clause is missing; if you got 2, you filtered at 10% rather than 5%.
+    - type: predicate
+      sql: "SELECT min(share_pct) > 5.0 AND max(share_pct) < 26.0 FROM __learner"
+      message: >-
+        Every returned package must have a share strictly above 5%, and the
+        largest share in this dataset is about 25.3% — check the denominator is
+        the grand total rather than a per-group value.

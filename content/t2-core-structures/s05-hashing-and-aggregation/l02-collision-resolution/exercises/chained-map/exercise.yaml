@@ -1,0 +1,94 @@
+id: chained-map
+kind: python
+title: A hash map with separate chaining
+difficulty: 3
+pattern: hash-table
+topics: [hashing, data-structures]
+timeLimitMs: 15000
+prompt: |
+  Build `ChainedMap`, a hash map that resolves collisions by keeping a list per
+  slot.
+
+  ```
+  m = ChainedMap(buckets=8)
+  m.put("arrowkit", 190)
+  m.get("arrowkit")        # 190
+  m.get("nothing")         # None
+  m.get("nothing", 0)      # 0
+  len(m)                   # 1
+  ```
+
+  Three methods:
+
+  - `put(key, value)` — insert, or replace the value if the key is already
+    present. Replacing must not change `len(m)`.
+  - `get(key, default=None)` — the stored value, or `default` if the key is
+    absent.
+  - `__len__()` — the number of distinct keys held.
+
+  Use `hash(key) % buckets` to pick the slot. Keys are compared with `==`, not
+  with `is` — two equal tuples built separately are the same key.
+
+  **You may not use a dict or a set anywhere.** That includes `{}`, `dict(`,
+  `set(`, `defaultdict` and `Counter`. Lists only; the point is to build the
+  thing those types are made of.
+hints:
+  - "A slot is not a single entry any more. What container does each slot hold, and what does it hold pairs of?"
+  - "`self.slots = [[] for _ in range(buckets)]`. Note that `[[]] * buckets` gives you the same list eight times — a classic way to lose all your data."
+  - "`put` has to scan its chain before appending. If the key is already there, overwrite in place and return without touching the size counter; only append — and increment — when the scan finds nothing."
+solutionWalkthrough: |
+  ```python
+  class ChainedMap:
+      def __init__(self, buckets=8):
+          self.slots = [[] for _ in range(buckets)]
+          self.size = 0
+
+      def _chain(self, key):
+          return self.slots[hash(key) % len(self.slots)]
+
+      def put(self, key, value):
+          chain = self._chain(key)
+          for pair in chain:
+              if pair[0] == key:
+                  pair[1] = value
+                  return
+          chain.append([key, value])
+          self.size += 1
+
+      def get(self, key, default=None):
+          for pair in self._chain(key):
+              if pair[0] == key:
+                  return pair[1]
+          return default
+
+      def __len__(self):
+          return self.size
+  ```
+
+  The scan inside `put` is the part people leave out, and leaving it out does
+  not raise — it appends a second pair with the same key, `get` finds the older
+  one first, and the map silently returns a stale value forever. A hash map's
+  contract is that a key appears at most once; the chain does not enforce that
+  for you.
+
+  Storing pairs as lists rather than tuples is what lets `pair[1] = value`
+  update in place. With tuples you would rebuild the entry, which is fine and
+  costs one allocation.
+
+  Notice how little there is to it. That is chaining's real selling point: the
+  invariant is "every key with this hash is somewhere in this list", which is so
+  weak that almost nothing can violate it. Deletion is `chain.remove(pair)` and
+  changes nothing else. The next lesson takes that same operation in an
+  open-addressed table and shows why it takes a page to get right.
+
+  What you gave up: every entry is a separate list object with its own
+  allocation and its own cache line. At eight entries per chain the pointer
+  chasing costs more than the comparisons do. Real implementations that keep
+  chaining — Java's `HashMap`, Go's map — mitigate it by packing several entries
+  per node rather than one.
+forbid:
+  - "dict("
+  - "{}"
+  - "set("
+  - defaultdict
+  - Counter

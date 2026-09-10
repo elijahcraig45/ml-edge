@@ -1,0 +1,86 @@
+id: fewest-blocks
+kind: python
+title: Fewest blocks, fast enough to use
+difficulty: 2
+pattern: top-down-memoization
+topics: [recursion, memoization, tabulation]
+timeLimitMs: 25000
+prompt: |
+  Fill a payload of exactly `target` kilobytes using block sizes from `sizes`,
+  reusing sizes freely, in as few blocks as possible.
+
+  Return the number of blocks, or `-1` when no combination sums to exactly
+  `target`.
+
+  ```
+  fewest_blocks(12, (1, 3, 4))   # 3   -> 4 + 4 + 4
+  fewest_blocks(6,  (1, 3, 4))   # 2   -> 3 + 3
+  fewest_blocks(7,  (5,))        # -1  -> nothing sums to 7
+  fewest_blocks(0,  (1, 3, 4))   # 0
+  ```
+
+  The starter is the naive recursion from the lesson. It is already correct, so
+  every visible test passes — and it will still fail this exercise.
+
+  **There is a complexity budget.** The hidden performance check asks for a
+  target of 58 with sizes `(3, 4, 5)`. The naive recursion takes about two
+  seconds on that; a version that never solves the same subproblem twice takes
+  well under a millisecond. Anything in between is you doing something
+  interesting, and the budget will tell you which side of the line it landed on.
+
+  Memoized recursion and a bottom-up table both pass. Pick either.
+hints:
+  - "Run the starter on target 40 and then 50 and time it. The jump tells you the work is exponential in the target, which means the same subproblem is being re-derived — the census exercise measured exactly how often."
+  - "The only argument that varies between calls is the target. That makes it the whole memo key: a dict from target to answer, or an array indexed by target."
+  - "If you tabulate: `best[0] = 0`, everything else starts at infinity, and `best[t] = min(best[t - s] + 1)` over the sizes with `s <= t`. Every dependency has a smaller index, so one forward pass in increasing `t` is enough. Convert infinity to `-1` at the very end, not during the loop, or the arithmetic stops working."
+solutionWalkthrough: |
+  ```python
+  def fewest_blocks(target, sizes):
+      INF = float("inf")
+      best = [INF] * (target + 1)
+      best[0] = 0
+      for t in range(1, target + 1):
+          for s in sizes:
+              if s <= t and best[t - s] + 1 < best[t]:
+                  best[t] = best[t - s] + 1
+      return -1 if best[target] == INF else best[target]
+  ```
+
+  Bottom-up here, for two reasons that are worth separating.
+
+  The first is mechanical: the recurrence reads `best[t - s]` with `s > 0`, so
+  dependencies always sit at a smaller index and a single increasing loop puts
+  every value in place before it is needed. When you can spot that ordering, you
+  do not need the call stack.
+
+  The second is about the sentinel. Keeping infinity in the table until the last
+  line means `best[t - s] + 1` stays arithmetic — infinity plus one is still
+  infinity, and it loses every comparison. If you convert unreachable states to
+  `-1` inside the loop, `-1 + 1` is `0`, which is smaller than every real
+  answer, and the table quietly fills with nonsense. This is the standard way
+  people break a coin-change DP, and it survives every small test because small
+  targets are usually all reachable.
+
+  The memoized version is equally correct and is the better choice when the
+  target is enormous and the sizes are large — a target of ten million with
+  sizes `(1_000_003, 2_000_011)` reaches only a handful of states, and the table
+  would allocate ten million cells to hold almost nothing. That is the sparse
+  case from the lesson, and it is the one situation where top-down wins on
+  asymptotics rather than on taste.
+
+# Measured with CPython 3.13 on the authoring machine:
+#   naive recursion, target 58, sizes (3, 4, 5): ~2100 ms
+#   bottom-up table, same input:                 ~0.04 ms
+# 400 ms sits ~5x below the naive solution and ~10,000x above the table, which
+# keeps the separation intact under Pyodide and on a loaded CI runner.
+complexityBudget:
+  setup: |
+    big_target = 58
+    big_sizes = (3, 4, 5)
+  call: |
+    fewest_blocks(big_target, big_sizes)
+  maxMs: 400
+  message: >-
+    Correct, but exponential: this re-derives the same subproblems over and
+    over. The only argument that changes between calls is the target, so cache
+    on it — a dict in the recursive version, or an array filled bottom-up.

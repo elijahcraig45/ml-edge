@@ -1,0 +1,65 @@
+- id: basic-invariant
+  label: Establishes the partition invariant and returns the pivot index
+  code: |
+    data = [9, 3, 7, 1, 8, 2, 5]
+    k = partition(data, 0, 6)
+    assert data[k] == 5
+    assert all(v <= 5 for v in data[:k]), data
+    assert all(v >= 5 for v in data[k + 1:]), data
+    from collections import Counter
+    assert Counter(data) == Counter([9, 3, 7, 1, 8, 2, 5])
+- id: pivot-is-smallest
+  label: A minimum pivot lands at lo with everything to its right
+  code: |
+    data = [5, 9, 7, 1]
+    k = partition(data, 0, 3)
+    assert k == 0
+    assert data[0] == 1
+    assert all(v >= 1 for v in data[1:])
+- id: pivot-is-largest
+  label: A maximum pivot lands at hi
+  code: |
+    data = [5, 1, 7, 9]
+    k = partition(data, 0, 3)
+    assert k == 3
+    assert data[3] == 9
+- id: subrange-only
+  label: Elements outside lo..hi are left alone
+  code: |
+    data = [100, 101, 9, 3, 7, 1, 5, 200]
+    before_head, before_tail = data[:2], data[7:]
+    k = partition(data, 2, 6)
+    assert data[:2] == before_head
+    assert data[7:] == before_tail
+    assert 2 <= k <= 6
+    assert data[k] == 5
+    assert all(v <= 5 for v in data[2:k])
+    assert all(v >= 5 for v in data[k + 1:7])
+- id: single-element
+  label: A one-element range returns lo
+  code: |
+    data = [42]
+    assert partition(data, 0, 0) == 0
+    assert data == [42]
+- id: all-equal
+  label: All-equal input still satisfies the invariant
+  hidden: true
+  code: |
+    data = [7, 7, 7, 7, 7]
+    k = partition(data, 0, 4)
+    assert 0 <= k <= 4
+    assert data == [7, 7, 7, 7, 7]
+    assert all(v <= 7 for v in data[:k])
+    assert all(v >= 7 for v in data[k + 1:])
+- id: in-place-and-multiset
+  label: Mutates the caller's list and preserves every value
+  hidden: true
+  code: |
+    from collections import Counter
+    data = [4, 4, 1, 9, 2, 9, 3]
+    same_object = data
+    before = Counter(data)
+    k = partition(data, 0, 6)
+    assert same_object is data, "partition must rearrange the list it was given"
+    assert Counter(data) == before, "no value may be added, dropped or duplicated"
+    assert data[k] == 3
